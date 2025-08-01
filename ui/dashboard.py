@@ -4,6 +4,37 @@ import streamlit as st
 import matplotlib.pyplot as plt
 from streamlit_autorefresh import st_autorefresh
 
+import streamlit_authenticator as stauth
+
+# Pre-hashed credentials (generated via stauth.Hasher)
+
+import yaml
+
+# Load config from .yaml
+with open("config.yaml") as file:
+    config = yaml.safe_load(file)
+
+credentials = config['credentials']
+cookie_config = config['cookie']
+
+authenticator = stauth.Authenticate(
+    credentials,
+    cookie_config['name'],
+    cookie_config['key'],
+    cookie_expiry_days=cookie_config['expiry_days']
+)
+
+name, authentication_status, username = authenticator.login("Login", "main")
+
+if authentication_status is False:
+    st.error("Invalid username or password")
+elif authentication_status is None:
+    st.warning("Please enter your username and password")
+elif authentication_status:
+    authenticator.logout("Logout", "sidebar")
+    st.sidebar.success(f"Welcome, {name}!")
+
+
 # Add project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 

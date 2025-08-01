@@ -13,3 +13,4 @@ def log_trade(timestamp, symbol, action, price, rsi):
         if not file_exists:
             writer.writerow(["timestamp", "symbol", "action", "price", "RSI"])
         writer.writerow([timestamp, symbol, action, price, rsi])
+

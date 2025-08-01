@@ -2,6 +2,8 @@ import sys
 import os
 import pandas as pd
 
+SIMULATE = True  # 🔁 Set to False to go live
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from data.market_data import (

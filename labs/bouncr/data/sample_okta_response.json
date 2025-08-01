@@ -1,0 +1,19 @@
+[
+    {
+      "user_id": "u123",
+      "user_email": "alex@acme.com",
+      "group": "engineering",
+      "app": "GitHub",
+      "last_login": "2024-05-01T09:30:00",
+      "is_privileged": true
+    },
+    {
+      "user_id": "u456",
+      "user_email": "sam@acme.com",
+      "group": "marketing",
+      "app": "Figma",
+      "last_login": "2024-07-25T10:15:00",
+      "is_privileged": false
+    }
+  ]
+  

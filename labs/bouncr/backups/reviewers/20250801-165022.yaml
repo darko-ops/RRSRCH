@@ -1,0 +1,11 @@
+# reviewers.yaml
+
+reviewers:
+  apps:
+    Salesforce: john@company.com
+    Github: alice@company.com
+  groups:
+    engineering: eng-lead@company.com
+    finance: cfo@company.com
+  users:
+    vipuser@company.com: ceo@company.com

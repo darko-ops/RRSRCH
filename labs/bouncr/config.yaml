@@ -1,0 +1,31 @@
+# apps/bouncr/config.yaml
+
+mcp:
+  ttl_days: 90
+  ignore_groups:
+    - contractors
+    - interns
+  risky_roles:
+    - Admin
+    - SuperUser
+    - DevOps
+    - Security
+    - IAM
+  ignore_apps:
+    - Zoom
+    - Slack
+    - Microsoft Teams
+    - Microsoft 365
+    - Microsoft Azure
+    - Microsoft Intune
+    - Microsoft Power BI
+    - Microsoft Power Automate
+    - Microsoft Power Point
+  review_thresholds:
+    inactivity_days: 45
+    orphaned_account: true
+  backup_cadence: daily  # Options: daily, weekly, monthly, 6months, annual
+  notify:
+    method: slack
+    retry_limit: 3
+    escalate_after_days: 5

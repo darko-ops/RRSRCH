@@ -1,0 +1,16 @@
+credentials:
+  usernames:
+    demetri:
+      name: Demetri Hodges
+      password: "$2b$12$1Wd9th..u/fG.8yHk4hNGuHDyidIUpAMe5D5.2HKxV/VB5KLGrKFS"  # pass123
+    admin:
+      name: Admin
+      password: "$2b$12$yT6tYgTD6rCmuZgk8uNpj.KyAlOm15BbeD9IxoHeRB9lt3llWeOfe"  # adminpass
+
+cookie:
+  name: rrsrch_dashboard
+  key: abcdef
+  expiry_days: 1
+
+trading:
+  dry_run: true
