@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   User, 
   Shield, 
@@ -10,57 +11,74 @@ import {
   XCircle, 
   Clock,
   LogOut,
-  Save,
-  Plus,
-  Trash2,
   AlertTriangle,
-  Database,
-  FileText,
-  Lock,
   Filter
 } from 'lucide-react';
 
 // Mock data
 const mockUsers = [
   { id: 1, email: 'alex@acme.com', app: 'GitHub', group: 'engineering', lastLogin: '2024-05-01', status: 'pending', reasons: 'Inactive for more than 45 days' },
-  { id: 2, email: 'sam@acme.com', app: 'Figma', group: 'marketing', lastLogin: '2024-07-25', status: 'approved', reasons: 'Privileged role: Admin' },
+  { id: 2, email: 'sam@acme.com', app: 'GitHub', group: 'marketing', lastLogin: '2024-07-25', status: 'approved', reasons: 'Privileged role: Admin' },
   { id: 3, email: 'jane@acme.com', app: 'Salesforce', group: 'sales', lastLogin: '2024-03-15', status: 'pending', reasons: 'Inactive for more than 45 days; Privileged role' },
   { id: 4, email: 'mike@acme.com', app: 'Slack', group: 'engineering', lastLogin: '2024-07-20', status: 'rejected', reasons: 'Orphaned account' },
   { id: 5, email: 'sarah@acme.com', app: 'Jira', group: 'product', lastLogin: '2024-06-10', status: 'pending', reasons: 'Privileged role: DevOps' },
+  { id: 6, email: 'emma@acme.com', app: 'Asana', group: 'product', lastLogin: '2024-06-01', status: 'pending', reasons: 'Inactive for more than 45 days' },
+  { id: 7, email: 'dan@acme.com', app: 'Notion', group: 'marketing', lastLogin: '2024-07-22', status: 'approved', reasons: 'Normal activity' },
+  { id: 8, email: 'lisa@acme.com', app: 'Salesforce', group: 'sales', lastLogin: '2024-06-05', status: 'approved', reasons: 'Privileged role: Sales Manager' },
+  { id: 9, email: 'steve@acme.com', app: 'GitHub', group: 'engineering', lastLogin: '2024-05-15', status: 'pending', reasons: 'Stale reviewer assignment' },
+  { id: 10, email: 'brenda@acme.com', app: 'Slack', group: 'support', lastLogin: '2024-07-10', status: 'approved', reasons: 'Standard user' },
+  { id: 11, email: 'raj@acme.com', app: 'Datadog', group: 'devops', lastLogin: '2024-04-18', status: 'pending', reasons: 'Orphaned account' },
+  { id: 12, email: 'nina@acme.com', app: 'GitHub', group: 'design', lastLogin: '2024-07-30', status: 'approved', reasons: 'Privileged role: Design Lead' },
+  { id: 13, email: 'omar@acme.com', app: 'Jira', group: 'qa', lastLogin: '2024-07-01', status: 'pending', reasons: 'Privileged role: Test Admin' },
+  { id: 14, email: 'claire@acme.com', app: 'Salesforce', group: 'finance', lastLogin: '2024-07-15', status: 'approved', reasons: 'Normal usage' },
+  { id: 15, email: 'kevin@acme.com', app: 'Confluence', group: 'product', lastLogin: '2024-06-18', status: 'pending', reasons: 'Privileged role' },
+  { id: 16, email: 'george@acme.com', app: 'Slack', group: 'legal', lastLogin: '2024-05-30', status: 'rejected', reasons: 'Inactive for more than 60 days' },
+  { id: 17, email: 'irene@acme.com', app: 'Okta', group: 'security', lastLogin: '2024-07-29', status: 'approved', reasons: 'Privileged role: IAM Admin' },
+  { id: 18, email: 'leo@acme.com', app: 'Zoom', group: 'operations', lastLogin: '2024-07-19', status: 'pending', reasons: 'Privileged role: Scheduler' },
+  { id: 19, email: 'ella@acme.com', app: 'GitHub', group: 'engineering', lastLogin: '2024-06-28', status: 'approved', reasons: 'Standard usage' },
+  { id: 20, email: 'mark@acme.com', app: 'Salesforce', group: 'sales', lastLogin: '2024-03-01', status: 'rejected', reasons: 'Privileged role; Inactive for more than 90 days' },
 ];
 
-const mockConfig = {
-  ttl_days: 90,
-  inactivity_days: 45,
-  backup_cadence: 'monthly',
-  orphaned_account: true,
-  ignore_groups: ['contractors', 'interns'],
-  risky_roles: ['Admin', 'SuperUser', 'DevOps', 'Security'],
-  ignore_apps: ['Zoom', 'Slack', 'Microsoft Teams'],
-  notify_method: 'slack',
-  retry_limit: 3,
-  escalate_days: 5
-};
 
 const mockReviewers = {
-  apps: { 
-    'Salesforce': 'john@company.com', 
+  apps: {
     'GitHub': 'alice@company.com',
-    'Jira': 'eng-lead@company.com'
+    'Jira': 'eng-lead@company.com',
+    'Salesforce': 'john@company.com',
+    'Slack': 'ops-lead@company.com',
+    'Okta': 'sec-lead@company.com',
+    'Figma': 'design-head@company.com',
+    'Confluence': 'product-head@company.com',
+    'Zoom': 'ops-coordinator@company.com',
+    'Asana': 'pm-lead@company.com',
+    'Notion': 'marketing-lead@company.com',
   },
-  groups: { 
-    'engineering': 'eng-lead@company.com', 
+  groups: {
+    'engineering': 'alice@company.com',
+    'product': 'product-head@company.com',
+    'marketing': 'marketing-lead@company.com',
+    'sales': 'john@company.com',
+    'support': 'ops-lead@company.com',
+    'devops': 'eng-lead@company.com',
+    'design': 'design-head@company.com',
+    'qa': 'qa-lead@company.com',
     'finance': 'cfo@company.com',
-    'marketing': 'marketing-lead@company.com'
+    'security': 'sec-lead@company.com',
+    'legal': 'compliance@company.com',
+    'operations': 'ops-coordinator@company.com',
   },
-  users: { 
-    'vipuser@company.com': 'ceo@company.com',
-    'alex@acme.com': 'eng-lead@company.com' 
+  users: {
+    'alex@acme.com': 'alice@company.com',
+    'jane@acme.com': 'john@company.com',
+    'sarah@acme.com': 'eng-lead@company.com',
+    'emma@acme.com': 'pm-lead@company.com',
+    'irene@acme.com': 'sec-lead@company.com',
   }
 };
 
+
 // Authentication Hook
-const useAuth = () => {
+function useAuth() {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -72,7 +90,7 @@ const useAuth = () => {
     setIsLoading(false);
   }, []);
 
-  const login = (username, password) => {
+  function login(username, password) {
     const users = {
       admin: { password: 'admin123', role: 'admin', permissions: ['all'] },
       alice: { password: 'alice123', role: 'reviewer', permissions: ['view_audit', 'manage_reviews'] },
@@ -96,22 +114,388 @@ const useAuth = () => {
       return true;
     }
     return false;
-  };
+  }
 
-  const logout = () => {
+  function logout() {
     setUser(null);
     localStorage.removeItem('bouncr_user');
-  };
+    window.location.reload();
+  }
 
-  const hasPermission = (permission) => {
+  function hasPermission(permission) {
     return user?.permissions?.includes('all') || user?.permissions?.includes(permission);
-  };
+  }
 
   return { user, login, logout, hasPermission, isLoading };
-};
+}
 
-// Login Component
-const LoginForm = ({ onLogin }) => {
+// Access Constellation Map Component
+function AccessConstellationMap({ 
+  data, 
+  viewFilter = 'all',
+  onMetricsUpdate = () => {},
+  onUserClick = () => {},
+  hideViewSelector = false
+}) {
+  const containerRef = useRef();
+  const [showConnections, setShowConnections] = useState(true);
+  const [currentView, setCurrentView] = useState(viewFilter);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [hoveredUser, setHoveredUser] = useState(null);
+
+  function transformDataForConstellation(rawData) {
+    const groupedData = {};
+    
+    rawData
+      .filter(item => item.status !== 'rejected')
+      .forEach(item => {
+        if (!groupedData[item.group]) {
+          groupedData[item.group] = {
+            name: item.group,
+            color: getGroupColor(item.group),
+            users: []
+          };
+        }
+        
+        let user = groupedData[item.group].users.find(u => u.email === item.email);
+        if (!user) {
+          user = {
+            id: item.id,
+            name: item.email.split('@')[0],
+            role: determineRole(item),
+            accessLevel: getAccessLevel(item),
+            usage: Math.floor(Math.random() * 100),
+            email: item.email,
+            lastLogin: item.lastLogin,
+            apps: [],
+            alert: item.status === 'pending',
+            status: item.status,
+            reasons: item.reasons,
+            standingColor: getStandingColor(item)
+          };
+          groupedData[item.group].users.push(user);
+        }
+        
+        if (!user.apps.includes(item.app)) {
+          user.apps.push(item.app);
+        }
+      });
+    
+    return { groups: Object.values(groupedData) };
+  }
+
+  function getStandingColor(item) {
+    if (item.status === 'pending') return '#ff6b6b';
+    if (item.reasons.includes('Privileged') || item.reasons.includes('Admin')) return '#ffe066';
+    return '#4ecdc4';
+  }
+
+  function getGroupColor(groupName) {
+    const colors = {
+      "engineering": "#ff6b6b",
+      "marketing": "#ffe066",
+      "sales": "#4ecdc4",
+      "product": "#a55eea",
+      "finance": "#26de81"
+    };
+    return colors[groupName.toLowerCase()] || "#64c8ff";
+  }
+
+  function determineRole(item) {
+    if (item.reasons.includes('Privileged role')) {
+      return item.reasons.includes('Admin') ? 'Admin' : 'Group Leader';
+    }
+    return 'Member';
+  }
+
+  function getAccessLevel(item) {
+    if (item.status === 'approved' && !item.reasons.includes('Privileged')) return 4;
+    if (item.status === 'approved' && item.reasons.includes('Privileged')) return 3;
+    if (item.status === 'pending' && !item.reasons.includes('Privileged')) return 2;
+    return 1;
+  }
+
+  function getFilteredData() {
+    const sourceData = transformDataForConstellation(data);
+    if (currentView === 'all') return sourceData;
+    
+    return {
+      groups: sourceData.groups.filter(g => 
+        g.name.toLowerCase() === currentView.toLowerCase()
+      )
+    };
+  }
+
+  function calculateMetrics(filteredData) {
+    const totalUsers = filteredData.groups.reduce((sum, group) => sum + group.users.length, 0);
+    const pendingUsers = filteredData.groups.reduce((sum, group) => 
+      sum + group.users.filter(u => u.alert).length, 0
+    );
+    const riskyUsers = filteredData.groups.reduce((sum, group) => 
+      sum + group.users.filter(u => u.reasons.includes('Privileged') || u.reasons.includes('Admin')).length, 0
+    );
+
+    onMetricsUpdate({
+      totalMembers: totalUsers,
+      pending: pendingUsers,
+      risks: riskyUsers
+    });
+  }
+
+  function getUserPosition(user, groupIndex, userIndex, totalGroups) {
+    const groupAngle = (groupIndex / totalGroups) * 2 * Math.PI;
+    const groupRadius = 150;
+    const centerX = 400;
+    const centerY = 300;
+    
+    const groupCenterX = centerX + Math.cos(groupAngle) * groupRadius;
+    const groupCenterY = centerY + Math.sin(groupAngle) * groupRadius;
+    
+    // Use consistent positioning - removed random for stable positions
+    const userAngle = (userIndex / Math.max(4, userIndex + 1)) * 2 * Math.PI;
+    const userRadius = (user.accessLevel / 4) * 80;
+    
+    return {
+      x: groupCenterX + Math.cos(userAngle) * userRadius,
+      y: groupCenterY + Math.sin(userAngle) * userRadius
+    };
+  }
+
+  function handleUserClick(user, group) {
+    setSelectedUser(user);
+    onUserClick(user, group);
+  }
+
+  function simulateReview() {
+    alert('Simulated review completion - some pending items would be resolved');
+  }
+
+  useEffect(() => {
+    const filteredData = getFilteredData();
+    calculateMetrics(filteredData);
+    drawConstellation(filteredData);
+  }, [currentView, showConnections, data]);
+
+  function drawConstellation(filteredData) {
+    if (!containerRef.current) return;
+    
+    containerRef.current.innerHTML = '';
+    
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("width", "100%");
+    svg.setAttribute("height", "500");
+    svg.setAttribute("viewBox", "0 0 800 500");
+    svg.style.background = "radial-gradient(circle at center, #1a1f3a 0%, #0a0e1a 100%)";
+    
+    // Add stars
+    for (let i = 0; i < 30; i++) {
+      const star = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      star.setAttribute("cx", Math.random() * 800);
+      star.setAttribute("cy", Math.random() * 500);
+      star.setAttribute("r", Math.random() * 1.5);
+      star.setAttribute("fill", "rgba(255, 255, 255, 0.3)");
+      svg.appendChild(star);
+    }
+    
+    filteredData.groups.forEach((group, groupIndex) => {
+      const groupBoundary = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      const groupPos = getUserPosition({accessLevel: 0}, groupIndex, 0, filteredData.groups.length);
+      groupBoundary.setAttribute("cx", groupPos.x);
+      groupBoundary.setAttribute("cy", groupPos.y);
+      groupBoundary.setAttribute("r", "100");
+      groupBoundary.setAttribute("fill", "rgba(100, 200, 255, 0.05)");
+      groupBoundary.setAttribute("stroke", group.color);
+      groupBoundary.setAttribute("stroke-width", "2");
+      groupBoundary.setAttribute("stroke-dasharray", "3,3");
+      svg.appendChild(groupBoundary);
+      
+      // Access rings
+      for (let ring = 1; ring <= 4; ring++) {
+        const accessRing = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        accessRing.setAttribute("cx", groupPos.x);
+        accessRing.setAttribute("cy", groupPos.y);
+        accessRing.setAttribute("r", ring * 20);
+        accessRing.setAttribute("fill", "none");
+        accessRing.setAttribute("stroke", "rgba(255, 255, 255, 0.1)");
+        accessRing.setAttribute("stroke-width", "1");
+        accessRing.setAttribute("stroke-dasharray", "5,5");
+        svg.appendChild(accessRing);
+      }
+      
+      // Group label
+      const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      label.setAttribute("x", groupPos.x);
+      label.setAttribute("y", groupPos.y - 120);
+      label.setAttribute("text-anchor", "middle");
+      label.setAttribute("fill", group.color);
+      label.setAttribute("font-size", "14");
+      label.setAttribute("font-weight", "bold");
+      label.textContent = group.name.charAt(0).toUpperCase() + group.name.slice(1);
+      svg.appendChild(label);
+      
+      // Users
+      group.users.forEach((user, userIndex) => {
+        const pos = getUserPosition(user, groupIndex, userIndex, filteredData.groups.length);
+        const nodeSize = Math.max(8, user.usage / 8);
+        
+        // Alert indicator
+        if (user.alert) {
+          const alertCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          alertCircle.setAttribute("cx", pos.x);
+          alertCircle.setAttribute("cy", pos.y);
+          alertCircle.setAttribute("r", nodeSize + 4);
+          alertCircle.setAttribute("fill", "#ff6b6b");
+          alertCircle.setAttribute("opacity", "0.7");
+          
+          const animate = document.createElementNS("http://www.w3.org/2000/svg", "animate");
+          animate.setAttribute("attributeName", "opacity");
+          animate.setAttribute("values", "0.3;1;0.3");
+          animate.setAttribute("dur", "2s");
+          animate.setAttribute("repeatCount", "indefinite");
+          alertCircle.appendChild(animate);
+          svg.appendChild(alertCircle);
+        }
+        
+        // Main user node
+        const userNode = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        userNode.setAttribute("cx", pos.x);
+        userNode.setAttribute("cy", pos.y);
+        userNode.setAttribute("r", nodeSize);
+        userNode.setAttribute("fill", user.standingColor);
+        userNode.setAttribute("stroke", "white");
+        userNode.setAttribute("stroke-width", selectedUser?.id === user.id ? "3" : "1");
+        userNode.style.cursor = "pointer";
+        userNode.style.filter = `drop-shadow(0 0 6px ${user.standingColor})`;
+        
+        if (user.alert) {
+          const animate = document.createElementNS("http://www.w3.org/2000/svg", "animate");
+          animate.setAttribute("attributeName", "fill");
+          animate.setAttribute("values", `${user.standingColor};#ff4757;${user.standingColor}`);
+          animate.setAttribute("dur", "1.5s");
+          animate.setAttribute("repeatCount", "indefinite");
+          userNode.appendChild(animate);
+        }
+        
+        userNode.addEventListener("click", () => handleUserClick(user, group));
+        userNode.addEventListener("mouseenter", () => setHoveredUser(user));
+        userNode.addEventListener("mouseleave", () => setHoveredUser(null));
+        
+        svg.appendChild(userNode);
+        
+        // User initials
+        const initials = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        initials.setAttribute("x", pos.x);
+        initials.setAttribute("y", pos.y + 3);
+        initials.setAttribute("text-anchor", "middle");
+        initials.setAttribute("fill", "white");
+        initials.setAttribute("font-size", Math.max(8, nodeSize / 2));
+        initials.setAttribute("font-weight", "bold");
+        initials.style.pointerEvents = "none";
+        initials.textContent = user.name.substring(0, 2).toUpperCase();
+        svg.appendChild(initials);
+      });
+    });
+    
+    containerRef.current.appendChild(svg);
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow mb-6">
+      <div className="px-6 py-4 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-medium text-gray-900">🌟 Access Overview</h2>
+          {!hideViewSelector && (
+            <div className="flex items-center gap-4">
+              <select 
+                value={currentView}
+                onChange={(e) => setCurrentView(e.target.value)}
+                className="border border-gray-300 rounded-md px-3 py-1 text-sm"
+              >
+                <option value="all">All Teams</option>
+                <option value="engineering">Engineering</option>
+                <option value="marketing">Marketing</option>
+                <option value="sales">Sales</option>
+                <option value="product">Product</option>
+              </select>
+              <button
+                onClick={() => setShowConnections(!showConnections)}
+                className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                {showConnections ? 'Hide' : 'Show'} Lines
+              </button>
+              <button
+                onClick={simulateReview}
+                className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Complete Reviews
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      <div className="relative" style={{background: 'radial-gradient(circle at center, #1a1f3a 0%, #0a0e1a 100%)'}}>
+        <div ref={containerRef} className="w-full" style={{minHeight: '500px'}} />
+        
+        {/* Legend */}
+        <div className="absolute top-4 right-4 bg-black bg-opacity-80 border border-blue-400 rounded-lg p-4 text-sm text-white">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#4ecdc4'}}></div>
+              <span>Good Standing</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#ffe066'}}></div>
+              <span>Risky Access</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#ff6b6b'}}></div>
+              <span>Needs Review</span>
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-gray-600 text-xs text-gray-300">
+            <div><strong>Size:</strong> Usage</div>
+            <div><strong>Distance:</strong> Access Level</div>
+            <div><strong>Blinking:</strong> Pending</div>
+          </div>
+        </div>
+        
+        {/* User Details Panel */}
+        {selectedUser && (
+          <div className="absolute bottom-4 left-4 bg-black bg-opacity-90 border border-blue-400 rounded-lg p-4 text-sm max-w-sm text-white">
+            <h3 className="font-bold text-blue-300 mb-2">{selectedUser.name}</h3>
+            <div className="space-y-1">
+              <div><strong>Role:</strong> {selectedUser.role}</div>
+              <div><strong>Email:</strong> {selectedUser.email}</div>
+              <div><strong>Apps:</strong> {selectedUser.apps?.join(', ')}</div>
+              <div><strong>Status:</strong> {selectedUser.status}</div>
+              {selectedUser.alert && (
+                <div className="text-red-400 font-semibold mt-2">⚠️ {selectedUser.reasons}</div>
+              )}
+            </div>
+            <button
+              onClick={() => setSelectedUser(null)}
+              className="mt-3 px-2 py-1 bg-gray-700 text-white rounded text-xs hover:bg-gray-600"
+            >
+              Close
+            </button>
+          </div>
+        )}
+        
+        {/* Hover Tooltip */}
+        {hoveredUser && !selectedUser && (
+          <div className="absolute top-4 left-4 bg-black bg-opacity-90 border border-blue-400 rounded-lg p-3 text-sm pointer-events-none text-white">
+            <div className="font-semibold text-blue-300">{hoveredUser.name}</div>
+            <div>{hoveredUser.role} • {hoveredUser.status}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Other components...
+function LoginForm({ onLogin }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -123,19 +507,19 @@ const LoginForm = ({ onLogin }) => {
     { username: 'viewer', password: 'viewer123', role: 'Viewer' }
   ];
 
-  const handleSubmit = (e) => {
+  function handleSubmit(e) {
     e.preventDefault();
     if (onLogin(username, password)) {
       setError('');
     } else {
       setError('Invalid credentials');
     }
-  };
+  }
 
-  const handleDemoUser = (demoUser) => {
+  function handleDemoUser(demoUser) {
     setUsername(demoUser.username);
     setPassword(demoUser.password);
-  };
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -178,7 +562,6 @@ const LoginForm = ({ onLogin }) => {
             type="submit"
             className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
           >
-            <Lock className="w-4 h-4 mr-2" />
             Sign In
           </button>
         </form>
@@ -201,10 +584,9 @@ const LoginForm = ({ onLogin }) => {
       </div>
     </div>
   );
-};
+}
 
-// Header Component
-const Header = ({ user, onLogout }) => {
+function Header({ user, onLogout }) {
   const [showProfile, setShowProfile] = useState(false);
 
   return (
@@ -253,23 +635,23 @@ const Header = ({ user, onLogout }) => {
       </div>
     </header>
   );
-};
+}
 
-// Metrics Cards Component
-const MetricsCards = ({ data }) => {
-  const pending = data.filter(item => item.status === 'pending').length;
-  const approved = data.filter(item => item.status === 'approved').length;
-  const rejected = data.filter(item => item.status === 'rejected').length;
-  const total = data.length;
+function MetricsCards({ data, constellationMetrics = null }) {
+  const metrics = constellationMetrics || {
+    totalMembers: data.filter(item => item.status !== 'rejected').length,
+    pending: data.filter(item => item.status === 'pending').length,
+    risks: data.filter(item => item.reasons.includes('Privileged') || item.reasons.includes('Admin')).length
+  };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
       <div className="bg-white p-6 rounded-lg shadow">
         <div className="flex items-center">
-          <Database className="h-8 w-8 text-blue-500" />
+          <Users className="h-8 w-8 text-blue-500" />
           <div className="ml-4">
-            <p className="text-sm font-medium text-gray-600">Total Reviews</p>
-            <p className="text-2xl font-bold text-gray-900">{total}</p>
+            <p className="text-sm font-medium text-gray-600">Members</p>
+            <p className="text-2xl font-bold text-gray-900">{metrics.totalMembers}</p>
           </div>
         </div>
       </div>
@@ -278,34 +660,25 @@ const MetricsCards = ({ data }) => {
           <Clock className="h-8 w-8 text-red-500" />
           <div className="ml-4">
             <p className="text-sm font-medium text-gray-600">Pending</p>
-            <p className="text-2xl font-bold text-gray-900">{pending}</p>
+            <p className="text-2xl font-bold text-gray-900">{metrics.pending}</p>
           </div>
         </div>
       </div>
       <div className="bg-white p-6 rounded-lg shadow">
         <div className="flex items-center">
-          <CheckCircle className="h-8 w-8 text-green-500" />
+          <AlertTriangle className="h-8 w-8 text-yellow-500" />
           <div className="ml-4">
-            <p className="text-sm font-medium text-gray-600">Approved</p>
-            <p className="text-2xl font-bold text-gray-900">{approved}</p>
-          </div>
-        </div>
-      </div>
-      <div className="bg-white p-6 rounded-lg shadow">
-        <div className="flex items-center">
-          <XCircle className="h-8 w-8 text-yellow-500" />
-          <div className="ml-4">
-            <p className="text-sm font-medium text-gray-600">Rejected</p>
-            <p className="text-2xl font-bold text-gray-900">{rejected}</p>
+            <p className="text-sm font-medium text-gray-600">Risks</p>
+            <p className="text-2xl font-bold text-gray-900">{metrics.risks}</p>
           </div>
         </div>
       </div>
     </div>
   );
-};
+}
 
-// Audit Explorer Component
-const AuditExplorer = ({ data }) => {
+// Simple placeholder components for tabs
+function AuditExplorer({ data }) {
   const [filteredData, setFilteredData] = useState(data);
   const [filters, setFilters] = useState({
     status: 'All',
@@ -330,14 +703,14 @@ const AuditExplorer = ({ data }) => {
     setFilteredData(filtered);
   }, [filters, data]);
 
-  const getStatusBadge = (status) => {
+  function getStatusBadge(status) {
     const badges = {
       pending: 'bg-red-100 text-red-800',
       approved: 'bg-green-100 text-green-800',
       rejected: 'bg-yellow-100 text-yellow-800'
     };
     return badges[status] || 'bg-gray-100 text-gray-800';
-  };
+  }
 
   const uniqueApps = [...new Set(data.map(item => item.app))];
   const uniqueGroups = [...new Set(data.map(item => item.group))];
@@ -471,65 +844,77 @@ const AuditExplorer = ({ data }) => {
       </div>
     </div>
   );
-};
+}
 
-// Reviewer Queue Component
-const ReviewerQueue = ({ data, currentUser, onUpdateStatus }) => {
-  const [selectedReviewer, setSelectedReviewer] = useState(currentUser?.email || '');
+function ReviewerQueue({ data, currentUser, onUpdateStatus }) {
   const [reviewItems, setReviewItems] = useState([]);
   const [comments, setComments] = useState({});
 
-  const allReviewers = [...new Set([
-    ...Object.values(mockReviewers.apps),
-    ...Object.values(mockReviewers.groups),
-    ...Object.values(mockReviewers.users)
-  ])];
+  function getReviewerSystems(reviewerEmail) {
+    const systems = [];
+    
+    Object.entries(mockReviewers.apps).forEach(([app, reviewer]) => {
+      if (reviewer === reviewerEmail) systems.push({ type: 'app', name: app });
+    });
+    
+    Object.entries(mockReviewers.groups).forEach(([group, reviewer]) => {
+      if (reviewer === reviewerEmail) systems.push({ type: 'group', name: group });
+    });
+    
+    Object.entries(mockReviewers.users).forEach(([user, reviewer]) => {
+      if (reviewer === reviewerEmail) systems.push({ type: 'user', name: user });
+    });
+    
+    return systems;
+  }
 
   useEffect(() => {
+    if (!currentUser?.email) return;
+    
     const assigned = data.filter(item => {
       return (
-        mockReviewers.apps[item.app] === selectedReviewer ||
-        mockReviewers.groups[item.group] === selectedReviewer ||
-        mockReviewers.users[item.email] === selectedReviewer
+        mockReviewers.apps[item.app] === currentUser.email ||
+        mockReviewers.groups[item.group] === currentUser.email ||
+        mockReviewers.users[item.email] === currentUser.email
       );
-    });
+    }).filter(item => item.status !== 'rejected');
+    
     setReviewItems(assigned);
-  }, [selectedReviewer, data]);
+  }, [currentUser, data]);
 
-  const handleReview = (itemId, action) => {
+  function handleReview(itemId, action) {
     const comment = comments[itemId] || '';
     console.log(`${action} item ${itemId} with comment: ${comment}`);
     
     if (onUpdateStatus) {
-      onUpdateStatus(itemId, action, selectedReviewer, comment);
+      onUpdateStatus(itemId, action, currentUser.email, comment);
     }
     
     setComments({ ...comments, [itemId]: '' });
-  };
+  }
 
   const pendingItems = reviewItems.filter(item => item.status === 'pending');
+  const reviewerSystems = getReviewerSystems(currentUser?.email || '');
 
   return (
     <div className="space-y-6">
-      {/* Reviewer Selection */}
       <div className="bg-white p-6 rounded-lg shadow">
         <h3 className="text-lg font-medium mb-4 flex items-center">
           <Users className="w-5 h-5 mr-2" />
-          Select Reviewer
+          Review Queue for {currentUser?.name}
         </h3>
-        <select
-          value={selectedReviewer}
-          onChange={(e) => setSelectedReviewer(e.target.value)}
-          className="border border-gray-300 rounded-md px-3 py-2 w-full max-w-md"
-        >
-          <option value="">-- Select Reviewer --</option>
-          {allReviewers.map(reviewer => (
-            <option key={reviewer} value={reviewer}>{reviewer}</option>
-          ))}
-        </select>
+        <div className="text-sm text-gray-600">
+          <p><strong>Responsible for:</strong></p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {reviewerSystems.map((system, index) => (
+              <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs">
+                {system.type}: {system.name}
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* Pending Reviews */}
       {pendingItems.length > 0 && (
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
@@ -590,568 +975,95 @@ const ReviewerQueue = ({ data, currentUser, onUpdateStatus }) => {
         </div>
       )}
 
-      {/* No Items Message */}
-      {reviewItems.length === 0 && selectedReviewer && (
+      {reviewItems.length === 0 && (
         <div className="bg-white p-6 rounded-lg shadow text-center">
-          <Users className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No items assigned</h3>
-          <p className="mt-1 text-sm text-gray-500">No review items are currently assigned to {selectedReviewer}</p>
+          <CheckCircle className="mx-auto h-12 w-12 text-green-400" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">All caught up!</h3>
+          <p className="mt-1 text-sm text-gray-500">No review items are currently assigned to you</p>
         </div>
       )}
 
-      {/* Select Reviewer Message */}
-      {!selectedReviewer && (
-        <div className="bg-white p-6 rounded-lg shadow text-center">
-          <Eye className="mx-auto h-12 w-12 text-blue-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">Select a reviewer</h3>
-          <p className="mt-1 text-sm text-gray-500">Choose a reviewer from the dropdown above to view their assigned items</p>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Config Editor Component
-const ConfigEditor = ({ config, setConfig, reviewers, setReviewers }) => {
-  const [activeTab, setActiveTab] = useState('global');
-
-  const handleConfigSave = () => {
-    console.log('Saving config:', config);
-    alert('Configuration saved successfully!');
-  };
-
-  const handleReviewerSave = () => {
-    console.log('Saving reviewers:', reviewers);
-    alert('Reviewer assignments saved successfully!');
-  };
-
-  const addAppReviewer = () => {
-    const app = prompt('Enter app name:');
-    const reviewer = prompt('Enter reviewer email:');
-    if (app && reviewer) {
-      setReviewers({
-        ...reviewers,
-        apps: { ...reviewers.apps, [app]: reviewer }
-      });
-    }
-  };
-
-  const removeAppReviewer = (app) => {
-    const newApps = { ...reviewers.apps };
-    delete newApps[app];
-    setReviewers({ ...reviewers, apps: newApps });
-  };
-
-  const tabs = [
-    { id: 'global', name: 'Global Config', icon: Settings },
-    { id: 'reviewers', name: 'Reviewers', icon: Users },
-    { id: 'overrides', name: 'Overrides', icon: AlertTriangle }
-  ];
-
-  return (
-    <div className="space-y-6">
-      {/* Tab Navigation */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Icon className="w-4 h-4 mr-2" />
-                {tab.name}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* Global Config Tab */}
-      {activeTab === 'global' && (
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-medium mb-6">Global Configuration</h3>
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">TTL Days</label>
-                <input
-                  type="number"
-                  value={config.ttl_days}
-                  onChange={(e) => setConfig({...config, ttl_days: parseInt(e.target.value)})}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Inactivity Threshold (Days)</label>
-                <input
-                  type="number"
-                  value={config.inactivity_days}
-                  onChange={(e) => setConfig({...config, inactivity_days: parseInt(e.target.value)})}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Backup Frequency</label>
-                <select
-                  value={config.backup_cadence}
-                  onChange={(e) => setConfig({...config, backup_cadence: e.target.value})}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full"
-                >
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="6months">6 Months</option>
-                  <option value="annual">Annual</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Notification Method</label>
-                <select
-                  value={config.notify_method}
-                  onChange={(e) => setConfig({...config, notify_method: e.target.value})}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full"
-                >
-                  <option value="slack">Slack</option>
-                  <option value="email">Email</option>
-                  <option value="teams">Microsoft Teams</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={config.orphaned_account}
-                  onChange={(e) => setConfig({...config, orphaned_account: e.target.checked})}
-                  className="mr-3"
-                />
-                <span className="text-sm font-medium text-gray-700">Enable Orphaned Account Detection</span>
-              </label>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Ignore Groups (one per line)</label>
-              <textarea
-                value={config.ignore_groups.join('\n')}
-                onChange={(e) => setConfig({...config, ignore_groups: e.target.value.split('\n').filter(g => g.trim())})}
-                className="border border-gray-300 rounded-md px-3 py-2 w-full h-24"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Risky Roles (one per line)</label>
-              <textarea
-                value={config.risky_roles.join('\n')}
-                onChange={(e) => setConfig({...config, risky_roles: e.target.value.split('\n').filter(r => r.trim())})}
-                className="border border-gray-300 rounded-md px-3 py-2 w-full h-24"
-              />
-            </div>
-
-            <button
-              onClick={handleConfigSave}
-              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              Save Configuration
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Reviewers Tab */}
-      {activeTab === 'reviewers' && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">App Reviewers</h3>
-              <button
-                onClick={addAppReviewer}
-                className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                Add App Reviewer
-              </button>
-            </div>
-            <div className="space-y-3">
-              {Object.entries(reviewers.apps).map(([app, reviewer]) => (
-                <div key={app} className="flex items-center justify-between p-3 border border-gray-200 rounded-md">
-                  <div>
-                    <span className="font-medium">{app}</span>
-                    <span className="text-gray-500 ml-2">→ {reviewer}</span>
-                  </div>
-                  <button
-                    onClick={() => removeAppReviewer(app)}
-                    className="text-red-600 hover:text-red-800"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <button
-            onClick={handleReviewerSave}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            <Save className="w-4 h-4 mr-2" />
-            Save Reviewer Assignments
-          </button>
-        </div>
-      )}
-
-      {/* Overrides Tab */}
-      {activeTab === 'overrides' && (
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-medium mb-4">Review Overrides</h3>
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-            <div className="flex">
-              <AlertTriangle className="h-5 w-5 text-blue-400" />
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-blue-800">Coming Soon</h3>
-                <div className="mt-2 text-sm text-blue-700">
-                  <p>Override configuration will allow you to set special exceptions for specific users or scenarios.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Export & Logs Component
-const ExportLogs = () => {
-  const [exportFormat, setExportFormat] = useState('CSV');
-  const [includeAll, setIncludeAll] = useState(false);
-
-  const handleExport = () => {
-    alert(`Export started: ${exportFormat} format, ${includeAll ? 'all data' : 'recent data only'}`);
-  };
-
-  const mockLogs = [
-    { timestamp: '2024-08-02 14:30:21', user: 'admin', action: 'dashboard_access', details: 'User logged into dashboard' },
-    { timestamp: '2024-08-02 14:25:15', user: 'alice@company.com', action: 'review_approved', details: 'Approved access for sam@acme.com - Figma' },
-    { timestamp: '2024-08-02 14:20:08', user: 'admin', action: 'config_updated', details: 'Updated global configuration' }
-  ];
-
-  return (
-    <div className="space-y-6">
-      {/* Export Section */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h3 className="text-lg font-medium mb-4">Export Data</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <h4 className="font-medium mb-3">Export Reviews</h4>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Format</label>
-                <select
-                  value={exportFormat}
-                  onChange={(e) => setExportFormat(e.target.value)}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full"
-                >
-                  <option value="CSV">CSV</option>
-                  <option value="JSON">JSON</option>
-                  <option value="Excel">Excel</option>
-                </select>
-              </div>
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={includeAll}
-                  onChange={(e) => setIncludeAll(e.target.checked)}
-                  className="mr-2"
-                />
-                <span className="text-sm">Include all historical data</span>
-              </label>
-              <button
-                onClick={handleExport}
-                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 w-full justify-center"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Generate Export
-              </button>
-            </div>
-          </div>
-          <div>
-            <h4 className="font-medium mb-3">Export Configuration</h4>
-            <button
-              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 w-full justify-center"
-            >
-              <FileText className="w-4 h-4 mr-2" />
-              Generate Config Report
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* System Logs */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium">System Logs</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Details</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {mockLogs.map((log, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.timestamp}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.user}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.action}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{log.details}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// User Management Component
-const UserManagement = () => {
-  const mockSystemUsers = [
-    { username: 'admin', name: 'Administrator', email: 'admin@company.com', role: 'admin', created: '2024-01-01' },
-    { username: 'alice', name: 'Alice Johnson', email: 'alice@company.com', role: 'reviewer', created: '2024-02-15' },
-    { username: 'john', name: 'John Smith', email: 'john@company.com', role: 'reviewer', created: '2024-03-01' }
-  ];
-
-  const [users, setUsers] = useState(mockSystemUsers);
-  const [activeTab, setActiveTab] = useState('view');
-  const [newUser, setNewUser] = useState({
-    username: '',
-    name: '',
-    email: '',
-    password: '',
-    role: 'viewer'
-  });
-
-  const handleAddUser = (e) => {
-    e.preventDefault();
-    if (!newUser.username || !newUser.name || !newUser.email || !newUser.password) {
-      alert('All fields are required');
-      return;
-    }
-    
-    if (users.some(user => user.username === newUser.username)) {
-      alert('Username already exists');
-      return;
-    }
-
-    const userToAdd = {
-      ...newUser,
-      created: new Date().toISOString().split('T')[0]
-    };
-    
-    setUsers([...users, userToAdd]);
-    setNewUser({ username: '', name: '', email: '', password: '', role: 'viewer' });
-    alert('User added successfully!');
-  };
-
-  const handleDeleteUser = (username) => {
-    if (username === 'admin') {
-      alert('Cannot delete admin user');
-      return;
-    }
-    
-    if (window.confirm(`Are you sure you want to delete user "${username}"?`)) {
-      setUsers(users.filter(user => user.username !== username));
-    }
-  };
-
-  const getRoleBadge = (role) => {
-    const badges = {
-      admin: 'bg-red-100 text-red-800',
-      reviewer: 'bg-blue-100 text-blue-800',
-      viewer: 'bg-gray-100 text-gray-800'
-    };
-    return badges[role] || 'bg-gray-100 text-gray-800';
-  };
-
-  const tabs = [
-    { id: 'view', name: 'View Users', icon: Eye },
-    { id: 'add', name: 'Add User', icon: Plus }
-  ];
-
-  return (
-    <div className="space-y-6">
-      {/* Tab Navigation */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Icon className="w-4 h-4 mr-2" />
-                {tab.name}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* View Users Tab */}
-      {activeTab === 'view' && (
+      {reviewItems.filter(item => item.status === 'approved').length > 0 && (
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium">Current Users ({users.length})</h3>
+            <h3 className="text-lg font-medium text-green-600 flex items-center">
+              <CheckCircle className="w-5 h-5 mr-2" />
+              Recently Approved ({reviewItems.filter(item => item.status === 'approved').length})
+            </h3>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Username</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {users.map((user) => (
-                  <tr key={user.username} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{user.username}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.email}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleBadge(user.role)}`}>
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.created}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => handleDeleteUser(user.username)}
-                        className="text-red-600 hover:text-red-900"
-                        disabled={user.username === 'admin'}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Add User Tab */}
-      {activeTab === 'add' && (
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-medium mb-6">Add New User</h3>
-          <form onSubmit={handleAddUser} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Username *</label>
-                <input
-                  type="text"
-                  value={newUser.username}
-                  onChange={(e) => setNewUser({...newUser, username: e.target.value})}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  value={newUser.name}
-                  onChange={(e) => setNewUser({...newUser, name: e.target.value})}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                <input
-                  type="email"
-                  value={newUser.email}
-                  onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
-                <input
-                  type="password"
-                  value={newUser.password}
-                  onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                <select
-                  value={newUser.role}
-                  onChange={(e) => setNewUser({...newUser, role: e.target.value})}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full"
-                >
-                  <option value="viewer">Viewer</option>
-                  <option value="reviewer">Reviewer</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
+          <div className="p-6">
+            <div className="space-y-2">
+              {reviewItems.filter(item => item.status === 'approved').map((item) => (
+                <div key={item.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
+                  <div>
+                    <span className="font-medium">{item.email}</span>
+                    <span className="text-gray-500 ml-2">- {item.app}</span>
+                  </div>
+                  <span className="text-green-600 text-sm">✓ Approved</span>
+                </div>
+              ))}
             </div>
-            <button
-              type="submit"
-              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add User
-            </button>
-          </form>
+          </div>
         </div>
       )}
     </div>
   );
-};
+}
 
 // Main Dashboard Component
-const Dashboard = () => {
+function Dashboard() {
   const { user, login, logout, hasPermission, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('audit');
   const [data, setData] = useState(mockUsers);
-  const [config, setConfig] = useState(mockConfig);
-  const [reviewers, setReviewers] = useState(mockReviewers);
+  const [constellationMetrics, setConstellationMetrics] = useState(null);
 
-  const handleUpdateStatus = (itemId, status, reviewer, comments) => {
+  useEffect(() => {
+    if (user) {
+      if (user.role === 'reviewer') {
+        setActiveTab('reviewer');
+      } else {
+        setActiveTab('audit');
+      }
+    }
+  }, [user]);
+
+  function getConstellationViewFilter() {
+    if (user?.role === 'reviewer') {
+      const reviewerEmail = user.email;
+      const responsibleGroups = Object.entries(mockReviewers.groups)
+        .filter(([group, reviewer]) => reviewer === reviewerEmail)
+        .map(([group]) => group);
+      
+      return responsibleGroups.length > 0 ? responsibleGroups[0] : 'all';
+    }
+    return 'all';
+  }
+
+  function getFilteredDataForRole() {
+    if (user?.role === 'reviewer') {
+      const reviewerEmail = user.email;
+      return data.filter(item => {
+        return (
+          mockReviewers.apps[item.app] === reviewerEmail ||
+          mockReviewers.groups[item.group] === reviewerEmail ||
+          mockReviewers.users[item.email] === reviewerEmail
+        );
+      });
+    }
+    return data;
+  }
+
+  function handleUpdateStatus(itemId, status, reviewer, comments) {
     setData(data.map(item => 
       item.id === itemId 
         ? { ...item, status, reviewer, comments }
         : item
     ));
-  };
+  }
+
+  function handleUserClick(user, group) {
+    console.log('User clicked in constellation:', user, group);
+  }
 
   if (isLoading) {
     return (
@@ -1168,6 +1080,39 @@ const Dashboard = () => {
     return <LoginForm onLogin={login} />;
   }
 
+  // Reviewer UI
+  if (user.role === 'reviewer') {
+    const filteredData = getFilteredDataForRole();
+    const viewFilter = getConstellationViewFilter();
+    
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header user={user} onLogout={logout} />
+        
+        <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+          <AccessConstellationMap 
+            data={filteredData}
+            viewFilter={viewFilter}
+            onMetricsUpdate={setConstellationMetrics}
+            onUserClick={handleUserClick}
+            hideViewSelector={true}
+          />
+          
+          <MetricsCards data={filteredData} constellationMetrics={constellationMetrics} />
+          
+          <div className="px-4 sm:px-0">
+            <ReviewerQueue 
+              data={filteredData} 
+              currentUser={user} 
+              onUpdateStatus={handleUpdateStatus}
+            />
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Admin UI
   const tabs = [
     { id: 'audit', name: 'Audit Explorer', icon: Eye, permission: 'view_audit' },
     { id: 'reviewer', name: 'Reviewer Queue', icon: Users, permission: 'manage_reviews' },
@@ -1181,7 +1126,13 @@ const Dashboard = () => {
       <Header user={user} onLogout={logout} />
       
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <MetricsCards data={data} />
+        <AccessConstellationMap 
+          data={data}
+          onMetricsUpdate={setConstellationMetrics}
+          onUserClick={handleUserClick}
+        />
+        
+        <MetricsCards data={data} constellationMetrics={constellationMetrics} />
         
         <div className="bg-white rounded-lg shadow mb-6">
           <div className="border-b border-gray-200">
@@ -1217,19 +1168,69 @@ const Dashboard = () => {
             />
           )}
           {activeTab === 'config' && (
-            <ConfigEditor 
-              config={config} 
-              setConfig={setConfig}
-              reviewers={reviewers}
-              setReviewers={setReviewers}
-            />
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium mb-4">Config Editor</h3>
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                <div className="flex">
+                  <Settings className="h-5 w-5 text-blue-400" />
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-blue-800">Configuration Management</h3>
+                    <div className="mt-2 text-sm text-blue-700">
+                      <p>Configure global settings, review thresholds, notification preferences, and backup schedules.</p>
+                      <p className="mt-2">Features include: TTL settings, risky role definitions, ignored apps/groups, and reviewer assignments.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
-          {activeTab === 'export' && <ExportLogs />}
-          {activeTab === 'users' && <UserManagement />}
+          {activeTab === 'export' && (
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium mb-4">Export & Logs</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium mb-3">Export Options</h4>
+                  <div className="space-y-2 text-sm text-gray-600">
+                    <p>• CSV/JSON/Excel export of review data</p>
+                    <p>• Configuration backup reports</p>
+                    <p>• Audit trail documentation</p>
+                    <p>• Compliance reporting</p>
+                  </div>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium mb-3">System Logs</h4>
+                  <div className="space-y-2 text-sm text-gray-600">
+                    <p>• User access events</p>
+                    <p>• Review decisions audit</p>
+                    <p>• Configuration changes</p>
+                    <p>• System performance metrics</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {activeTab === 'users' && (
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium mb-4">User Management</h3>
+              <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                <div className="flex">
+                  <Users className="h-5 w-5 text-green-400" />
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-green-800">User Administration</h3>
+                    <div className="mt-2 text-sm text-green-700">
+                      <p>Manage system users, roles, and permissions for the Bouncr dashboard.</p>
+                      <p className="mt-2">Features include: Add/remove users, assign reviewer roles, configure permission levels, and manage authentication.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
   );
-};
+}
 
 export default Dashboard;
+
