@@ -16,15 +16,15 @@ export function ReviewerQueue({
   function getReviewerSystems(reviewerEmail) {
     const systems = [];
     
-    Object.entries(mockReviewers.apps).forEach(([app, reviewer]) => {
+    Object.entries(mockReviewers?.apps || {}).forEach(([app, reviewer]) => {
       if (reviewer === reviewerEmail) systems.push({ type: 'app', name: app });
     });
     
-    Object.entries(mockReviewers.groups).forEach(([group, reviewer]) => {
+    Object.entries(mockReviewers?.groups || {}).forEach(([group, reviewer]) => {
       if (reviewer === reviewerEmail) systems.push({ type: 'group', name: group });
     });
     
-    Object.entries(mockReviewers.users).forEach(([user, reviewer]) => {
+    Object.entries(mockReviewers?.users || {}).forEach(([user, reviewer]) => {
       if (reviewer === reviewerEmail) systems.push({ type: 'user', name: user });
     });
     
@@ -32,9 +32,9 @@ export function ReviewerQueue({
   }
 
   const allReviewers = [...new Set([
-    ...Object.values(mockReviewers.apps),
-    ...Object.values(mockReviewers.groups),
-    ...Object.values(mockReviewers.users)
+    ...Object.values(mockReviewers?.apps || {}),
+    ...Object.values(mockReviewers?.groups || {}),
+    ...Object.values(mockReviewers?.users || {})
   ])];
 
   useEffect(() => {

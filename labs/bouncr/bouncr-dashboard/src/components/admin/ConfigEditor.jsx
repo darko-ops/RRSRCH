@@ -1,320 +1,418 @@
-// components/admin/ConfigEditor.jsx
-import React, { useState } from 'react';
-import { 
-  Settings, 
-  Users, 
-  AlertTriangle, 
-  Save, 
-  Plus, 
-  Trash2, 
-  Download,
-  Upload
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Save, AlertTriangle, Clock, Shield, Mail, Slack, Bell, Database, Users, Eye, Settings } from 'lucide-react';
 
-function ConfigEditor({ config: initialConfig, reviewers: initialReviewers, onSave }) {
-  const [activeTab, setActiveTab] = useState('global');
-  const [config, setConfig] = useState(initialConfig || {
-    ttl_days: 90,
-    inactivity_days: 45,
-    backup_cadence: 'monthly',
-    orphaned_account: true,
-    ignore_groups: ['contractors', 'interns'],
-    risky_roles: ['Admin', 'SuperUser', 'DevOps', 'Security', 'IAM'],
-    ignore_apps: ['Zoom', 'Slack', 'Microsoft Teams', 'Microsoft 365'],
-    notify_method: 'slack',
-    retry_limit: 3,
-    escalate_days: 5
+const ConfigEditor = ({ config = {}, reviewers = {}, onSave }) => {
+  // Initialize state with default values
+  const [formData, setFormData] = useState({
+    // Access Review Cadence
+    defaultReviewCadence: 'quarterly', // monthly, quarterly, biannual, annual
+    
+    // Auto Temporary Access Groups
+    autoTempAccessGroups: ['contractors', 'interns'],
+    tempAccessDuration: 90, // days
+    
+    // Ignored Apps (pulled from all user access)
+    ignoredApps: ['Microsoft Teams', 'Microsoft 365', 'Zoom', 'Slack'],
+    
+    // Inactivity Settings
+    inactivityDays: 45,
+    autoRemovalEnabled: false,
+    
+    // Orphaned Account Detection
+    orphanedAccountDetection: true,
+    orphanedAccountGracePeriod: 30, // days
+    
+    // Backup Settings
+    backupCadence: 'daily', // daily, weekly, monthly
+    backupRetention: 90, // days
+    backupFailureAlerts: true,
+    backupAlertRecipients: ['admin@company.com'],
+    
+    // Notification Settings
+    primaryNotificationMethod: 'email', // email, slack, teams
+    slackWebhook: '',
+    emailSmtpHost: '',
+    emailSmtpPort: 587,
+    emailUsername: '',
+    notificationRetryLimit: 3,
+    escalationEnabled: true,
+    escalationAfterDays: 5,
+    escalationRecipients: ['security@company.com']
   });
 
-  const [reviewers, setReviewers] = useState(initialReviewers || {
-    apps: { 
-      'Salesforce': 'john@company.com', 
-      'GitHub': 'alice@company.com',
-      'Jira': 'eng-lead@company.com'
-    },
-    groups: { 
-      'engineering': 'alice@company.com', 
-      'finance': 'cfo@company.com',
-      'marketing': 'marketing-lead@company.com'
-    },
-    users: { 
-      'vipuser@company.com': 'ceo@company.com',
-      'alex@acme.com': 'alice@company.com' 
+  const [availableApps, setAvailableApps] = useState([]);
+  const [isDirty, setIsDirty] = useState(false);
+
+  // Extract unique apps from mock data or API
+  useEffect(() => {
+    // This would normally come from your API
+    const mockApps = [
+      'Salesforce', 'GitHub', 'Okta', 'Slack', 'Zoom', 'Jira', 'Asana',
+      'Microsoft Teams', 'Microsoft 365', 'Microsoft Azure', 'Microsoft Intune',
+      'Google Workspace', 'Dropbox', 'Box', 'Adobe Creative Suite',
+      'AWS', 'Azure', 'GCP', 'Figma', 'Notion', 'Monday.com'
+    ];
+    setAvailableApps(mockApps);
+  }, []);
+
+  useEffect(() => {
+    // Load existing config if provided
+    if (config && Object.keys(config).length > 0) {
+      setFormData(prev => ({ ...prev, ...config }));
     }
-  });
+  }, [config]);
 
-  const [overrides, setOverrides] = useState({});
-  const [hasChanges, setHasChanges] = useState(false);
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    setIsDirty(true);
+  };
 
-  const tabs = [
-    { id: 'global', name: 'Global Config', icon: Settings },
-    { id: 'reviewers', name: 'Reviewers', icon: Users },
-    { id: 'overrides', name: 'Overrides', icon: AlertTriangle }
-  ];
-
-  function handleConfigChange(field, value) {
-    setConfig(prev => ({ ...prev, [field]: value }));
-    setHasChanges(true);
-  }
-
-  function handleArrayChange(field, value) {
-    const arrayValue = value.split('\n').filter(item => item.trim());
-    setConfig(prev => ({ ...prev, [field]: arrayValue }));
-    setHasChanges(true);
-  }
-
-  function handleSave() {
-    const configData = {
-      config,
-      reviewers,
-      overrides
-    };
-    
-    if (onSave) {
-      onSave(configData);
-    }
-    
-    console.log('Saving configuration:', configData);
-    alert('Configuration saved successfully!');
-    setHasChanges(false);
-  }
-
-  function addAppReviewer() {
-    const app = prompt('Enter application name:');
-    const reviewer = prompt('Enter reviewer email:');
-    
-    if (app && reviewer) {
-      setReviewers(prev => ({
-        ...prev,
-        apps: { ...prev.apps, [app]: reviewer }
-      }));
-      setHasChanges(true);
-    }
-  }
-
-  function removeAppReviewer(app) {
-    if (window.confirm(`Remove reviewer assignment for ${app}?`)) {
-      setReviewers(prev => {
-        const newApps = { ...prev.apps };
-        delete newApps[app];
-        return { ...prev, apps: newApps };
-      });
-      setHasChanges(true);
-    }
-  }
-
-  function addGroupReviewer() {
-    const group = prompt('Enter group name:');
-    const reviewer = prompt('Enter reviewer email:');
-    
-    if (group && reviewer) {
-      setReviewers(prev => ({
-        ...prev,
-        groups: { ...prev.groups, [group]: reviewer }
-      }));
-      setHasChanges(true);
-    }
-  }
-
-  function removeGroupReviewer(group) {
-    if (window.confirm(`Remove reviewer assignment for ${group} group?`)) {
-      setReviewers(prev => {
-        const newGroups = { ...prev.groups };
-        delete newGroups[group];
-        return { ...prev, groups: newGroups };
-      });
-      setHasChanges(true);
-    }
-  }
-
-  function addUserReviewer() {
-    const user = prompt('Enter user email:');
-    const reviewer = prompt('Enter reviewer email:');
-    
-    if (user && reviewer) {
-      setReviewers(prev => ({
-        ...prev,
-        users: { ...prev.users, [user]: reviewer }
-      }));
-      setHasChanges(true);
-    }
-  }
-
-  function removeUserReviewer(user) {
-    if (window.confirm(`Remove reviewer assignment for ${user}?`)) {
-      setReviewers(prev => {
-        const newUsers = { ...prev.users };
-        delete newUsers[user];
-        return { ...prev, users: newUsers };
-      });
-      setHasChanges(true);
-    }
-  }
-
-  function exportConfig() {
-    const configData = { config, reviewers, overrides };
-    const dataStr = JSON.stringify(configData, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `bouncr-config-${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    
-    URL.revokeObjectURL(url);
-  }
-
-  function importConfig(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const imported = JSON.parse(e.target.result);
-        if (imported.config) setConfig(imported.config);
-        if (imported.reviewers) setReviewers(imported.reviewers);
-        if (imported.overrides) setOverrides(imported.overrides);
-        setHasChanges(true);
-        alert('Configuration imported successfully!');
-      } catch (error) {
-        alert('Invalid configuration file');
+  const handleArrayInputChange = (field, value, action = 'toggle') => {
+    setFormData(prev => {
+      const currentArray = prev[field] || [];
+      let newArray;
+      
+      if (action === 'toggle') {
+        newArray = currentArray.includes(value)
+          ? currentArray.filter(item => item !== value)
+          : [...currentArray, value];
+      } else if (action === 'add' && !currentArray.includes(value)) {
+        newArray = [...currentArray, value];
+      } else if (action === 'remove') {
+        newArray = currentArray.filter(item => item !== value);
+      } else {
+        newArray = currentArray;
       }
-    };
-    reader.readAsText(file);
-  }
+      
+      return { ...prev, [field]: newArray };
+    });
+    setIsDirty(true);
+  };
+
+  const handleSave = () => {
+    if (onSave) {
+      onSave(formData);
+    }
+    setIsDirty(false);
+    alert('Configuration saved successfully!');
+  };
+
+  const addCustomApp = () => {
+    const appName = prompt('Enter custom app name:');
+    if (appName && !availableApps.includes(appName)) {
+      setAvailableApps(prev => [...prev, appName]);
+    }
+  };
+
+  const addEmailRecipient = (field) => {
+    const email = prompt('Enter email address:');
+    if (email && email.includes('@')) {
+      handleArrayInputChange(field, email, 'add');
+    }
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Header with Save Button */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-900">Configuration Editor</h2>
-          <div className="flex items-center gap-3">
-            {hasChanges && (
-              <span className="text-sm text-orange-600 font-medium">Unsaved changes</span>
-            )}
-            <div className="flex gap-2">
-              <label className="flex items-center px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 cursor-pointer">
-                <Upload className="w-4 h-4 mr-2" />
-                Import
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={importConfig}
-                  className="hidden"
-                />
+    <div className="max-w-6xl mx-auto p-6 space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Settings className="w-7 h-7 text-blue-600" />
+            Configuration Editor
+          </h1>
+          <p className="text-gray-600 mt-1">Configure Bouncr's access review and governance settings</p>
+        </div>
+        
+        <button
+          onClick={handleSave}
+          disabled={!isDirty}
+          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium ${
+            isDirty 
+              ? 'bg-blue-600 text-white hover:bg-blue-700' 
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          }`}
+        >
+          <Save className="w-4 h-4" />
+          {isDirty ? 'Save Changes' : 'No Changes'}
+        </button>
+      </div>
+
+      {isDirty && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-yellow-600" />
+            <span className="text-yellow-800 font-medium">Unsaved Changes</span>
+          </div>
+          <p className="text-yellow-700 text-sm mt-1">You have unsaved configuration changes.</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        {/* Access Review Settings */}
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Clock className="w-5 h-5 text-blue-600" />
+            Access Review Settings
+          </h2>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Default Review Cadence
               </label>
-              <button
-                onClick={exportConfig}
-                className="flex items-center px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+              <select
+                value={formData.defaultReviewCadence}
+                onChange={(e) => handleInputChange('defaultReviewCadence', e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2"
               >
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </button>
-              <button
-                onClick={handleSave}
-                className={`flex items-center px-4 py-2 rounded-md ${
-                  hasChanges 
-                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
-                disabled={!hasChanges}
-              >
-                <Save className="w-4 h-4 mr-2" />
-                Save Changes
-              </button>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="biannual">Bi-annual</option>
+                <option value="annual">Annual</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Inactivity Days (Auto-flag for review)
+              </label>
+              <input
+                type="number"
+                value={formData.inactivityDays}
+                onChange={(e) => handleInputChange('inactivityDays', parseInt(e.target.value))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2"
+                min="1"
+                max="365"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="autoRemoval"
+                checked={formData.autoRemovalEnabled}
+                onChange={(e) => handleInputChange('autoRemovalEnabled', e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <label htmlFor="autoRemoval" className="text-sm text-gray-700">
+                Enable auto-removal after inactivity period
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="orphanedDetection"
+                checked={formData.orphanedAccountDetection}
+                onChange={(e) => handleInputChange('orphanedAccountDetection', e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <label htmlFor="orphanedDetection" className="text-sm text-gray-700">
+                Detect orphaned accounts
+              </label>
+            </div>
+
+            {formData.orphanedAccountDetection && (
+              <div className="ml-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Grace Period (days)
+                </label>
+                <input
+                  type="number"
+                  value={formData.orphanedAccountGracePeriod}
+                  onChange={(e) => handleInputChange('orphanedAccountGracePeriod', parseInt(e.target.value))}
+                  className="w-32 border border-gray-300 rounded-md px-3 py-2"
+                  min="1"
+                  max="90"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Auto Temporary Access */}
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Users className="w-5 h-5 text-green-600" />
+            Auto Temporary Access
+          </h2>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Groups with Auto Temporary Access
+              </label>
+              <div className="space-y-2">
+                {['contractors', 'interns', 'consultants', 'temps'].map(group => (
+                  <div key={group} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id={group}
+                      checked={formData.autoTempAccessGroups.includes(group)}
+                      onChange={() => handleArrayInputChange('autoTempAccessGroups', group)}
+                      className="rounded border-gray-300"
+                    />
+                    <label htmlFor={group} className="text-sm text-gray-700 capitalize">
+                      {group}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Temporary Access Duration (days)
+              </label>
+              <input
+                type="number"
+                value={formData.tempAccessDuration}
+                onChange={(e) => handleInputChange('tempAccessDuration', parseInt(e.target.value))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2"
+                min="1"
+                max="365"
+              />
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Tab Navigation */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Icon className="w-4 h-4 mr-2" />
-                {tab.name}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* Global Config Tab */}
-      {activeTab === 'global' && (
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-medium mb-6">Global Configuration</h3>
+        {/* Ignored Apps */}
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Eye className="w-5 h-5 text-purple-600" />
+            Ignored Applications
+          </h2>
           
-          <div className="space-y-6">
-            {/* Basic Settings */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  TTL Days
-                </label>
-                <input
-                  type="number"
-                  value={config.ttl_days}
-                  onChange={(e) => handleConfigChange('ttl_days', parseInt(e.target.value))}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full"
-                />
-                <p className="text-xs text-gray-500 mt-1">Days before access expires</p>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Select apps to exclude from access reviews (e.g., basic productivity tools)
+            </p>
+            
+            <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-md p-3">
+              <div className="grid grid-cols-1 gap-2">
+                {availableApps.map(app => (
+                  <div key={app} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id={`app-${app}`}
+                      checked={formData.ignoredApps.includes(app)}
+                      onChange={() => handleArrayInputChange('ignoredApps', app)}
+                      className="rounded border-gray-300"
+                    />
+                    <label htmlFor={`app-${app}`} className="text-sm text-gray-700">
+                      {app}
+                    </label>
+                  </div>
+                ))}
               </div>
+            </div>
+            
+            <button
+              onClick={addCustomApp}
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              + Add custom application
+            </button>
+          </div>
+        </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Inactivity Threshold (Days)
+        {/* Backup Settings */}
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Database className="w-5 h-5 text-orange-600" />
+            Backup & Recovery
+          </h2>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Backup Cadence
+              </label>
+              <select
+                value={formData.backupCadence}
+                onChange={(e) => handleInputChange('backupCadence', e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2"
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Backup Retention (days)
+              </label>
+              <input
+                type="number"
+                value={formData.backupRetention}
+                onChange={(e) => handleInputChange('backupRetention', parseInt(e.target.value))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2"
+                min="7"
+                max="365"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="backupAlerts"
+                checked={formData.backupFailureAlerts}
+                onChange={(e) => handleInputChange('backupFailureAlerts', e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <label htmlFor="backupAlerts" className="text-sm text-gray-700">
+                Alert on backup failures
+              </label>
+            </div>
+
+            {formData.backupFailureAlerts && (
+              <div className="ml-6 space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Alert Recipients
                 </label>
-                <input
-                  type="number"
-                  value={config.inactivity_days}
-                  onChange={(e) => handleConfigChange('inactivity_days', parseInt(e.target.value))}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full"
-                />
-                <p className="text-xs text-gray-500 mt-1">Flag users inactive for this many days</p>
+                {formData.backupAlertRecipients.map((email, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <span className="text-sm text-gray-700">{email}</span>
+                    <button
+                      onClick={() => handleArrayInputChange('backupAlertRecipients', email, 'remove')}
+                      className="text-red-600 hover:text-red-800 text-xs"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => addEmailRecipient('backupAlertRecipients')}
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  + Add recipient
+                </button>
               </div>
+            )}
+          </div>
+        </div>
 
+        {/* Notification Settings */}
+        <div className="bg-white rounded-lg shadow-sm border p-6 lg:col-span-2">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Bell className="w-5 h-5 text-red-600" />
+            Notification Settings
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Backup Frequency
+                  Primary Notification Method
                 </label>
                 <select
-                  value={config.backup_cadence}
-                  onChange={(e) => handleConfigChange('backup_cadence', e.target.value)}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full"
+                  value={formData.primaryNotificationMethod}
+                  onChange={(e) => handleInputChange('primaryNotificationMethod', e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
                 >
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="6months">6 Months</option>
-                  <option value="annual">Annual</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Notification Method
-                </label>
-                <select
-                  value={config.notify_method}
-                  onChange={(e) => handleConfigChange('notify_method', e.target.value)}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full"
-                >
-                  <option value="slack">Slack</option>
                   <option value="email">Email</option>
+                  <option value="slack">Slack</option>
                   <option value="teams">Microsoft Teams</option>
                 </select>
               </div>
@@ -325,207 +423,142 @@ function ConfigEditor({ config: initialConfig, reviewers: initialReviewers, onSa
                 </label>
                 <input
                   type="number"
-                  value={config.retry_limit}
-                  onChange={(e) => handleConfigChange('retry_limit', parseInt(e.target.value))}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full"
+                  value={formData.notificationRetryLimit}
+                  onChange={(e) => handleInputChange('notificationRetryLimit', parseInt(e.target.value))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  min="1"
+                  max="10"
                 />
-                <p className="text-xs text-gray-500 mt-1">Number of notification retries</p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Escalation Days
-                </label>
-                <input
-                  type="number"
-                  value={config.escalate_days}
-                  onChange={(e) => handleConfigChange('escalate_days', parseInt(e.target.value))}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full"
-                />
-                <p className="text-xs text-gray-500 mt-1">Days before escalating unreviewed items</p>
-              </div>
+              {formData.primaryNotificationMethod === 'slack' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Slack Webhook URL
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.slackWebhook}
+                    onChange={(e) => handleInputChange('slackWebhook', e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    placeholder="https://hooks.slack.com/services/..."
+                  />
+                </div>
+              )}
+
+              {formData.primaryNotificationMethod === 'email' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      SMTP Host
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.emailSmtpHost}
+                      onChange={(e) => handleInputChange('emailSmtpHost', e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      placeholder="smtp.gmail.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      SMTP Port
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.emailSmtpPort}
+                      onChange={(e) => handleInputChange('emailSmtpPort', parseInt(e.target.value))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Toggle Settings */}
-            <div>
-              <label className="flex items-center">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  checked={config.orphaned_account}
-                  onChange={(e) => handleConfigChange('orphaned_account', e.target.checked)}
-                  className="mr-3"
+                  id="escalation"
+                  checked={formData.escalationEnabled}
+                  onChange={(e) => handleInputChange('escalationEnabled', e.target.checked)}
+                  className="rounded border-gray-300"
                 />
-                <span className="text-sm font-medium text-gray-700">Enable Orphaned Account Detection</span>
-              </label>
-              <p className="text-xs text-gray-500 mt-1">Automatically flag accounts that appear orphaned</p>
-            </div>
-
-            {/* Array Settings */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ignore Groups (one per line)
+                <label htmlFor="escalation" className="text-sm text-gray-700">
+                  Enable escalation for overdue reviews
                 </label>
-                <textarea
-                  value={config.ignore_groups.join('\n')}
-                  onChange={(e) => handleArrayChange('ignore_groups', e.target.value)}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full h-24"
-                  placeholder="contractors&#10;interns"
-                />
-                <p className="text-xs text-gray-500 mt-1">Groups to exclude from reviews</p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Risky Roles (one per line)
-                </label>
-                <textarea
-                  value={config.risky_roles.join('\n')}
-                  onChange={(e) => handleArrayChange('risky_roles', e.target.value)}
-                  className="border border-gray-300 rounded-md px-3 py-2 w-full h-24"
-                  placeholder="Admin&#10;SuperUser&#10;Security"
-                />
-                <p className="text-xs text-gray-500 mt-1">Roles that require special attention</p>
-              </div>
-            </div>
+              {formData.escalationEnabled && (
+                <div className="ml-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Escalate after (days)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.escalationAfterDays}
+                      onChange={(e) => handleInputChange('escalationAfterDays', parseInt(e.target.value))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      min="1"
+                      max="30"
+                    />
+                  </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Ignore Applications (one per line)
-              </label>
-              <textarea
-                value={config.ignore_apps.join('\n')}
-                onChange={(e) => handleArrayChange('ignore_apps', e.target.value)}
-                className="border border-gray-300 rounded-md px-3 py-2 w-full h-32"
-                placeholder="Zoom&#10;Slack&#10;Microsoft Teams"
-              />
-              <p className="text-xs text-gray-500 mt-1">Applications to exclude from reviews</p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Escalation Recipients
+                    </label>
+                    {formData.escalationRecipients.map((email, index) => (
+                      <div key={index} className="flex items-center gap-2 mb-2">
+                        <span className="text-sm text-gray-700">{email}</span>
+                        <button
+                          onClick={() => handleArrayInputChange('escalationRecipients', email, 'remove')}
+                          className="text-red-600 hover:text-red-800 text-xs"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => addEmailRecipient('escalationRecipients')}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      + Add recipient
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Reviewers Tab */}
-      {activeTab === 'reviewers' && (
-        <div className="space-y-6">
-          {/* App Reviewers */}
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">Application Reviewers</h3>
-              <button
-                onClick={addAppReviewer}
-                className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                Add App Reviewer
-              </button>
-            </div>
-            <div className="space-y-3">
-              {Object.entries(reviewers.apps).map(([app, reviewer]) => (
-                <div key={app} className="flex items-center justify-between p-3 border border-gray-200 rounded-md">
-                  <div>
-                    <span className="font-medium">{app}</span>
-                    <span className="text-gray-500 ml-2">→ {reviewer}</span>
-                  </div>
-                  <button
-                    onClick={() => removeAppReviewer(app)}
-                    className="text-red-600 hover:text-red-800"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
+      {/* Save Section */}
+      <div className="bg-gray-50 rounded-lg p-6 border">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-medium text-gray-900">Configuration Status</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              {isDirty ? 'You have unsaved changes.' : 'All changes are saved.'}
+            </p>
           </div>
-
-          {/* Group Reviewers */}
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">Group Reviewers</h3>
-              <button
-                onClick={addGroupReviewer}
-                className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                Add Group Reviewer
-              </button>
-            </div>
-            <div className="space-y-3">
-              {Object.entries(reviewers.groups).map(([group, reviewer]) => (
-                <div key={group} className="flex items-center justify-between p-3 border border-gray-200 rounded-md">
-                  <div>
-                    <span className="font-medium">{group}</span>
-                    <span className="text-gray-500 ml-2">→ {reviewer}</span>
-                  </div>
-                  <button
-                    onClick={() => removeGroupReviewer(group)}
-                    className="text-red-600 hover:text-red-800"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* User Reviewers */}
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">Specific User Reviewers</h3>
-              <button
-                onClick={addUserReviewer}
-                className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                Add User Reviewer
-              </button>
-            </div>
-            <div className="space-y-3">
-              {Object.entries(reviewers.users).map(([user, reviewer]) => (
-                <div key={user} className="flex items-center justify-between p-3 border border-gray-200 rounded-md">
-                  <div>
-                    <span className="font-medium">{user}</span>
-                    <span className="text-gray-500 ml-2">→ {reviewer}</span>
-                  </div>
-                  <button
-                    onClick={() => removeUserReviewer(user)}
-                    className="text-red-600 hover:text-red-800"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
+          <button
+            onClick={handleSave}
+            disabled={!isDirty}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium ${
+              isDirty 
+                ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            <Save className="w-4 h-4" />
+            Save Configuration
+          </button>
         </div>
-      )}
-
-      {/* Overrides Tab */}
-      {activeTab === 'overrides' && (
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-medium mb-4">Review Overrides</h3>
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-            <div className="flex">
-              <AlertTriangle className="h-5 w-5 text-blue-400" />
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-blue-800">Coming Soon</h3>
-                <div className="mt-2 text-sm text-blue-700">
-                  <p>Override configuration will allow you to set special exceptions for specific users or scenarios.</p>
-                  <p className="mt-2">Features will include:</p>
-                  <ul className="list-disc list-inside mt-1 space-y-1">
-                    <li>Skip reviews for specific users</li>
-                    <li>Custom review cycles for certain roles</li>
-                    <li>Temporary access exceptions</li>
-                    <li>Emergency access overrides</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
-}
+};
 
 export default ConfigEditor;

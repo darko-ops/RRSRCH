@@ -7,17 +7,22 @@ import { ReviewerQueue } from './ReviewerQueue';
 import { mockUsers, mockReviewers } from '../../data/mockData';
 
 function ReviewerDashboard({ user, onLogout }) {
-  const [data, setData] = useState(mockUsers);
-  const [constellationMetrics, setConstellationMetrics] = useState(null);
+  const [data] = useState(mockUsers);
+  const [constellationMetrics, setConstellationMetrics] = useState({});
 
   // Filter data to only show items assigned to this reviewer
   const filteredData = useMemo(() => {
     const reviewerEmail = user.email;
     return data.filter(item => {
+      // Add safety checks for undefined properties
+      const apps = mockReviewers?.apps || {};
+      const groups = mockReviewers?.groups || {};
+      const users = mockReviewers?.users || {};
+      
       return (
-        mockReviewers.apps[item.app] === reviewerEmail ||
-        mockReviewers.groups[item.group] === reviewerEmail ||
-        mockReviewers.users[item.email] === reviewerEmail
+        apps[item.app] === reviewerEmail ||
+        groups[item.group] === reviewerEmail ||
+        users[item.email] === reviewerEmail
       );
     });
   }, [data, user.email]);
@@ -25,30 +30,32 @@ function ReviewerDashboard({ user, onLogout }) {
   // Determine which team/group this reviewer is responsible for
   const reviewerViewFilter = useMemo(() => {
     const reviewerEmail = user.email;
-    const responsibleGroups = Object.entries(mockReviewers.groups)
+    const groups = mockReviewers?.groups || {};
+    const responsibleGroups = Object.entries(groups)
       .filter(([group, reviewer]) => reviewer === reviewerEmail)
       .map(([group]) => group);
     
     return responsibleGroups.length > 0 ? responsibleGroups[0] : 'all';
   }, [user.email]);
 
-  function handleUpdateStatus(itemId, status, reviewer, comments) {
-    setData(data.map(item => 
-      item.id === itemId 
-        ? { ...item, status, reviewer, comments }
-        : item
-    ));
+  function handleUserClick(user, group) {
+    console.log('Reviewer clicked user:', user.name, 'in', group.name);
   }
 
-  function handleUserClick(clickedUser, group) {
-    console.log('User clicked in constellation:', clickedUser, group);
+  function handleUpdateStatus(itemId, newStatus) {
+    console.log('Update status:', itemId, 'to', newStatus);
+    // TODO: Connect to backend API
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header user={user} onLogout={onLogout} />
-      
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto py-6 px-4">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Review Queue</h1>
+          <p className="text-gray-600">Items assigned to you for access review</p>
+        </div>
+
         {/* Constellation Map - Filtered for Reviewer */}
         <AccessConstellationMap 
           data={filteredData}
