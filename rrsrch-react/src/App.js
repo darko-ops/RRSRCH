@@ -34,8 +34,9 @@ function WireframePlanet({ scrollRef }) {
       // Smoothly interpolate scroll for opacity/scale effect
       // We read directly from the ref to avoid React renders
       const progress = scrollRef.current;
-      const opacity = Math.max(0.001, 1 - progress * 3);
-      
+      // Keep minimum scale at 0.3 (30% of original size) so sphere doesn't fully disappear
+      const opacity = Math.max(0.3, 1 - progress * 1.5);
+
       // Apply scale
       groupRef.current.scale.setScalar(opacity);
     }
@@ -87,16 +88,13 @@ function GridFloor({ scrollRef }) {
     useFrame(() => {
         if (gridRef.current && scrollRef.current !== undefined) {
              const progress = scrollRef.current;
-             const opacity = Math.max(0, 1 - progress * 3);
-             
-             // We need to access the material to change opacity
-             // The Grid component from drei is complex, it might be easier to wrap it
-             // or just accept that fading the grid might require a re-render if we can't reach the material easily.
-             // BUT, we can scale the Group containing the grid to hide it.
-             gridRef.current.visible = opacity > 0.01;
-             if (gridRef.current.visible) {
-                 // Optional: fading logic if we can access material
-             }
+             // Keep minimum opacity at 0.2 (20%) so grid never fully disappears
+             const opacity = Math.max(0.2, 1 - progress * 1.5);
+
+             // Grid always stays visible
+             gridRef.current.visible = true;
+             // Scale down the grid slightly as we scroll but keep it visible
+             gridRef.current.scale.setScalar(opacity);
         }
     });
 
