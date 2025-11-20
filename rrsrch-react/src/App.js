@@ -137,24 +137,24 @@ function Scene({ scrollProgress }) {
       <ambientLight intensity={0.2} />
       
       {/* Main Hero Elements - Fade out on scroll */}
-      <group visible={heroOpacity > 0}>
-          <Grid 
-            position={[0, -4, 0]} 
-            args={[60, 60]} 
-            cellSize={1} 
-            cellThickness={1} 
-            cellColor="#222222" 
-            sectionSize={5} 
-            sectionThickness={1.5} 
-            sectionColor="#444444" 
-            fadeDistance={50} 
-            infiniteGrid 
+      <group>
+          <Grid
+            position={[0, -4, 0]}
+            args={[60, 60]}
+            cellSize={1}
+            cellThickness={1}
+            cellColor="#222222"
+            sectionSize={5}
+            sectionThickness={1.5}
+            sectionColor="#444444"
+            fadeDistance={50}
+            infiniteGrid
             material={{ opacity: heroOpacity, transparent: true }}
           />
-          
-          {/* We can scale the planet down or fade it */}
-          <group scale={[heroOpacity, heroOpacity, heroOpacity]}>
-             <WireframePlanet />
+
+          {/* Planet continues rotating but scales down/fades */}
+          <group scale={[Math.max(0.001, heroOpacity), Math.max(0.001, heroOpacity), Math.max(0.001, heroOpacity)]}>
+             <WireframePlanet scrollProgress={scrollProgress} />
           </group>
       </group>
 
