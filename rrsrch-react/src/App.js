@@ -330,36 +330,76 @@ function NewsItem({ date, title, excerpt }) {
 }
 
 function TwitterFeed() {
+  const [tweets, setTweets] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('http://localhost:3001/api/tweets')
+      .then(res => res.json())
+      .then(data => {
+        setTweets(data.tweets || []);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Error fetching tweets:', err);
+        setLoading(false);
+      });
+  }, []);
+
+  const getTimeAgo = (dateString) => {
+    const now = new Date();
+    const tweetDate = new Date(dateString);
+    const diffMs = now - tweetDate;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffDays > 0) return `${diffDays}d ago`;
+    if (diffHours > 0) return `${diffHours}h ago`;
+    if (diffMins > 0) return `${diffMins}m ago`;
+    return 'Just now';
+  };
+
   return (
-    <div style={{ 
-      background: 'rgba(20,20,20,0.5)', 
+    <div style={{
+      background: 'rgba(20,20,20,0.5)',
       border: '1px solid #222',
       padding: '20px',
       backdropFilter: 'blur(10px)'
     }}>
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: '10px', 
-        marginBottom: '20px', 
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        marginBottom: '20px',
         paddingBottom: '15px',
-        borderBottom: '1px solid #333' 
+        borderBottom: '1px solid #333'
       }}>
         <Twitter size={16} color="#1DA1F2" />
         <span style={{ fontSize: '12px', fontWeight: 600, color: '#fff' }}>LATEST UPDATES</span>
       </div>
-      
-      {[1, 2, 3, 4].map(i => (
-        <div key={i} style={{ marginBottom: '25px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>@RRSRCH_LAB</span>
-            <span style={{ fontSize: '11px', color: '#666' }}>{i}h ago</span>
-          </div>
-          <p style={{ fontSize: '13px', lineHeight: '1.5', color: '#aaa', margin: 0 }}>
-            Deployment of Node {840 + i} successful. Latency reduced by 15% across the western cluster. Continuing observation. #AI #Infra
-          </p>
+
+      {loading ? (
+        <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
+          Loading tweets...
         </div>
-      ))}
+      ) : tweets.length === 0 ? (
+        <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
+          No tweets available
+        </div>
+      ) : (
+        tweets.map(tweet => (
+          <div key={tweet.id} style={{ marginBottom: '25px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>@RRSRCH_LAB</span>
+              <span style={{ fontSize: '11px', color: '#666' }}>{getTimeAgo(tweet.created_at)}</span>
+            </div>
+            <p style={{ fontSize: '13px', lineHeight: '1.5', color: '#aaa', margin: 0 }}>
+              {tweet.text}
+            </p>
+          </div>
+        ))
+      )}
     </div>
   );
 }
