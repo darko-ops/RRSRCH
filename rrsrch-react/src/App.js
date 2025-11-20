@@ -59,7 +59,7 @@ function WireframePlanet({ scrollRef }) {
       {/* Outer Wireframe Sphere */}
       <Sphere args={[2.5, 32, 32]}>
         <meshBasicMaterial
-          color="#444444"
+          color="#ffffff"
           wireframe
           transparent
           opacity={0.15}
@@ -94,7 +94,7 @@ function WireframePlanet({ scrollRef }) {
       {/* Orbiting Small Sphere */}
       <mesh ref={orbitingSphereRef} rotation={[Math.PI / 2, 0, 0]}>
         <Sphere args={[0.15, 16, 16]}>
-          <meshBasicMaterial color="#ffffff" />
+          <meshBasicMaterial color="#333333" />
         </Sphere>
       </mesh>
     </group>
