@@ -101,7 +101,7 @@ function GridFloor({ scrollRef }) {
     return (
         <group ref={gridRef}>
              <Grid
-                position={[0, -1, 0]}
+                position={[0, -4, 0]}
                 args={[60, 60]}
                 cellSize={1}
                 cellThickness={1}
@@ -464,7 +464,7 @@ function App() {
     <div style={{ width: '100vw', height: '100vh', position: 'relative', background: 'black' }}>
       {/* 3D Background Layer - Fixed */}
       <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', zIndex: 1 }}>
-        <Canvas camera={{ position: [0, 4, 6], fov: 50 }} frameloop="always">
+        <Canvas camera={{ position: [0, 1, 6], fov: 50 }} frameloop="always">
           <Scene scrollRef={scrollRef} />
         </Canvas>
       </div>
@@ -548,6 +548,9 @@ function App() {
           THE COMING WORLD.
           </p>
         </div>
+
+        {/* Spacer to delay panel appearance and allow sphere to shrink fully visible */}
+        <div style={{ height: '50vh' }}></div>
 
         {/* Main Content Layout with Background Panel */}
         <div style={{
