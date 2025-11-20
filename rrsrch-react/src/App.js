@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Sphere, Stars, Grid, Line } from '@react-three/drei';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { OrbitControls, Sphere, Stars, Grid } from '@react-three/drei';
 import * as THREE from 'three';
 import { Mail, MessageCircle, FileText, X, Twitter, ArrowRight } from 'lucide-react';
 
@@ -20,14 +20,21 @@ const theme = {
   }
 };
 
-// Wireframe Planet Component
-function WireframePlanet() {
+// --- 3D Components ---
+
+function WireframePlanet({ scrollY }) {
   const groupRef = useRef();
   
   useFrame(({ clock }) => {
     if (groupRef.current) {
+      // Constant rotation
       groupRef.current.rotation.y = clock.getElapsedTime() * 0.05;
       groupRef.current.rotation.z = Math.sin(clock.getElapsedTime() * 0.1) * 0.1;
+
+      // Parallax/Scroll effect: Move planet down/away as user scrolls
+      // scrollY is passed from the parent Scene component which gets it from HTML overlay
+      // We can simulate this by just making the opacity fade or moving it.
+      // However, since the Canvas is fixed in the background, we can control opacity via props.
     }
   });
 
@@ -71,53 +78,111 @@ function WireframePlanet() {
   );
 }
 
-function Scene() {
+function BackgroundStars({ scrollProgress }) {
+  // scrollProgress 0 to 1. 
+  // At 0 (top), we see the main scene.
+  // As we scroll down, we want to fade TO black/minimal stars.
+  // So let's just keep some stars always visible, maybe fade the grid?
+  
+  return (
+    <Stars 
+      radius={100} 
+      depth={50} 
+      count={3000} 
+      factor={4} 
+      saturation={0} 
+      fade 
+      speed={0} 
+    />
+  );
+}
+
+function DistantGalaxies({ opacity }) {
+    // Small distant wireframe planets scattered in the background
+    // Only visible when opacity > 0
+    return (
+        <group>
+             {[...Array(5)].map((_, i) => (
+                <group key={i} position={[
+                    (Math.random() - 0.5) * 40,
+                    (Math.random() - 0.5) * 40,
+                    -10 - Math.random() * 20
+                ]}>
+                     <Sphere args={[0.5, 8, 8]}>
+                        <meshBasicMaterial color="#333" wireframe transparent opacity={opacity * 0.3} />
+                     </Sphere>
+                     <mesh rotation={[Math.PI/2, 0, 0]}>
+                        <ringGeometry args={[0.8, 0.85, 32]} />
+                        <meshBasicMaterial color="#222" side={THREE.DoubleSide} transparent opacity={opacity * 0.2} />
+                     </mesh>
+                </group>
+            ))}
+        </group>
+    )
+}
+
+function Scene({ scrollProgress }) {
+  // Use scrollProgress to fade out the main planet and grid
+  // 0 = top of page, 1 = scrolled down
+  
+  // Fade out main planet quickly as we leave hero
+  const heroOpacity = Math.max(0, 1 - scrollProgress * 3); 
+  
+  // Fade in distant background elements as we scroll
+  const bgOpacity = Math.min(1, scrollProgress * 2);
+
   return (
     <>
       <color attach="background" args={['#000000']} />
       <ambientLight intensity={0.2} />
       
-      {/* Stable Grid Floor */}
-      <Grid 
-        position={[0, -4, 0]} 
-        args={[60, 60]} 
-        cellSize={1} 
-        cellThickness={1} 
-        cellColor="#222222" 
-        sectionSize={5} 
-        sectionThickness={1.5} 
-        sectionColor="#444444" 
-        fadeDistance={50} 
-        infiniteGrid 
-      />
+      {/* Main Hero Elements - Fade out on scroll */}
+      <group visible={heroOpacity > 0}>
+          <Grid 
+            position={[0, -4, 0]} 
+            args={[60, 60]} 
+            cellSize={1} 
+            cellThickness={1} 
+            cellColor="#222222" 
+            sectionSize={5} 
+            sectionThickness={1.5} 
+            sectionColor="#444444" 
+            fadeDistance={50} 
+            infiniteGrid 
+            material={{ opacity: heroOpacity, transparent: true }}
+          />
+          
+          {/* We can scale the planet down or fade it */}
+          <group scale={[heroOpacity, heroOpacity, heroOpacity]}>
+             <WireframePlanet />
+          </group>
+      </group>
+
+      {/* Persistent Background */}
+      <BackgroundStars />
       
-      {/* Static Stars */}
-      <Stars radius={100} depth={50} count={3000} factor={4} saturation={0} fade speed={0} />
+      {/* Distant Minimal Elements - Fade in on scroll */}
+      <DistantGalaxies opacity={bgOpacity} />
       
-      <WireframePlanet />
-      
-      {/* Stable Camera */}
       <OrbitControls 
         enableZoom={false} 
         enablePan={false}
-        enableRotate={true}
-        autoRotate={false}
-        minPolarAngle={Math.PI / 2.5}
-        maxPolarAngle={Math.PI / 2}
+        enableRotate={false} // Lock rotation for stability
       />
     </>
   );
 }
 
-// UI Components
+// --- UI Components ---
+
 function Modal({ isOpen, onClose, children }) {
   if (!isOpen) return null;
-  
+
   return (
     <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
+        position: 'fixed',
+        top: 0,
+        left: 0,
       width: '100vw',
       height: '100vh',
       background: 'rgba(0,0,0,0.8)',
@@ -259,7 +324,7 @@ function TwitterFeed() {
         <span style={{ fontSize: '12px', fontWeight: 600, color: '#fff' }}>LATEST UPDATES</span>
       </div>
       
-      {[1, 2, 3].map(i => (
+      {[1, 2, 3, 4].map(i => (
         <div key={i} style={{ marginBottom: '25px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
             <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>@RRSRCH_LAB</span>
@@ -276,6 +341,28 @@ function TwitterFeed() {
 
 function App() {
   const [activeModal, setActiveModal] = useState(null);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const scrollContainerRef = useRef(null);
+
+  // Handle Scroll for 3D Fade effect
+  useEffect(() => {
+    const handleScroll = () => {
+      if (scrollContainerRef.current) {
+        const scrollTop = scrollContainerRef.current.scrollTop;
+        const windowHeight = window.innerHeight;
+        // Calculate progress: 0 at top, 1 after scrolling one screen height
+        const progress = Math.min(Math.max(scrollTop / windowHeight, 0), 1);
+        setScrollProgress(progress);
+      }
+    };
+
+    const container = scrollContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      handleScroll(); // Init
+    }
+    return () => container?.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const renderModalContent = () => {
     switch(activeModal) {
@@ -351,30 +438,32 @@ function App() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', background: 'black', overflow: 'hidden' }}>
-      {/* 3D Background */}
+      {/* 3D Background Layer */}
       <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
         <Canvas camera={{ position: [0, 1, 6], fov: 50 }}>
-          <Scene />
+          <Scene scrollProgress={scrollProgress} />
         </Canvas>
       </div>
 
-      {/* UI Overlay */}
-      <div style={{ 
-        position: 'absolute', 
-        top: 0, 
-        left: 0, 
-        width: '100%', 
-        height: '100%', 
-        zIndex: 2,
-        display: 'flex', 
-        flexDirection: 'column',
-        overflowY: 'auto',
-        fontFamily: theme.fonts.main
-      }}>
-        
-        {/* Top Navigation */}
-        <div style={{ 
+      {/* Scrollable Content Layer */}
+      <div 
+        ref={scrollContainerRef}
+        style={{ 
           position: 'absolute', 
+          top: 0, 
+          left: 0, 
+          width: '100%', 
+          height: '100%', 
+          zIndex: 2,
+          overflowY: 'auto',
+          fontFamily: theme.fonts.main,
+          scrollBehavior: 'smooth'
+        }}
+      >
+        
+        {/* Top Navigation (Fixed visual position) */}
+        <div style={{ 
+          position: 'fixed', 
           top: '40px', 
           right: '40px', 
           display: 'flex', 
@@ -386,50 +475,62 @@ function App() {
           <NavButton onClick={() => setActiveModal('substack')} icon={FileText} label="Substack" />
         </div>
 
-        {/* Main Layout */}
+        {/* Hero Section - Full Screen */}
+        <div style={{ 
+          height: '100vh', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          justifyContent: 'flex-end', // Pushed to bottom
+          alignItems: 'center',
+          paddingBottom: '15vh', // Spacing from bottom
+          textAlign: 'center'
+        }}>
+           <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: '20px',
+            padding: '5px 10px',
+            background: 'rgba(255,255,255,0.05)',
+            borderRadius: '100px',
+            backdropFilter: 'blur(5px)'
+          }}>
+            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00ff00', boxShadow: '0 0 8px #00ff00' }}></div>
+            <span style={{ color: '#888', fontSize: '11px', fontFamily: theme.fonts.mono }}>SYSTEM ONLINE</span>
+          </div>
+          
+          <h1 style={{ 
+            fontSize: 'clamp(40px, 6vw, 80px)', 
+            fontWeight: 800, 
+            color: 'white', 
+            margin: 0, 
+            letterSpacing: '-0.03em',
+            lineHeight: 0.9 
+          }}>
+            RRSRCH
+          </h1>
+          
+          <p style={{ color: '#666', marginTop: '20px', fontSize: '18px', maxWidth: '450px', lineHeight: '1.5' }}>
+            Decentralized intelligence laboratory. Building the infrastructure for the next generation of autonomous agents.
+          </p>
+        </div>
+
+        {/* Main Content Layout */}
         <div style={{ 
           maxWidth: '1200px', 
           width: '100%', 
           margin: '0 auto', 
           padding: '40px',
           display: 'grid',
-          gridTemplateColumns: '2fr 1fr',
+          gridTemplateColumns: '2fr 1fr', // 2/3 News, 1/3 Sticky Right
           gap: '60px',
-          minHeight: '100vh'
+          minHeight: '100vh',
+          position: 'relative', // Context for sticky
+          zIndex: 5
         }}>
           
-          {/* Left Column: Hero + News */}
-          <div style={{ paddingTop: '10vh' }}>
-            {/* Header */}
-            <div style={{ marginBottom: '80px' }}>
-               <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginBottom: '20px',
-                padding: '5px 10px',
-                background: 'rgba(255,255,255,0.05)',
-                borderRadius: '100px'
-              }}>
-                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00ff00', boxShadow: '0 0 8px #00ff00' }}></div>
-                <span style={{ color: '#888', fontSize: '11px', fontFamily: theme.fonts.mono }}>SYSTEM ONLINE</span>
-              </div>
-              <h1 style={{ 
-                fontSize: 'clamp(40px, 6vw, 80px)', 
-                fontWeight: 800, 
-                color: 'white', 
-                margin: 0, 
-                letterSpacing: '-0.03em',
-                lineHeight: 0.9 
-              }}>
-                RRSRCH
-              </h1>
-              <p style={{ color: '#666', marginTop: '20px', fontSize: '18px', maxWidth: '450px' }}>
-                Decentralized intelligence laboratory. Building the infrastructure for the next generation of autonomous agents.
-              </p>
-            </div>
-
-            {/* News Section */}
+          {/* Left Column: News Feed */}
+          <div>
             <h2 style={{ 
               fontSize: '14px', 
               color: '#444', 
@@ -442,47 +543,43 @@ function App() {
               Latest Transmissions
             </h2>
             
-            <div>
-              <NewsItem 
-                date="2023.11.24"
-                title="Neural Architecture V4.0 Alpha"
-                excerpt="Our latest parameter adjustment has yielded a 40% increase in cognitive reasoning tasks. Deployment to the grid scheduled for 0400 hours."
+            {/* Generated News Items to fill scroll */}
+            {[1, 2, 3, 4, 5, 6].map((item) => (
+               <NewsItem 
+                key={item}
+                date={`2023.11.${30-item}`}
+                title={item % 2 === 0 ? "Network Protocol Update" : "Cognitive Shard Expansion"}
+                excerpt="Analysis of the current vector space indicates a significant improvement in query resolution times. All nodes are reporting nominal efficiency."
               />
-              <NewsItem 
-                date="2023.11.18"
-                title="Decentralized Compute Protocol"
-                excerpt="Implementing the new shard distribution algorithm across the active node cluster. Latency improvements expected within 24 hours."
-              />
-              <NewsItem 
-                date="2023.11.10"
-                title="Q4 Roadmap: Autonomous Agents"
-                excerpt="The path forward for self-improving agents involves a radical rethink of memory management and contextual awareness."
-              />
-            </div>
+            ))}
           </div>
 
-          {/* Right Column: Twitter / Socials */}
-          <div style={{ paddingTop: '20vh' }}>
-             <TwitterFeed />
-             
-             <div style={{ marginTop: '40px', border: '1px solid #222', padding: '20px' }}>
-               <h3 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#fff' }}>LABORATORY STATUS</h3>
-               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px' }}>
-                 <span style={{ color: '#666' }}>Active Nodes</span>
-                 <span style={{ color: '#fff', fontFamily: theme.fonts.mono }}>8,492</span>
-               </div>
-               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px' }}>
-                 <span style={{ color: '#666' }}>Total Compute</span>
-                 <span style={{ color: '#fff', fontFamily: theme.fonts.mono }}>42.8 PF</span>
-               </div>
-               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                 <span style={{ color: '#666' }}>Uptime</span>
-                 <span style={{ color: '#00ff00', fontFamily: theme.fonts.mono }}>99.99%</span>
+          {/* Right Column: Sticky Sidebar */}
+          <div style={{ position: 'relative' }}>
+             <div style={{ position: 'sticky', top: '40px' }}>
+               <TwitterFeed />
+               
+               <div style={{ marginTop: '40px', border: '1px solid #222', padding: '20px', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)' }}>
+                 <h3 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#fff' }}>LABORATORY STATUS</h3>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px' }}>
+                   <span style={{ color: '#666' }}>Active Nodes</span>
+                   <span style={{ color: '#fff', fontFamily: theme.fonts.mono }}>8,492</span>
+                 </div>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px' }}>
+                   <span style={{ color: '#666' }}>Total Compute</span>
+                   <span style={{ color: '#fff', fontFamily: theme.fonts.mono }}>42.8 PF</span>
+                 </div>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                   <span style={{ color: '#666' }}>Uptime</span>
+                   <span style={{ color: '#00ff00', fontFamily: theme.fonts.mono }}>99.99%</span>
+                 </div>
                </div>
              </div>
           </div>
 
         </div>
+        
+        <div style={{ height: '100px' }}></div>
       </div>
 
       {/* Modal Layer */}
