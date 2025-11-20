@@ -505,7 +505,7 @@ function App() {
             fontWeight: 800,
             color: 'white',
             margin: 0,
-            letterSpacing: '-0.05em',
+            letterSpacing: '-0.1em',
             lineHeight: 0.9,
             fontFamily: theme.fonts.main
           }}>
