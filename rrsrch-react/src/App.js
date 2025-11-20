@@ -488,14 +488,16 @@ function App() {
             <MessageCircle size={40} style={{ marginBottom: '20px', color: '#5865F2' }} />
             <h2 style={{ margin: '0 0 10px 0', fontSize: '20px' }}>Community Hub</h2>
             <p style={{ color: '#888', marginBottom: '30px' }}>Join 5,000+ researchers in our secure channel.</p>
-            <button style={{ 
-              background: '#5865F2', 
-              color: 'white', 
-              border: 'none', 
-              padding: '12px 30px', 
-              fontWeight: 'bold',
-              cursor: 'pointer'
-            }}>
+            <button
+              onClick={() => window.open('https://discord.gg/4XK2Df5b', '_blank')}
+              style={{
+                background: '#5865F2',
+                color: 'white',
+                border: 'none',
+                padding: '12px 30px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}>
               LAUNCH DISCORD
             </button>
           </div>
