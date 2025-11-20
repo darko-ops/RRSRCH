@@ -94,7 +94,7 @@ function WireframePlanet({ scrollRef }) {
       {/* Orbiting Small Sphere */}
       <mesh ref={orbitingSphereRef} rotation={[Math.PI / 2, 0, 0]}>
         <Sphere args={[0.15, 16, 16]}>
-          <meshBasicMaterial color="#ffffff" />
+          <meshBasicMaterial color="#222222" />
         </Sphere>
       </mesh>
     </group>
