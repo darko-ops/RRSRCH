@@ -15,7 +15,15 @@ const twitterClient = new TwitterApi(process.env.TWITTER_BEARER_TOKEN);
 // API endpoint to fetch tweets
 app.get('/api/tweets', async (req, res) => {
   try {
-    const tweets = await twitterClient.v2.userTimeline('1934283932834676736', {
+    // First get the user ID for @rrsrch
+    const user = await twitterClient.v2.userByUsername('rrsrch');
+
+    if (!user.data) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Then fetch their tweets
+    const tweets = await twitterClient.v2.userTimeline(user.data.id, {
       max_results: 5,
       'tweet.fields': ['created_at', 'public_metrics'],
       expansions: ['author_id'],
@@ -32,7 +40,7 @@ app.get('/api/tweets', async (req, res) => {
     res.json({ tweets: formattedTweets });
   } catch (error) {
     console.error('Error fetching tweets:', error);
-    res.status(500).json({ error: 'Failed to fetch tweets' });
+    res.status(500).json({ error: 'Failed to fetch tweets', details: error.message });
   }
 });
 

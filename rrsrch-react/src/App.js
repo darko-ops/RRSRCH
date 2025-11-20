@@ -392,7 +392,7 @@ function TwitterFeed() {
         tweets.map(tweet => (
           <div key={tweet.id} style={{ marginBottom: '25px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>@RRSRCH_LAB</span>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>@rrsrch</span>
               <span style={{ fontSize: '11px', color: '#666' }}>{getTimeAgo(tweet.created_at)}</span>
             </div>
             <p style={{ fontSize: '13px', lineHeight: '1.5', color: '#aaa', margin: 0 }}>
