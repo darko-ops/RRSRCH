@@ -540,7 +540,7 @@ function App() {
         }}>
           <NavButton onClick={() => setActiveModal('subscribe')} icon={Mail} label="Subscribe" />
           <NavButton onClick={() => setActiveModal('discord')} icon={MessageCircle} label="Discord" />
-          <NavButton onClick={() => setActiveModal('substack')} icon={FileText} label="Substack" />
+          <NavButton onClick={() => window.open('https://substack.com/@rrsrch', '_blank')} icon={FileText} label="Substack" />
         </div>
 
         {/* Hero Section - Full Screen */}
