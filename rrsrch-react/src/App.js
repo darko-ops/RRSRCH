@@ -463,8 +463,25 @@ function MarketWatch() {
 function App() {
   const [activeModal, setActiveModal] = useState(null);
   const [menuExpanded, setMenuExpanded] = useState(false);
+  const [posts, setPosts] = useState([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
   const scrollRef = useRef(0);
   const scrollContainerRef = useRef(null);
+
+  // Fetch posts from API
+  useEffect(() => {
+    const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+    fetch(`${API_URL}/api/posts`)
+      .then(res => res.json())
+      .then(data => {
+        setPosts(data.posts || []);
+        setLoadingPosts(false);
+      })
+      .catch(err => {
+        console.error('Error fetching posts:', err);
+        setLoadingPosts(false);
+      });
+  }, []);
 
   // Handle Scroll for 3D Fade effect without causing re-renders
   useEffect(() => {
@@ -705,15 +722,25 @@ function App() {
               Latest Transmissions
             </h2>
             
-            {/* Generated News Items to fill scroll */}
-            {[1, 2, 3, 4, 5, 6].map((item) => (
-               <NewsItem 
-                key={item}
-                date={`2023.11.${30-item}`}
-                title={item % 2 === 0 ? "Network Protocol Update" : "Cognitive Shard Expansion"}
-                excerpt="Analysis of the current vector space indicates a significant improvement in query resolution times. All nodes are reporting nominal efficiency."
-              />
-            ))}
+            {/* Posts from API */}
+            {loadingPosts ? (
+              <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '40px' }}>
+                Loading transmissions...
+              </div>
+            ) : posts.length === 0 ? (
+              <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '40px' }}>
+                No transmissions available
+              </div>
+            ) : (
+              posts.map((post) => (
+                <NewsItem
+                  key={post.id}
+                  date={new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')}
+                  title={post.title}
+                  excerpt={post.excerpt}
+                />
+              ))
+            )}
           </div>
 
           {/* Right Column: Sticky Sidebar */}
