@@ -35,7 +35,7 @@ function WireframePlanet({ scrollRef }) {
       // We read directly from the ref to avoid React renders
       const progress = scrollRef.current;
       // Keep minimum scale at 0.3 (30% of original size) so sphere doesn't fully disappear
-      const opacity = Math.max(0.3, 1 - progress * 1.5);
+      const opacity = Math.max(0.2, 1 - progress * 1.5);
 
       // Apply scale
       groupRef.current.scale.setScalar(opacity);
@@ -94,7 +94,7 @@ function GridFloor({ scrollRef }) {
              // Grid always stays visible
              gridRef.current.visible = true;
              // Scale down the grid slightly as we scroll but keep it visible
-             gridRef.current.scale.setScalar(opacity);
+             //gridRef.current.scale.setScalar(opacity);
         }
     });
 
