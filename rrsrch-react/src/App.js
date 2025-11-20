@@ -437,13 +437,26 @@ function App() {
   };
 
   return (
-    <div style={{ width: '100vw', height: '100vh', position: 'relative', background: 'black', overflow: 'hidden' }}>
-      {/* 3D Background Layer */}
-      <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
+    <div style={{ width: '100vw', height: '100vh', position: 'relative', background: 'black' }}>
+      {/* 3D Background Layer - Fixed */}
+      <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', zIndex: 1 }}>
         <Canvas camera={{ position: [0, 1, 6], fov: 50 }}>
           <Scene scrollProgress={scrollProgress} />
         </Canvas>
       </div>
+
+      {/* Fade overlay based on scroll */}
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100vh',
+        background: `rgba(0, 0, 0, ${scrollProgress * 0.9})`,
+        pointerEvents: 'none',
+        zIndex: 1.5,
+        transition: 'background 0.1s ease-out'
+      }} />
 
       {/* Scrollable Content Layer */}
       <div 
