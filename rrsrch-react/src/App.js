@@ -512,20 +512,23 @@ function App() {
             <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00ff00', boxShadow: '0 0 8px #00ff00' }}></div>
             <span style={{ color: '#888', fontSize: '11px', fontFamily: theme.fonts.mono }}>SYSTEM ONLINE</span>
           </div>
-          <p style={{ color: 'white', marginTop: '8px', marginBottom: '0', fontSize: '13px', lineHeight: '1.5', fontWeight: 'bold', fontFamily: theme.fonts.main, textAlign: 'right', alignSelf: 'stretch' }}>
-          : INTELLIGENCE / RESEARCH
-          </p>
-          <h1 style={{
-            fontSize: 'clamp(40px, 6vw, 80px)',
-            fontWeight: 800,
-            color: 'white',
-            margin: 0,
-            letterSpacing: '-0.1em',
-            lineHeight: 0.9,
-            fontFamily: theme.fonts.main
-          }}>
-            RRSRCH
-          </h1>
+
+          <div style={{ display: 'inline-block' }}>
+            <p style={{ color: 'white', margin: '0 0 4px 0', fontSize: '13px', lineHeight: '1.5', fontWeight: 'bold', fontFamily: theme.fonts.main, textAlign: 'right' }}>
+            : INTELLIGENCE / RESEARCH
+            </p>
+            <h1 style={{
+              fontSize: 'clamp(40px, 6vw, 80px)',
+              fontWeight: 800,
+              color: 'white',
+              margin: 0,
+              letterSpacing: '-0.1em',
+              lineHeight: 0.9,
+              fontFamily: theme.fonts.main
+            }}>
+              RRSRCH
+            </h1>
+          </div>
 
           <p style={{ color: '#666', marginTop: '18px', fontSize: '18px', maxWidth: '450px', lineHeight: '1.5', fontWeight: 'bold', fontFamily: theme.fonts.main }}>
           INNOVATING NEWS FOR <br />
