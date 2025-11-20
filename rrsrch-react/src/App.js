@@ -526,7 +526,7 @@ function App() {
           </h1>
 
           <p style={{ color: '#666', marginTop: '20px', fontSize: '18px', maxWidth: '450px', lineHeight: '1.5' }}>
-            Decentralized intelligence laboratory. Building the infrastructure for the next generation of autonomous agents.
+            :intelligence / research
           </p>
         </div>
 
@@ -542,7 +542,7 @@ function App() {
           minHeight: '100vh',
           position: 'relative', // Context for sticky
           zIndex: 5,
-          background: 'rgba(0, 0, 0, 0.85)',
+          background: 'rgba(22, 22, 22, 0.85)',
           borderRadius: '24px',
           backdropFilter: 'blur(20px)',
           border: '1px solid rgba(255, 255, 255, 0.05)',
