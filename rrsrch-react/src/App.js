@@ -59,7 +59,7 @@ function WireframePlanet({ scrollRef }) {
       {/* Outer Wireframe Sphere */}
       <Sphere args={[2.5, 32, 32]}>
         <meshBasicMaterial
-          color="#ffffff"
+          color="#444444"
           wireframe
           transparent
           opacity={0.15}
