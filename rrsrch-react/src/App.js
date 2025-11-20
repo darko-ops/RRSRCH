@@ -24,7 +24,8 @@ const theme = {
 
 function WireframePlanet({ scrollRef }) {
   const groupRef = useRef();
-  
+  const orbitingSphereRef = useRef();
+
   useFrame(({ clock }) => {
     if (groupRef.current) {
       // Constant rotation regardless of scroll
@@ -40,27 +41,38 @@ function WireframePlanet({ scrollRef }) {
       // Apply scale
       groupRef.current.scale.setScalar(opacity);
     }
+
+    // Animate orbiting sphere along the first ring
+    if (orbitingSphereRef.current) {
+      const time = clock.getElapsedTime();
+      const radius = 3.525; // Middle of the first ring (3.5 + 3.55) / 2
+      const speed = 0.5;
+
+      orbitingSphereRef.current.position.x = Math.cos(time * speed) * radius;
+      orbitingSphereRef.current.position.z = Math.sin(time * speed) * radius;
+      orbitingSphereRef.current.position.y = 0;
+    }
   });
 
   return (
     <group ref={groupRef} rotation={[0.5, 0, 0]}>
       {/* Outer Wireframe Sphere */}
       <Sphere args={[2.5, 32, 32]}>
-        <meshBasicMaterial 
-          color="#ffffff" 
-          wireframe 
-          transparent 
-          opacity={0.15} 
+        <meshBasicMaterial
+          color="#ffffff"
+          wireframe
+          transparent
+          opacity={0.15}
         />
       </Sphere>
-      
+
       {/* Inner Denser Wireframe */}
       <Sphere args={[2.0, 48, 48]}>
-        <meshBasicMaterial 
-          color="#444444" 
-          wireframe 
-          transparent 
-          opacity={0.1} 
+        <meshBasicMaterial
+          color="#444444"
+          wireframe
+          transparent
+          opacity={0.1}
         />
       </Sphere>
 
@@ -77,6 +89,13 @@ function WireframePlanet({ scrollRef }) {
       <mesh rotation={[Math.PI / 3, 0, 0]}>
         <ringGeometry args={[4.2, 4.22, 64]} />
         <meshBasicMaterial color="#222222" side={THREE.DoubleSide} transparent opacity={0.3} />
+      </mesh>
+
+      {/* Orbiting Small Sphere */}
+      <mesh ref={orbitingSphereRef} rotation={[Math.PI / 2, 0, 0]}>
+        <Sphere args={[0.15, 16, 16]}>
+          <meshBasicMaterial color="#ffffff" />
+        </Sphere>
       </mesh>
     </group>
   );
