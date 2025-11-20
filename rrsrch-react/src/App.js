@@ -252,6 +252,7 @@ function NavButton({ onClick, icon: Icon, label }) {
       style={{
         background: 'transparent',
         border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: '24px',
         color: '#aaa',
         padding: '10px 20px',
         cursor: 'pointer',
