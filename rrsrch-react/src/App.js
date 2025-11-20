@@ -89,12 +89,12 @@ function GridFloor({ scrollRef }) {
         if (gridRef.current && scrollRef.current !== undefined) {
              const progress = scrollRef.current;
              // Keep minimum opacity at 0.2 (20%) so grid never fully disappears
-             const opacity = Math.max(0.2, 1 - progress * 1.5);
+             const opacity = Math.max(0.5, 1 - progress * 1.5);
 
              // Grid always stays visible
              gridRef.current.visible = true;
              // Scale down the grid slightly as we scroll but keep it visible
-             //gridRef.current.scale.setScalar(opacity);
+             gridRef.current.scale.setScalar(opacity);
         }
     });
 
