@@ -550,7 +550,7 @@ function App() {
         </div>
 
         {/* Spacer to delay panel appearance and allow sphere to shrink fully visible */}
-        <div style={{ height: '10vh' }}></div>
+        <div style={{ height: '13vh' }}></div>
 
         {/* Main Content Layout with Background Panel */}
         <div style={{
