@@ -530,18 +530,23 @@ function App() {
           </p>
         </div>
 
-        {/* Main Content Layout */}
-        <div style={{ 
-          maxWidth: '1200px', 
-          width: '100%', 
-          margin: '0 auto', 
-          padding: '40px',
+        {/* Main Content Layout with Background Panel */}
+        <div style={{
+          maxWidth: '1200px',
+          width: '100%',
+          margin: '0 auto',
+          padding: '60px 40px',
           display: 'grid',
           gridTemplateColumns: '2fr 1fr', // 2/3 News, 1/3 Sticky Right
           gap: '60px',
           minHeight: '100vh',
           position: 'relative', // Context for sticky
-          zIndex: 5
+          zIndex: 5,
+          background: 'rgba(0, 0, 0, 0.85)',
+          borderRadius: '24px',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
         }}>
           
           {/* Left Column: News Feed */}
