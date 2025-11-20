@@ -1,8 +1,8 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Sphere, Stars, Grid } from '@react-three/drei';
+import { OrbitControls, Sphere, Stars, Grid, Line } from '@react-three/drei';
 import * as THREE from 'three';
-import { Activity, Mail, MessageCircle, FileText } from 'lucide-react';
+import { Mail, MessageCircle, FileText, X, Twitter, ArrowRight } from 'lucide-react';
 
 // Theme Configuration
 const theme = {
@@ -20,146 +20,53 @@ const theme = {
   }
 };
 
-// Dither Shader Material
-const DitherMaterial = {
-  uniforms: {
-    uTime: { value: 0 },
-    uColor: { value: new THREE.Color('#ffffff') },
-    uLightPos: { value: new THREE.Vector3(10, 10, 10) }
-  },
-  vertexShader: `
-    varying vec3 vNormal;
-    varying vec3 vPosition;
-    void main() {
-      vNormal = normalize(normalMatrix * normal);
-      vPosition = (modelViewMatrix * vec4(position, 1.0)).xyz;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: `
-    varying vec3 vNormal;
-    varying vec3 vPosition;
-    
-    uniform vec3 uColor;
-    uniform float uTime;
-    uniform vec3 uLightPos;
-    
-    const float PI = 3.14159265359;
-
-    // 8x8 Bayer Matrix
-    const mat4 bayer8_0 = mat4(
-      0.0/64.0, 32.0/64.0, 8.0/64.0, 40.0/64.0,
-      48.0/64.0, 16.0/64.0, 56.0/64.0, 24.0/64.0,
-      12.0/64.0, 44.0/64.0, 4.0/64.0, 36.0/64.0,
-      60.0/64.0, 28.0/64.0, 52.0/64.0, 20.0/64.0
-    );
-    
-    const mat4 bayer8_1 = mat4(
-      3.0/64.0, 35.0/64.0, 11.0/64.0, 43.0/64.0,
-      51.0/64.0, 19.0/64.0, 59.0/64.0, 27.0/64.0,
-      15.0/64.0, 47.0/64.0, 7.0/64.0, 39.0/64.0,
-      63.0/64.0, 31.0/64.0, 55.0/64.0, 23.0/64.0
-    );
-    // Note: GLSL ES 1.0 / WebGL 1.0 doesn't support array indexing easily for matrices or huge arrays in older versions.
-    // We will use a simpler procedural Bayer function or a texture. 
-    // For simplicity and compatibility in raw GLSL string, let's use a coordinate based logic or a simpler 4x4 manual check.
-
-    float dither4x4(vec2 position) {
-      int x = int(mod(position.x, 4.0));
-      int y = int(mod(position.y, 4.0));
-      
-      int index = x + y * 4;
-      
-      float limit = 0.0;
-      
-      if (x < 2) {
-        if (y < 2) {
-          if (index == 0) limit = 0.0625;
-          if (index == 1) limit = 0.5625;
-          if (index == 4) limit = 0.1875;
-          if (index == 5) limit = 0.6875;
-        } else { // y >= 2
-          if (index == 8) limit = 0.8125;
-          if (index == 9) limit = 0.3125;
-          if (index == 12) limit = 0.9375;
-          if (index == 13) limit = 0.4375;
-        }
-      } else { // x >= 2
-        if (y < 2) {
-          if (index == 2) limit = 0.125;
-          if (index == 3) limit = 0.625;
-          if (index == 6) limit = 0.25;
-          if (index == 7) limit = 0.75;
-        } else { // y >= 2
-          if (index == 10) limit = 0.875;
-          if (index == 11) limit = 0.375;
-          if (index == 14) limit = 1.0; // approx
-          if (index == 15) limit = 0.5;
-        }
-      }
-      return limit;
-    }
-
-    void main() {
-      // Simple directional lighting
-      vec3 lightDir = normalize(uLightPos - vPosition);
-      float diff = max(dot(vNormal, lightDir), 0.0);
-      
-      // Add some ambient
-      float lighting = diff + 0.1;
-      
-      // Screen coordinates for dithering
-      vec2 screenPos = gl_FragCoord.xy;
-      
-      float ditherLimit = dither4x4(screenPos);
-      
-      // Quantize
-      if (lighting < ditherLimit) {
-        // Dark pixel (transparent or background color)
-        // For a "wireframe-ish" or point-cloud look, we might want to discard.
-        // But for solid dither, we output black (or background).
-        // The user wants "dark mode", so black is good.
-        // If we discard, we see stars behind.
-        discard; 
-      }
-      
-      gl_FragColor = vec4(uColor, 1.0);
-    }
-  `
-};
-
-function DitheredPlanet() {
-  const meshRef = useRef();
-  const materialRef = useRef();
+// Wireframe Planet Component
+function WireframePlanet() {
+  const groupRef = useRef();
   
   useFrame(({ clock }) => {
-    if (meshRef.current) {
-      meshRef.current.rotation.y = clock.getElapsedTime() * 0.1;
-    }
-    if (materialRef.current) {
-      materialRef.current.uniforms.uTime.value = clock.getElapsedTime();
+    if (groupRef.current) {
+      groupRef.current.rotation.y = clock.getElapsedTime() * 0.05;
+      groupRef.current.rotation.z = Math.sin(clock.getElapsedTime() * 0.1) * 0.1;
     }
   });
 
-  const shaderArgs = useMemo(() => ({
-    uniforms: {
-      uTime: { value: 0 },
-      uColor: { value: new THREE.Color('#ffffff') },
-      uLightPos: { value: new THREE.Vector3(20, 5, 20) }
-    },
-    vertexShader: DitherMaterial.vertexShader,
-    fragmentShader: DitherMaterial.fragmentShader
-  }), []);
-
   return (
-    <group>
-      <Sphere ref={meshRef} args={[2, 64, 64]}>
-        <shaderMaterial ref={materialRef} attach="material" args={[shaderArgs]} />
+    <group ref={groupRef} rotation={[0.5, 0, 0]}>
+      {/* Outer Wireframe Sphere */}
+      <Sphere args={[2.5, 32, 32]}>
+        <meshBasicMaterial 
+          color="#ffffff" 
+          wireframe 
+          transparent 
+          opacity={0.15} 
+        />
       </Sphere>
-      {/* Optional: Second sphere for "moon" or detail */}
-      <Sphere args={[0.5, 32, 32]} position={[3.5, 0, 0]} rotation={[0,0,0]}>
-         <shaderMaterial attach="material" args={[shaderArgs]} />
+      
+      {/* Inner Denser Wireframe */}
+      <Sphere args={[2.0, 48, 48]}>
+        <meshBasicMaterial 
+          color="#444444" 
+          wireframe 
+          transparent 
+          opacity={0.1} 
+        />
       </Sphere>
+
+      {/* Solid Core for depth occlusion */}
+      <Sphere args={[1.8, 32, 32]}>
+        <meshBasicMaterial color="#000000" />
+      </Sphere>
+
+      {/* Orbital Rings */}
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[3.5, 3.55, 64]} />
+        <meshBasicMaterial color="#333333" side={THREE.DoubleSide} transparent opacity={0.5} />
+      </mesh>
+      <mesh rotation={[Math.PI / 3, 0, 0]}>
+        <ringGeometry args={[4.2, 4.22, 64]} />
+        <meshBasicMaterial color="#222222" side={THREE.DoubleSide} transparent opacity={0.3} />
+      </mesh>
     </group>
   );
 }
@@ -170,194 +77,283 @@ function Scene() {
       <color attach="background" args={['#000000']} />
       <ambientLight intensity={0.2} />
       
-      {/* Grid Floor - lighter and simpler */}
+      {/* Stable Grid Floor */}
       <Grid 
         position={[0, -4, 0]} 
-        args={[40, 40]} 
+        args={[60, 60]} 
         cellSize={1} 
         cellThickness={1} 
-        cellColor="#333333" 
-        sectionSize={4} 
+        cellColor="#222222" 
+        sectionSize={5} 
         sectionThickness={1.5} 
-        sectionColor="#555555" 
-        fadeDistance={40} 
+        sectionColor="#444444" 
+        fadeDistance={50} 
         infiniteGrid 
       />
       
-      {/* Subtle Stars */}
-      <Stars radius={100} depth={50} count={2000} factor={4} saturation={0} fade speed={0.5} />
+      {/* Static Stars */}
+      <Stars radius={100} depth={50} count={3000} factor={4} saturation={0} fade speed={0} />
       
-      <DitheredPlanet />
+      <WireframePlanet />
       
-      <OrbitControls enableZoom={false} autoRotate autoRotateSpeed={0.5} />
+      {/* Stable Camera */}
+      <OrbitControls 
+        enableZoom={false} 
+        enablePan={false}
+        enableRotate={true}
+        autoRotate={false}
+        minPolarAngle={Math.PI / 2.5}
+        maxPolarAngle={Math.PI / 2}
+      />
     </>
   );
 }
 
 // UI Components
-function TabButton({ active, onClick, icon: Icon, label }) {
+function Modal({ isOpen, onClose, children }) {
+  if (!isOpen) return null;
+  
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100vw',
+      height: '100vh',
+      background: 'rgba(0,0,0,0.8)',
+      backdropFilter: 'blur(8px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 100
+    }}>
+      <div style={{
+        background: 'rgba(10,10,10,0.95)',
+        border: '1px solid #333',
+        padding: '40px',
+        maxWidth: '500px',
+        width: '90%',
+        position: 'relative',
+        color: 'white'
+      }}>
+        <button 
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            background: 'none',
+            border: 'none',
+            color: '#666',
+            cursor: 'pointer'
+          }}
+        >
+          <X size={24} />
+        </button>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function NavButton({ onClick, icon: Icon, label }) {
   return (
     <button
       onClick={onClick}
       style={{
-        background: active ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-        border: 'none',
-        borderBottom: active ? '2px solid white' : '2px solid transparent',
-        color: active ? 'white' : '#666',
-        padding: '12px 24px',
+        background: 'transparent',
+        border: '1px solid rgba(255,255,255,0.1)',
+        color: '#aaa',
+        padding: '10px 20px',
         cursor: 'pointer',
         fontFamily: theme.fonts.main,
-        fontSize: '14px',
+        fontSize: '12px',
         textTransform: 'uppercase',
-        letterSpacing: '0.5px',
+        letterSpacing: '1px',
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
         transition: 'all 0.2s ease',
-        fontWeight: active ? 600 : 400
+        backdropFilter: 'blur(5px)'
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+        e.currentTarget.style.color = 'white';
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.background = 'transparent';
+        e.currentTarget.style.color = '#aaa';
       }}
     >
-      <Icon size={16} />
+      <Icon size={14} />
       {label}
     </button>
   );
 }
 
-function ContentSection({ activeTab }) {
-  const contentStyle = {
-    padding: '40px',
-    maxWidth: '800px',
-    width: '100%',
-    color: theme.colors.text,
-    fontFamily: theme.fonts.main,
-    background: 'rgba(0, 0, 0, 0.8)',
-    backdropFilter: 'blur(10px)',
-    borderRadius: '0px',
-    border: '1px solid #222',
-    marginTop: '20px',
-  };
+function NewsItem({ date, title, excerpt }) {
+  return (
+    <div style={{ marginBottom: '40px', borderBottom: '1px solid #222', paddingBottom: '30px' }}>
+      <div style={{ 
+        fontSize: '11px', 
+        color: '#666', 
+        marginBottom: '12px', 
+        fontFamily: theme.fonts.mono 
+      }}>
+        {date}
+      </div>
+      <h3 style={{ 
+        margin: '0 0 15px 0', 
+        fontSize: '24px', 
+        color: '#fff', 
+        fontWeight: 400,
+        letterSpacing: '-0.02em' 
+      }}>
+        {title}
+      </h3>
+      <p style={{ 
+        fontSize: '15px', 
+        lineHeight: '1.7', 
+        color: '#888', 
+        margin: '0 0 20px 0',
+        maxWidth: '90%'
+      }}>
+        {excerpt}
+      </p>
+      <button style={{
+        background: 'none',
+        border: 'none',
+        color: '#fff',
+        fontSize: '12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '5px',
+        padding: 0,
+        cursor: 'pointer',
+        textTransform: 'uppercase',
+        letterSpacing: '1px'
+      }}>
+        Read Report <ArrowRight size={12} />
+      </button>
+    </div>
+  );
+}
 
-  const headerStyle = {
-    borderBottom: '1px solid #222',
-    paddingBottom: '15px',
-    marginBottom: '25px',
-    fontSize: '20px',
-    fontWeight: '300',
-    color: '#fff',
-    letterSpacing: '-0.02em'
-  };
-
-  switch (activeTab) {
-    case 'news':
-      return (
-        <div style={contentStyle}>
-          <h2 style={headerStyle}>Latest Intelligence</h2>
-          {[1, 2].map((i) => (
-            <div key={i} style={{ marginBottom: '30px', paddingBottom: i === 1 ? '30px' : 0, borderBottom: i === 1 ? '1px solid #111' : 'none' }}>
-              <div style={{ fontSize: '11px', color: '#666', marginBottom: '8px', fontFamily: theme.fonts.mono }}>
-                2023.11.{12 + i} // RELEASE_NOTE
-              </div>
-              <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', color: '#fff', fontWeight: 500 }}>
-                Model Architecture V{3 + i}.0 Alpha
-              </h3>
-              <p style={{ fontSize: '15px', lineHeight: '1.6', color: '#888', margin: 0 }}>
-                Our latest parameter adjustment has yielded a 40% increase in cognitive reasoning tasks. Deployment to the grid scheduled for 0400 hours.
-              </p>
-            </div>
-          ))}
-        </div>
-      );
-    case 'subscribe':
-      return (
-        <div style={{ ...contentStyle, textAlign: 'center', padding: '60px 40px' }}>
-          <Mail size={40} style={{ marginBottom: '20px', color: '#fff', strokeWidth: 1.5 }} />
-          <h2 style={{ ...headerStyle, borderBottom: 'none', marginBottom: '10px' }}>Join the Network</h2>
-          <p style={{ marginBottom: '40px', color: '#666', maxWidth: '400px', margin: '0 auto 40px' }}>
-            Receive encrypted transmissions directly to your inbox. No spam, only signal.
-          </p>
-          <div style={{ display: 'flex', gap: '0px', justifyContent: 'center', maxWidth: '400px', margin: '0 auto' }}>
-            <input 
-              type="email" 
-              placeholder="email@address.com" 
-              style={{ 
-                background: 'transparent', 
-                border: '1px solid #333', 
-                borderRight: 'none',
-                padding: '16px', 
-                color: 'white',
-                fontFamily: theme.fonts.mono,
-                width: '100%',
-                outline: 'none',
-                fontSize: '14px'
-              }} 
-            />
-            <button style={{ 
-              background: 'white', 
-              color: 'black', 
-              border: 'none', 
-              padding: '0 30px', 
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontSize: '12px',
-              letterSpacing: '1px',
-              textTransform: 'uppercase'
-            }}>Connect</button>
+function TwitterFeed() {
+  return (
+    <div style={{ 
+      background: 'rgba(20,20,20,0.5)', 
+      border: '1px solid #222',
+      padding: '20px',
+      backdropFilter: 'blur(10px)'
+    }}>
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '10px', 
+        marginBottom: '20px', 
+        paddingBottom: '15px',
+        borderBottom: '1px solid #333' 
+      }}>
+        <Twitter size={16} color="#1DA1F2" />
+        <span style={{ fontSize: '12px', fontWeight: 600, color: '#fff' }}>LATEST UPDATES</span>
+      </div>
+      
+      {[1, 2, 3].map(i => (
+        <div key={i} style={{ marginBottom: '25px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>@RRSRCH_LAB</span>
+            <span style={{ fontSize: '11px', color: '#666' }}>{i}h ago</span>
           </div>
+          <p style={{ fontSize: '13px', lineHeight: '1.5', color: '#aaa', margin: 0 }}>
+            Deployment of Node {840 + i} successful. Latency reduced by 15% across the western cluster. Continuing observation. #AI #Infra
+          </p>
         </div>
-      );
-    case 'discord':
-      return (
-        <div style={{ ...contentStyle, textAlign: 'center', padding: '60px 40px' }}>
-          <MessageCircle size={40} style={{ marginBottom: '20px', color: '#fff', strokeWidth: 1.5 }} />
-          <h2 style={{ ...headerStyle, borderBottom: 'none', marginBottom: '10px' }}>Community Hub</h2>
-          <p style={{ marginBottom: '40px', color: '#666' }}>Join 5,000+ researchers in our secure channel.</p>
-          <button style={{ 
-            background: '#5865F2', 
-            color: 'white', 
-            border: 'none', 
-            padding: '16px 40px', 
-            fontWeight: '600',
-            cursor: 'pointer',
-            fontSize: '14px',
-            letterSpacing: '0.5px'
-          }}>
-            LAUNCH DISCORD
-          </button>
-        </div>
-      );
-    case 'substack':
-      return (
-        <div style={{ ...contentStyle, textAlign: 'center', padding: '60px 40px' }}>
-          <FileText size={40} style={{ marginBottom: '20px', color: '#fff', strokeWidth: 1.5 }} />
-          <h2 style={{ ...headerStyle, borderBottom: 'none', marginBottom: '10px' }}>Deep Dives & Reports</h2>
-          <p style={{ marginBottom: '40px', color: '#666' }}>Long-form analysis and research papers published weekly.</p>
-          <button style={{ 
-            background: '#FF6719', 
-            color: 'white', 
-            border: 'none', 
-            padding: '16px 40px', 
-            fontWeight: '600',
-            cursor: 'pointer',
-            fontSize: '14px',
-            letterSpacing: '0.5px'
-          }}>
-            READ ON SUBSTACK
-          </button>
-        </div>
-      );
-    default:
-      return null;
-  }
+      ))}
+    </div>
+  );
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState('news');
+  const [activeModal, setActiveModal] = useState(null);
+
+  const renderModalContent = () => {
+    switch(activeModal) {
+      case 'subscribe':
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <Mail size={40} style={{ marginBottom: '20px', color: '#fff' }} />
+            <h2 style={{ margin: '0 0 10px 0', fontSize: '20px' }}>Join the Network</h2>
+            <p style={{ color: '#888', marginBottom: '30px' }}>Receive encrypted transmissions directly to your inbox.</p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <input 
+                type="email" 
+                placeholder="email@address.com" 
+                style={{ 
+                  background: 'transparent', 
+                  border: '1px solid #333', 
+                  padding: '12px', 
+                  color: 'white',
+                  fontFamily: theme.fonts.mono,
+                  flex: 1
+                }} 
+              />
+              <button style={{ 
+                background: 'white', 
+                color: 'black', 
+                border: 'none', 
+                padding: '12px 24px', 
+                fontWeight: 'bold',
+                cursor: 'pointer' 
+              }}>CONNECT</button>
+            </div>
+          </div>
+        );
+      case 'discord':
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <MessageCircle size={40} style={{ marginBottom: '20px', color: '#5865F2' }} />
+            <h2 style={{ margin: '0 0 10px 0', fontSize: '20px' }}>Community Hub</h2>
+            <p style={{ color: '#888', marginBottom: '30px' }}>Join 5,000+ researchers in our secure channel.</p>
+            <button style={{ 
+              background: '#5865F2', 
+              color: 'white', 
+              border: 'none', 
+              padding: '12px 30px', 
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}>
+              LAUNCH DISCORD
+            </button>
+          </div>
+        );
+      case 'substack':
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <FileText size={40} style={{ marginBottom: '20px', color: '#FF6719' }} />
+            <h2 style={{ margin: '0 0 10px 0', fontSize: '20px' }}>Deep Dives & Reports</h2>
+            <p style={{ color: '#888', marginBottom: '30px' }}>Long-form analysis and research papers published weekly.</p>
+            <button style={{ 
+              background: '#FF6719', 
+              color: 'white', 
+              border: 'none', 
+              padding: '12px 30px', 
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}>
+              READ ON SUBSTACK
+            </button>
+          </div>
+        );
+      default: return null;
+    }
+  };
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', background: 'black', overflow: 'hidden' }}>
       {/* 3D Background */}
       <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
-        <Canvas camera={{ position: [0, 2, 8], fov: 45 }}>
+        <Canvas camera={{ position: [0, 1, 6], fov: 50 }}>
           <Scene />
         </Canvas>
       </div>
@@ -373,106 +369,126 @@ function App() {
         display: 'flex', 
         flexDirection: 'column',
         overflowY: 'auto',
-        background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.8) 100%)'
+        fontFamily: theme.fonts.main
       }}>
-        {/* Hero Section */}
+        
+        {/* Top Navigation */}
         <div style={{ 
-          minHeight: '55vh', 
+          position: 'absolute', 
+          top: '40px', 
+          right: '40px', 
           display: 'flex', 
-          flexDirection: 'column', 
-          justifyContent: 'center', 
-          alignItems: 'center',
-          textAlign: 'center',
-          pointerEvents: 'none',
-          paddingTop: '60px'
+          gap: '15px',
+          zIndex: 10
         }}>
-          <div style={{
-            border: '1px solid rgba(255,255,255,0.15)',
-            padding: '6px 12px',
-            borderRadius: '100px',
-            marginBottom: '30px',
-            backdropFilter: 'blur(5px)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00ff00', boxShadow: '0 0 5px #00ff00' }}></div>
-            <span style={{ color: '#888', fontSize: '11px', letterSpacing: '0.05em', fontFamily: theme.fonts.mono }}>SYSTEM ONLINE</span>
-          </div>
-
-          <h1 style={{ 
-            fontSize: 'clamp(50px, 8vw, 90px)', 
-            fontWeight: '400', 
-            color: 'white', 
-            margin: '0 0 10px 0', 
-            letterSpacing: '-0.04em',
-            lineHeight: 0.95,
-            fontFamily: theme.fonts.main
-          }}>
-            RRSRCH
-          </h1>
-          <p style={{ 
-            color: '#666', 
-            fontSize: '16px', 
-            maxWidth: '500px',
-            lineHeight: '1.5',
-            marginBottom: '0',
-            fontFamily: theme.fonts.main
-          }}>
-            Building the next generation of intelligent systems.<br/>
-            Decentralized. Autonomous. Perpetual.
-          </p>
+          <NavButton onClick={() => setActiveModal('subscribe')} icon={Mail} label="Subscribe" />
+          <NavButton onClick={() => setActiveModal('discord')} icon={MessageCircle} label="Discord" />
+          <NavButton onClick={() => setActiveModal('substack')} icon={FileText} label="Substack" />
         </div>
 
-        {/* Navigation & Content */}
+        {/* Main Layout */}
         <div style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          alignItems: 'center', 
-          paddingTop: '20px',
-          paddingBottom: '100px'
+          maxWidth: '1200px', 
+          width: '100%', 
+          margin: '0 auto', 
+          padding: '40px',
+          display: 'grid',
+          gridTemplateColumns: '2fr 1fr',
+          gap: '60px',
+          minHeight: '100vh'
         }}>
-          {/* Tabs */}
-          <div style={{ 
-            display: 'flex', 
-            gap: '10px', 
-            marginBottom: '40px', 
-            background: 'rgba(20, 20, 20, 0.5)',
-            padding: '5px',
-            borderRadius: '8px',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255,255,255,0.05)'
-          }}>
-            <TabButton 
-              active={activeTab === 'news'} 
-              onClick={() => setActiveTab('news')} 
-              icon={Activity} 
-              label="News" 
-            />
-            <TabButton 
-              active={activeTab === 'subscribe'} 
-              onClick={() => setActiveTab('subscribe')} 
-              icon={Mail} 
-              label="Subscribe" 
-            />
-            <TabButton 
-              active={activeTab === 'discord'} 
-              onClick={() => setActiveTab('discord')} 
-              icon={MessageCircle} 
-              label="Discord" 
-            />
-            <TabButton 
-              active={activeTab === 'substack'} 
-              onClick={() => setActiveTab('substack')} 
-              icon={FileText} 
-              label="Substack" 
-            />
+          
+          {/* Left Column: Hero + News */}
+          <div style={{ paddingTop: '10vh' }}>
+            {/* Header */}
+            <div style={{ marginBottom: '80px' }}>
+               <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '20px',
+                padding: '5px 10px',
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: '100px'
+              }}>
+                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00ff00', boxShadow: '0 0 8px #00ff00' }}></div>
+                <span style={{ color: '#888', fontSize: '11px', fontFamily: theme.fonts.mono }}>SYSTEM ONLINE</span>
+              </div>
+              <h1 style={{ 
+                fontSize: 'clamp(40px, 6vw, 80px)', 
+                fontWeight: 800, 
+                color: 'white', 
+                margin: 0, 
+                letterSpacing: '-0.03em',
+                lineHeight: 0.9 
+              }}>
+                RRSRCH
+              </h1>
+              <p style={{ color: '#666', marginTop: '20px', fontSize: '18px', maxWidth: '450px' }}>
+                Decentralized intelligence laboratory. Building the infrastructure for the next generation of autonomous agents.
+              </p>
+            </div>
+
+            {/* News Section */}
+            <h2 style={{ 
+              fontSize: '14px', 
+              color: '#444', 
+              borderBottom: '1px solid #222', 
+              paddingBottom: '10px', 
+              marginBottom: '30px',
+              letterSpacing: '1px',
+              textTransform: 'uppercase'
+            }}>
+              Latest Transmissions
+            </h2>
+            
+            <div>
+              <NewsItem 
+                date="2023.11.24"
+                title="Neural Architecture V4.0 Alpha"
+                excerpt="Our latest parameter adjustment has yielded a 40% increase in cognitive reasoning tasks. Deployment to the grid scheduled for 0400 hours."
+              />
+              <NewsItem 
+                date="2023.11.18"
+                title="Decentralized Compute Protocol"
+                excerpt="Implementing the new shard distribution algorithm across the active node cluster. Latency improvements expected within 24 hours."
+              />
+              <NewsItem 
+                date="2023.11.10"
+                title="Q4 Roadmap: Autonomous Agents"
+                excerpt="The path forward for self-improving agents involves a radical rethink of memory management and contextual awareness."
+              />
+            </div>
           </div>
 
-          {/* Tab Content */}
-          <ContentSection activeTab={activeTab} />
+          {/* Right Column: Twitter / Socials */}
+          <div style={{ paddingTop: '20vh' }}>
+             <TwitterFeed />
+             
+             <div style={{ marginTop: '40px', border: '1px solid #222', padding: '20px' }}>
+               <h3 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#fff' }}>LABORATORY STATUS</h3>
+               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px' }}>
+                 <span style={{ color: '#666' }}>Active Nodes</span>
+                 <span style={{ color: '#fff', fontFamily: theme.fonts.mono }}>8,492</span>
+               </div>
+               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px' }}>
+                 <span style={{ color: '#666' }}>Total Compute</span>
+                 <span style={{ color: '#fff', fontFamily: theme.fonts.mono }}>42.8 PF</span>
+               </div>
+               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                 <span style={{ color: '#666' }}>Uptime</span>
+                 <span style={{ color: '#00ff00', fontFamily: theme.fonts.mono }}>99.99%</span>
+               </div>
+             </div>
+          </div>
+
         </div>
       </div>
+
+      {/* Modal Layer */}
+      <Modal isOpen={!!activeModal} onClose={() => setActiveModal(null)}>
+        {renderModalContent()}
+      </Modal>
     </div>
   );
 }
