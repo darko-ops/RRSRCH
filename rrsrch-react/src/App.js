@@ -426,6 +426,7 @@ function TwitterFeed() {
 
 function App() {
   const [activeModal, setActiveModal] = useState(null);
+  const [menuExpanded, setMenuExpanded] = useState(false);
   const scrollRef = useRef(0);
   const scrollContainerRef = useRef(null);
 
@@ -548,18 +549,38 @@ function App() {
         }}
       >
         
-        {/* Top Navigation (Fixed visual position) */}
-        <div style={{ 
-          position: 'fixed', 
-          top: '40px', 
-          right: '40px', 
-          display: 'flex', 
-          gap: '15px',
+        {/* Top Navigation (Fixed position) */}
+        <div style={{
+          position: 'fixed',
+          top: '40px',
+          right: '40px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+          gap: '10px',
           zIndex: 10
         }}>
-          <NavButton onClick={() => setActiveModal('subscribe')} icon={Mail} label="Subscribe" />
-          <NavButton onClick={() => setActiveModal('discord')} icon={MessageCircle} label="Discord" />
-          <NavButton onClick={() => window.open('https://substack.com/@rrsrch', '_blank')} icon={FileText} label="Substack" />
+          {/* More button */}
+          <NavButton
+            onClick={() => setMenuExpanded(!menuExpanded)}
+            icon={ArrowRight}
+            label={menuExpanded ? "Close" : "More"}
+          />
+
+          {/* Expanded menu */}
+          {menuExpanded && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              animation: 'slideIn 0.2s ease-out'
+            }}>
+              <NavButton onClick={() => { setActiveModal('subscribe'); setMenuExpanded(false); }} icon={Mail} label="Subscribe" />
+              <NavButton onClick={() => { setActiveModal('discord'); setMenuExpanded(false); }} icon={MessageCircle} label="Discord" />
+              <NavButton onClick={() => { window.open('https://substack.com/@rrsrch', '_blank'); setMenuExpanded(false); }} icon={FileText} label="Substack" />
+              <NavButton onClick={() => { window.open('https://x.com/rrsrch', '_blank'); setMenuExpanded(false); }} icon={Twitter} label="X" />
+            </div>
+          )}
         </div>
 
         {/* Hero Section - Full Screen */}
