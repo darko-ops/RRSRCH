@@ -351,17 +351,24 @@ function NewsItem({ date, title, excerpt }) {
 function TwitterFeed() {
   const [tweets, setTweets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
     fetch(`${API_URL}/api/tweets`)
       .then(res => res.json())
       .then(data => {
-        setTweets(data.tweets || []);
+        if (data.error) {
+          setError(data.details || data.error);
+          setTweets([]);
+        } else {
+          setTweets(data.tweets || []);
+        }
         setLoading(false);
       })
       .catch(err => {
         console.error('Error fetching tweets:', err);
+        setError('Failed to load tweets');
         setLoading(false);
       });
   }, []);
@@ -402,6 +409,10 @@ function TwitterFeed() {
       {loading ? (
         <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
           Loading tweets...
+        </div>
+      ) : error ? (
+        <div style={{ color: '#ff6b6b', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
+          {error.includes('429') ? 'Rate limit reached. Please try again later.' : error}
         </div>
       ) : tweets.length === 0 ? (
         <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
