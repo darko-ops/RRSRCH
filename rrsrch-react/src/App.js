@@ -512,9 +512,6 @@ function App() {
             <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00ff00', boxShadow: '0 0 8px #00ff00' }}></div>
             <span style={{ color: '#888', fontSize: '11px', fontFamily: theme.fonts.mono }}>SYSTEM ONLINE</span>
           </div>
-          <p style={{ color: 'white', marginBottom: '20px', fontSize: '13px', maxWidth: '450px', lineHeight: '1.5', fontWeight: 'bold', fontFamily: theme.fonts.main }}>
-          : INTELLIGENCE / RESEARCH
-          </p>
           <h1 style={{
             fontSize: 'clamp(40px, 6vw, 80px)',
             fontWeight: 800,
@@ -526,6 +523,9 @@ function App() {
           }}>
             RRSRCH
           </h1>
+          <p style={{ color: 'white', marginTop: '8px', fontSize: '13px', lineHeight: '1.5', fontWeight: 'bold', fontFamily: theme.fonts.main, textAlign: 'right' }}>
+          : INTELLIGENCE / RESEARCH
+          </p>
 
           <p style={{ color: '#666', marginTop: '18px', fontSize: '18px', maxWidth: '450px', lineHeight: '1.5', fontWeight: 'bold', fontFamily: theme.fonts.main }}>
           INNOVATING NEWS FOR <br />
