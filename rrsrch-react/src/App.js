@@ -348,43 +348,58 @@ function NewsItem({ date, title, excerpt }) {
   );
 }
 
-function TwitterFeed() {
-  const [tweets, setTweets] = useState([]);
+function MarketWatch() {
+  const [prices, setPrices] = useState({
+    'BTC': { price: 0, change: 0 },
+    'ETH': { price: 0, change: 0 },
+    'NVDA': { price: 0, change: 0 },
+    'TSLA': { price: 0, change: 0 }
+  });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
-    fetch(`${API_URL}/api/tweets`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.error) {
-          setError(data.details || data.error);
-          setTweets([]);
-        } else {
-          setTweets(data.tweets || []);
-        }
+    const fetchPrices = async () => {
+      try {
+        // Using CoinGecko API for crypto (free, no API key needed)
+        const cryptoResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true');
+        const cryptoData = await cryptoResponse.json();
+
+        setPrices({
+          'BTC': {
+            price: cryptoData.bitcoin?.usd || 0,
+            change: cryptoData.bitcoin?.usd_24h_change || 0
+          },
+          'ETH': {
+            price: cryptoData.ethereum?.usd || 0,
+            change: cryptoData.ethereum?.usd_24h_change || 0
+          },
+          'NVDA': { price: 0, change: 0 }, // Placeholder for stock data
+          'TSLA': { price: 0, change: 0 }  // Placeholder for stock data
+        });
         setLoading(false);
-      })
-      .catch(err => {
-        console.error('Error fetching tweets:', err);
-        setError('Failed to load tweets');
+      } catch (err) {
+        console.error('Error fetching prices:', err);
         setLoading(false);
-      });
+      }
+    };
+
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 60000); // Update every minute
+    return () => clearInterval(interval);
   }, []);
 
-  const getTimeAgo = (dateString) => {
-    const now = new Date();
-    const tweetDate = new Date(dateString);
-    const diffMs = now - tweetDate;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
+  const formatPrice = (price) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(price);
+  };
 
-    if (diffDays > 0) return `${diffDays}d ago`;
-    if (diffHours > 0) return `${diffHours}h ago`;
-    if (diffMins > 0) return `${diffMins}m ago`;
-    return 'Just now';
+  const formatChange = (change) => {
+    const sign = change >= 0 ? '+' : '';
+    return `${sign}${change.toFixed(2)}%`;
   };
 
   return (
@@ -402,34 +417,44 @@ function TwitterFeed() {
         paddingBottom: '15px',
         borderBottom: '1px solid #333'
       }}>
-        <Twitter size={16} color="#1DA1F2" />
-        <span style={{ fontSize: '12px', fontWeight: 600, color: '#fff' }}>LATEST UPDATES</span>
+        <span style={{ fontSize: '12px', fontWeight: 600, color: '#fff' }}>MARKET WATCH</span>
       </div>
 
       {loading ? (
         <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
-          Loading tweets...
-        </div>
-      ) : error ? (
-        <div style={{ color: '#ff6b6b', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
-          {error.includes('429') ? 'Rate limit reached. Please try again later.' : error}
-        </div>
-      ) : tweets.length === 0 ? (
-        <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
-          No tweets available
+          Loading prices...
         </div>
       ) : (
-        tweets.map(tweet => (
-          <div key={tweet.id} style={{ marginBottom: '25px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>@rrsrch</span>
-              <span style={{ fontSize: '11px', color: '#666' }}>{getTimeAgo(tweet.created_at)}</span>
+        <div>
+          {Object.entries(prices).map(([symbol, data]) => (
+            <div key={symbol} style={{
+              marginBottom: '20px',
+              paddingBottom: '15px',
+              borderBottom: '1px solid #222'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
+                    {symbol}
+                  </div>
+                  <div style={{ fontSize: '18px', color: '#fff', fontFamily: theme.fonts.mono }}>
+                    {data.price > 0 ? formatPrice(data.price) : '—'}
+                  </div>
+                </div>
+                {data.price > 0 && (
+                  <div style={{
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: data.change >= 0 ? '#00ff88' : '#ff4444',
+                    fontFamily: theme.fonts.mono
+                  }}>
+                    {formatChange(data.change)}
+                  </div>
+                )}
+              </div>
             </div>
-            <p style={{ fontSize: '13px', lineHeight: '1.5', color: '#aaa', margin: 0 }}>
-              {tweet.text}
-            </p>
-          </div>
-        ))
+          ))}
+        </div>
       )}
     </div>
   );
@@ -694,7 +719,7 @@ function App() {
           {/* Right Column: Sticky Sidebar */}
           <div style={{ position: 'relative' }}>
              <div style={{ position: 'sticky', top: '40px' }}>
-               <TwitterFeed />
+               <MarketWatch />
                
                <div style={{ marginTop: '40px', border: '1px solid #222', padding: '20px', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)' }}>
                  <h3 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#fff' }}>LABORATORY STATUS</h3>
