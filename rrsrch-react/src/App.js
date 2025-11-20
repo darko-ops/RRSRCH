@@ -22,19 +22,22 @@ const theme = {
 
 // --- 3D Components ---
 
-function WireframePlanet({ scrollY }) {
+function WireframePlanet({ scrollRef }) {
   const groupRef = useRef();
   
   useFrame(({ clock }) => {
     if (groupRef.current) {
-      // Constant rotation
+      // Constant rotation regardless of scroll
       groupRef.current.rotation.y = clock.getElapsedTime() * 0.05;
       groupRef.current.rotation.z = Math.sin(clock.getElapsedTime() * 0.1) * 0.1;
 
-      // Parallax/Scroll effect: Move planet down/away as user scrolls
-      // scrollY is passed from the parent Scene component which gets it from HTML overlay
-      // We can simulate this by just making the opacity fade or moving it.
-      // However, since the Canvas is fixed in the background, we can control opacity via props.
+      // Smoothly interpolate scroll for opacity/scale effect
+      // We read directly from the ref to avoid React renders
+      const progress = scrollRef.current;
+      const opacity = Math.max(0.001, 1 - progress * 3);
+      
+      // Apply scale
+      groupRef.current.scale.setScalar(opacity);
     }
   });
 
@@ -78,30 +81,63 @@ function WireframePlanet({ scrollY }) {
   );
 }
 
-function BackgroundStars({ scrollProgress }) {
-  // scrollProgress 0 to 1. 
-  // At 0 (top), we see the main scene.
-  // As we scroll down, we want to fade TO black/minimal stars.
-  // So let's just keep some stars always visible, maybe fade the grid?
-  
-  return (
-    <Stars 
-      radius={100} 
-      depth={50} 
-      count={3000} 
-      factor={4} 
-      saturation={0} 
-      fade 
-      speed={0} 
-    />
-  );
+function GridFloor({ scrollRef }) {
+    const gridRef = useRef();
+
+    useFrame(() => {
+        if (gridRef.current && scrollRef.current !== undefined) {
+             const progress = scrollRef.current;
+             const opacity = Math.max(0, 1 - progress * 3);
+             
+             // We need to access the material to change opacity
+             // The Grid component from drei is complex, it might be easier to wrap it
+             // or just accept that fading the grid might require a re-render if we can't reach the material easily.
+             // BUT, we can scale the Group containing the grid to hide it.
+             gridRef.current.visible = opacity > 0.01;
+             if (gridRef.current.visible) {
+                 // Optional: fading logic if we can access material
+             }
+        }
+    });
+
+    return (
+        <group ref={gridRef}>
+             <Grid
+                position={[0, -4, 0]}
+                args={[60, 60]}
+                cellSize={1}
+                cellThickness={1}
+                cellColor="#222222"
+                sectionSize={5}
+                sectionThickness={1.5}
+                sectionColor="#444444"
+                fadeDistance={50}
+                infiniteGrid
+             />
+        </group>
+    );
 }
 
-function DistantGalaxies({ opacity }) {
-    // Small distant wireframe planets scattered in the background
-    // Only visible when opacity > 0
+function DistantGalaxies({ scrollRef }) {
+    const groupRef = useRef();
+
+    useFrame(() => {
+        if (groupRef.current) {
+             const progress = scrollRef.current;
+             const opacity = Math.min(1, progress * 2);
+             
+             // Traverse and set opacity
+             groupRef.current.traverse((child) => {
+                 if (child.material) {
+                     child.material.opacity = opacity * (child.userData.baseOpacity || 0.3);
+                     child.visible = opacity > 0.01;
+                 }
+             });
+        }
+    });
+
     return (
-        <group>
+        <group ref={groupRef}>
              {[...Array(5)].map((_, i) => (
                 <group key={i} position={[
                     (Math.random() - 0.5) * 40,
@@ -109,11 +145,23 @@ function DistantGalaxies({ opacity }) {
                     -10 - Math.random() * 20
                 ]}>
                      <Sphere args={[0.5, 8, 8]}>
-                        <meshBasicMaterial color="#333" wireframe transparent opacity={opacity * 0.3} />
+                        <meshBasicMaterial 
+                            color="#333" 
+                            wireframe 
+                            transparent 
+                            opacity={0} 
+                            userData={{ baseOpacity: 0.3 }}
+                        />
                      </Sphere>
                      <mesh rotation={[Math.PI/2, 0, 0]}>
                         <ringGeometry args={[0.8, 0.85, 32]} />
-                        <meshBasicMaterial color="#222" side={THREE.DoubleSide} transparent opacity={opacity * 0.2} />
+                        <meshBasicMaterial 
+                            color="#222" 
+                            side={THREE.DoubleSide} 
+                            transparent 
+                            opacity={0}
+                            userData={{ baseOpacity: 0.2 }} 
+                        />
                      </mesh>
                 </group>
             ))}
@@ -121,59 +169,37 @@ function DistantGalaxies({ opacity }) {
     )
 }
 
-function Scene({ scrollProgress }) {
-  // Use scrollProgress to fade out the main planet and grid
-  // 0 = top of page, 1 = scrolled down
-  
-  // Fade out main planet quickly as we leave hero
-  const heroOpacity = Math.max(0, 1 - scrollProgress * 3); 
-  
-  // Fade in distant background elements as we scroll
-  const bgOpacity = Math.min(1, scrollProgress * 2);
-
+function Scene({ scrollRef }) {
   return (
     <>
       <color attach="background" args={['#000000']} />
       <ambientLight intensity={0.2} />
       
-      {/* Main Hero Elements - Fade out on scroll */}
-      <group>
-          <Grid
-            position={[0, -4, 0]}
-            args={[60, 60]}
-            cellSize={1}
-            cellThickness={1}
-            cellColor="#222222"
-            sectionSize={5}
-            sectionThickness={1.5}
-            sectionColor="#444444"
-            fadeDistance={50}
-            infiniteGrid
-            material={{ opacity: heroOpacity, transparent: true }}
-          />
-
-          {/* Planet continues rotating but scales down/fades */}
-          <group scale={[Math.max(0.001, heroOpacity), Math.max(0.001, heroOpacity), Math.max(0.001, heroOpacity)]}>
-             <WireframePlanet scrollProgress={scrollProgress} />
-          </group>
-      </group>
-
-      {/* Persistent Background */}
-      <BackgroundStars />
+      <GridFloor scrollRef={scrollRef} />
+      <WireframePlanet scrollRef={scrollRef} />
       
-      {/* Distant Minimal Elements - Fade in on scroll */}
-      <DistantGalaxies opacity={bgOpacity} />
+      <Stars 
+        radius={100} 
+        depth={50} 
+        count={3000} 
+        factor={4} 
+        saturation={0} 
+        fade 
+        speed={0} 
+      />
+      
+      <DistantGalaxies scrollRef={scrollRef} />
       
       <OrbitControls 
         enableZoom={false} 
         enablePan={false}
-        enableRotate={false} // Lock rotation for stability
+        enableRotate={false} 
       />
     </>
   );
 }
 
-// --- UI Components ---
+// --- UI Components --- (Unchanged)
 
 function Modal({ isOpen, onClose, children }) {
   if (!isOpen) return null;
@@ -341,10 +367,10 @@ function TwitterFeed() {
 
 function App() {
   const [activeModal, setActiveModal] = useState(null);
-  const [scrollProgress, setScrollProgress] = useState(0);
+  const scrollRef = useRef(0);
   const scrollContainerRef = useRef(null);
 
-  // Handle Scroll for 3D Fade effect
+  // Handle Scroll for 3D Fade effect without causing re-renders
   useEffect(() => {
     const handleScroll = () => {
       if (scrollContainerRef.current) {
@@ -352,7 +378,7 @@ function App() {
         const windowHeight = window.innerHeight;
         // Calculate progress: 0 at top, 1 after scrolling one screen height
         const progress = Math.min(Math.max(scrollTop / windowHeight, 0), 1);
-        setScrollProgress(progress);
+        scrollRef.current = progress;
       }
     };
 
@@ -441,23 +467,12 @@ function App() {
       {/* 3D Background Layer - Fixed */}
       <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', zIndex: 1 }}>
         <Canvas camera={{ position: [0, 1, 6], fov: 50 }} frameloop="always">
-          <Scene scrollProgress={scrollProgress} />
+          <Scene scrollRef={scrollRef} />
         </Canvas>
       </div>
 
-      {/* Fade overlay based on scroll */}
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100vh',
-        background: `rgba(0, 0, 0, ${scrollProgress * 0.9})`,
-        pointerEvents: 'none',
-        zIndex: 1.5,
-        transition: 'background 0.1s ease-out'
-      }} />
-
+      {/* Fade overlay based on scroll - Re-introduced separate div for background darkening if needed, or we just rely on 3D scene fading */}
+      
       {/* Scrollable Content Layer */}
       <div 
         ref={scrollContainerRef}
