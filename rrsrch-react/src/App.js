@@ -61,7 +61,7 @@ function WireframePlanet({ scrollY }) {
       </Sphere>
 
       {/* Solid Core for depth occlusion */}
-      <Sphere args={[1.8, 32, 32]}>
+      <Sphere args={[2.2, 32, 32]}>
         <meshBasicMaterial color="#000000" />
       </Sphere>
 
