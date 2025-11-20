@@ -463,7 +463,7 @@ function App() {
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', background: 'black' }}>
       {/* 3D Background Layer - Fixed */}
-      <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', zIndex: 6}}>
+      <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', zIndex: 1 }}>
         <Canvas camera={{ position: [0, 1, 6], fov: 50 }} frameloop="always">
           <Scene scrollRef={scrollRef} />
         </Canvas>
