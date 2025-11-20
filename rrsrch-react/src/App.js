@@ -334,7 +334,8 @@ function TwitterFeed() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/tweets')
+    const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+    fetch(`${API_URL}/api/tweets`)
       .then(res => res.json())
       .then(data => {
         setTweets(data.tweets || []);
