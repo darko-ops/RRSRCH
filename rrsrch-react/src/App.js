@@ -301,6 +301,19 @@ function NavButton({ onClick, icon: Icon, label }) {
 }
 
 function NewsItem({ date, title, excerpt, onClick }) {
+  // Parse markdown-style bold text (**text**)
+  const parseMarkdown = (text) => {
+    if (!text) return '';
+
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={index} style={{ color: '#fff', fontWeight: 600 }}>{part.slice(2, -2)}</strong>;
+      }
+      return <span key={index}>{part}</span>;
+    });
+  };
+
   return (
     <div
       style={{ marginBottom: '40px', borderBottom: '1px solid #222', paddingBottom: '30px', cursor: 'pointer' }}
@@ -330,7 +343,7 @@ function NewsItem({ date, title, excerpt, onClick }) {
         margin: '0 0 20px 0',
         maxWidth: '90%'
       }}>
-        {excerpt}
+        {parseMarkdown(excerpt)}
       </p>
       <button
         onClick={(e) => { e.stopPropagation(); onClick(); }}
