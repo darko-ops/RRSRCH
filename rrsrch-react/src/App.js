@@ -472,29 +472,43 @@ function LiveTable({ selectedTopic }) {
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const isFirstFetch = useRef(true);
 
   useEffect(() => {
     const fetchAssets = async () => {
       try {
-        setLoading(true);
+        // Only show loading on first fetch
+        if (isFirstFetch.current) {
+          setLoading(true);
+        }
 
         // Fetch crypto data
         const cryptoIds = ['bitcoin', 'ethereum', 'solana', 'cardano', 'polkadot', 'dogecoin', 'ripple', 'litecoin'];
         const cryptoResponse = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoIds.join(',')}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`);
+
+        if (!cryptoResponse.ok) {
+          throw new Error(`HTTP error! status: ${cryptoResponse.status}`);
+        }
+
         const cryptoData = await cryptoResponse.json();
 
-        const formattedAssets = Object.entries(cryptoData).map(([id, data]) => ({
-          symbol: id.toUpperCase().slice(0, 3),
-          name: id.charAt(0).toUpperCase() + id.slice(1),
-          price: data.usd || 0,
-          change: data.usd_24h_change || 0,
-          volume: data.usd_24h_vol || 0,
-          type: 'crypto'
-        }));
+        // Check if we got valid data
+        if (cryptoData && Object.keys(cryptoData).length > 0) {
+          const formattedAssets = Object.entries(cryptoData).map(([id, data]) => ({
+            symbol: id.toUpperCase().slice(0, 3),
+            name: id.charAt(0).toUpperCase() + id.slice(1),
+            price: data.usd || 0,
+            change: data.usd_24h_change || 0,
+            volume: data.usd_24h_vol || 0,
+            type: 'crypto'
+          }));
 
-        setAssets(formattedAssets);
+          setAssets(formattedAssets);
+          setLastUpdate(new Date());
+          isFirstFetch.current = false;
+        }
+
         setLoading(false);
-        setLastUpdate(new Date());
       } catch (err) {
         console.error('Error fetching asset data:', err);
         setLoading(false);
