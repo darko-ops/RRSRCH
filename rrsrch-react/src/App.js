@@ -355,6 +355,19 @@ function NewsItem({ date, title, excerpt, onClick }) {
 }
 
 function ArticleView({ post, onBack, relatedPosts }) {
+  // Parse markdown-style bold text (**text**)
+  const parseMarkdown = (text) => {
+    if (!text) return '';
+
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={index} style={{ color: '#fff', fontWeight: 600 }}>{part.slice(2, -2)}</strong>;
+      }
+      return <span key={index}>{part}</span>;
+    });
+  };
+
   return (
     <div>
       <button
@@ -404,7 +417,7 @@ function ArticleView({ post, onBack, relatedPosts }) {
         marginBottom: '60px',
         whiteSpace: 'pre-wrap'
       }}>
-        {post.content || post.excerpt}
+        {parseMarkdown(post.content || post.excerpt)}
       </div>
 
       {relatedPosts.length > 0 && (
