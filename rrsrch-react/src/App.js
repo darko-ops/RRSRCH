@@ -314,10 +314,18 @@ function NewsItem({ date, title, excerpt, onClick }) {
     });
   };
 
+  // Check if excerpt is same as title (tidbit post)
+  const isTidbit = !excerpt || excerpt.trim() === '' || excerpt.trim() === title.trim();
+
   return (
     <div
-      style={{ marginBottom: '40px', borderBottom: '1px solid #222', paddingBottom: '30px', cursor: 'pointer' }}
-      onClick={onClick}
+      style={{
+        marginBottom: '40px',
+        borderBottom: '1px solid #222',
+        paddingBottom: '30px',
+        cursor: isTidbit ? 'default' : 'pointer'
+      }}
+      onClick={isTidbit ? undefined : onClick}
     >
       <div style={{
         fontSize: '11px',
@@ -334,35 +342,39 @@ function NewsItem({ date, title, excerpt, onClick }) {
         fontWeight: 400,
         letterSpacing: '-0.02em'
       }}>
-        {title}
+        {parseMarkdown(title)}
       </h3>
-      <p style={{
-        fontSize: '15px',
-        lineHeight: '1.7',
-        color: '#888',
-        margin: '0 0 20px 0',
-        maxWidth: '90%'
-      }}>
-        {parseMarkdown(excerpt)}
-      </p>
-      <button
-        onClick={(e) => { e.stopPropagation(); onClick(); }}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: '#fff',
-          fontSize: '12px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '5px',
-          padding: 0,
-          cursor: 'pointer',
-          textTransform: 'uppercase',
-          letterSpacing: '1px'
-        }}
-      >
-        Read Report <ArrowRight size={12} />
-      </button>
+      {!isTidbit && (
+        <>
+          <p style={{
+            fontSize: '15px',
+            lineHeight: '1.7',
+            color: '#888',
+            margin: '0 0 20px 0',
+            maxWidth: '90%'
+          }}>
+            {parseMarkdown(excerpt)}
+          </p>
+          <button
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#fff',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: 0,
+              cursor: 'pointer',
+              textTransform: 'uppercase',
+              letterSpacing: '1px'
+            }}
+          >
+            Read Report <ArrowRight size={12} />
+          </button>
+        </>
+      )}
     </div>
   );
 }
