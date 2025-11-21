@@ -641,6 +641,161 @@ function LiveTable({ selectedTopic }) {
   );
 }
 
+function AtlasEncyclopedia({ selectedTopic }) {
+  // Sample encyclopedia data - in production this would come from API
+  const encyclopediaData = {
+    'Companies': [
+      { name: 'OpenAI', description: 'AI research and deployment company', founded: '2015', category: 'Companies' },
+      { name: 'Anthropic', description: 'AI safety and research company', founded: '2021', category: 'Companies' },
+      { name: 'DeepMind', description: 'Google AI research lab', founded: '2010', category: 'Companies' },
+    ],
+    'Models': [
+      { name: 'GPT-4', description: 'Large multimodal language model by OpenAI', released: '2023', category: 'Models' },
+      { name: 'Claude', description: 'Constitutional AI assistant by Anthropic', released: '2023', category: 'Models' },
+      { name: 'Gemini', description: 'Multimodal AI model by Google', released: '2023', category: 'Models' },
+    ],
+    'GPUs': [
+      { name: 'H100', description: 'NVIDIA flagship AI training GPU', specs: '80GB HBM3', category: 'GPUs' },
+      { name: 'A100', description: 'NVIDIA data center GPU', specs: '80GB HBM2e', category: 'GPUs' },
+      { name: 'MI300X', description: 'AMD Instinct AI accelerator', specs: '192GB HBM3', category: 'GPUs' },
+    ],
+    'Chips': [
+      { name: 'TPU v4', description: 'Google Tensor Processing Unit', performance: '275 TFLOPS', category: 'Chips' },
+      { name: 'Trainium', description: 'AWS custom AI training chip', performance: 'High throughput', category: 'Chips' },
+    ],
+    'Benchmarks': [
+      { name: 'MMLU', description: 'Massive Multitask Language Understanding', tasks: '57 subjects', category: 'Benchmarks' },
+      { name: 'HumanEval', description: 'Code generation benchmark', tasks: 'Python coding', category: 'Benchmarks' },
+    ],
+    'Frameworks': [
+      { name: 'PyTorch', description: 'Open source ML framework by Meta', language: 'Python', category: 'Frameworks' },
+      { name: 'TensorFlow', description: 'End-to-end ML platform by Google', language: 'Python', category: 'Frameworks' },
+    ],
+    'Research Labs': [
+      { name: 'Google Brain', description: 'Google AI research team', focus: 'Deep learning', category: 'Research Labs' },
+      { name: 'FAIR', description: 'Facebook AI Research', focus: 'Fundamental AI research', category: 'Research Labs' },
+    ],
+    'Founders': [
+      { name: 'Sam Altman', description: 'CEO of OpenAI', company: 'OpenAI', category: 'Founders' },
+      { name: 'Dario Amodei', description: 'CEO of Anthropic', company: 'Anthropic', category: 'Founders' },
+      { name: 'Demis Hassabis', description: 'CEO of DeepMind', company: 'DeepMind', category: 'Founders' },
+    ],
+  };
+
+  const currentData = selectedTopic === 'All'
+    ? Object.values(encyclopediaData).flat()
+    : encyclopediaData[selectedTopic] || [];
+
+  return (
+    <div>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '30px'
+      }}>
+        <h2 style={{
+          fontSize: '18px',
+          color: '#fff',
+          fontWeight: 700,
+          margin: 0
+        }}>
+          AI ENCYCLOPEDIA
+        </h2>
+        <div style={{
+          fontSize: '11px',
+          color: '#666',
+          fontFamily: theme.fonts.mono
+        }}>
+          {currentData.length} entries
+        </div>
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+        gap: '20px',
+        marginBottom: '60px'
+      }}>
+        {currentData.map((item, index) => (
+          <div
+            key={index}
+            style={{
+              background: 'rgba(0,0,0,0.3)',
+              border: '1px solid #222',
+              borderRadius: '8px',
+              padding: '20px',
+              transition: 'all 0.2s ease',
+              cursor: 'pointer'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#444';
+              e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = '#222';
+              e.currentTarget.style.background = 'rgba(0,0,0,0.3)';
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              marginBottom: '12px'
+            }}>
+              <h3 style={{
+                fontSize: '16px',
+                color: '#fff',
+                fontWeight: 700,
+                margin: 0
+              }}>
+                {item.name}
+              </h3>
+              <span style={{
+                fontSize: '10px',
+                color: '#666',
+                background: 'rgba(255,255,255,0.05)',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                textTransform: 'uppercase',
+                fontFamily: theme.fonts.mono
+              }}>
+                {item.category}
+              </span>
+            </div>
+
+            <p style={{
+              fontSize: '13px',
+              color: '#aaa',
+              lineHeight: '1.6',
+              margin: '0 0 12px 0'
+            }}>
+              {item.description}
+            </p>
+
+            <div style={{
+              display: 'flex',
+              gap: '15px',
+              fontSize: '11px',
+              color: '#666',
+              fontFamily: theme.fonts.mono
+            }}>
+              {item.founded && <span>Founded: {item.founded}</span>}
+              {item.released && <span>Released: {item.released}</span>}
+              {item.specs && <span>{item.specs}</span>}
+              {item.performance && <span>{item.performance}</span>}
+              {item.tasks && <span>{item.tasks}</span>}
+              {item.language && <span>{item.language}</span>}
+              {item.focus && <span>{item.focus}</span>}
+              {item.company && <span>{item.company}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MarketWatch() {
   const [prices, setPrices] = useState({
     'BTC': { price: 0, change: 0 },
@@ -1235,6 +1390,35 @@ function App() {
                               {post.excerpt}
                             </p>
                           </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                ) : selectedPage === 'ATLAS' ? (
+                  <>
+                    <AtlasEncyclopedia selectedTopic={selectedTopic} />
+
+                    {/* Relevant Articles Section */}
+                    <div>
+                      <h3 style={{
+                        fontSize: '14px',
+                        color: '#666',
+                        marginBottom: '20px',
+                        letterSpacing: '1px',
+                        textTransform: 'uppercase',
+                        fontWeight: 600
+                      }}>
+                        Relevant Articles
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                        {filteredPosts.slice(0, 5).map((post) => (
+                          <NewsItem
+                            key={post.id}
+                            date={new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')}
+                            title={post.title}
+                            excerpt={post.excerpt}
+                            onClick={() => setSelectedPost(post)}
+                          />
                         ))}
                       </div>
                     </div>
