@@ -641,157 +641,189 @@ function LiveTable({ selectedTopic }) {
   );
 }
 
-function AtlasEncyclopedia({ selectedTopic }) {
-  // Sample encyclopedia data - in production this would come from API
-  const encyclopediaData = {
-    'Companies': [
-      { name: 'OpenAI', description: 'AI research and deployment company', founded: '2015', category: 'Companies' },
-      { name: 'Anthropic', description: 'AI safety and research company', founded: '2021', category: 'Companies' },
-      { name: 'DeepMind', description: 'Google AI research lab', founded: '2010', category: 'Companies' },
-    ],
+function AtlasDashboard({ selectedTopic }) {
+  const dashboardData = {
     'Models': [
-      { name: 'GPT-4', description: 'Large multimodal language model by OpenAI', released: '2023', category: 'Models' },
-      { name: 'Claude', description: 'Constitutional AI assistant by Anthropic', released: '2023', category: 'Models' },
-      { name: 'Gemini', description: 'Multimodal AI model by Google', released: '2023', category: 'Models' },
+      { rank: 1, name: 'GPT-4 Turbo', company: 'OpenAI', score: 86.4, change: '+2.1%' },
+      { rank: 2, name: 'Claude 3 Opus', company: 'Anthropic', score: 84.9, change: '+1.8%' },
+      { rank: 3, name: 'Gemini Ultra', company: 'Google', score: 83.7, change: '+0.5%' },
+      { rank: 4, name: 'GPT-4', company: 'OpenAI', score: 83.1, change: '0%' },
+      { rank: 5, name: 'Claude 3 Sonnet', company: 'Anthropic', score: 79.0, change: '+1.2%' },
     ],
     'GPUs': [
-      { name: 'H100', description: 'NVIDIA flagship AI training GPU', specs: '80GB HBM3', category: 'GPUs' },
-      { name: 'A100', description: 'NVIDIA data center GPU', specs: '80GB HBM2e', category: 'GPUs' },
-      { name: 'MI300X', description: 'AMD Instinct AI accelerator', specs: '192GB HBM3', category: 'GPUs' },
+      { rank: 1, name: 'H100 SXM', company: 'NVIDIA', tflops: '1979', price: '$30k' },
+      { rank: 2, name: 'MI300X', company: 'AMD', tflops: '1300', price: '$15k' },
+      { rank: 3, name: 'H100 PCIe', company: 'NVIDIA', tflops: '1513', price: '$25k' },
+      { rank: 4, name: 'A100 80GB', company: 'NVIDIA', tflops: '312', price: '$15k' },
+      { rank: 5, name: 'L40S', company: 'NVIDIA', tflops: '362', price: '$10k' },
     ],
-    'Chips': [
-      { name: 'TPU v4', description: 'Google Tensor Processing Unit', performance: '275 TFLOPS', category: 'Chips' },
-      { name: 'Trainium', description: 'AWS custom AI training chip', performance: 'High throughput', category: 'Chips' },
+    'Companies': [
+      { rank: 1, name: 'OpenAI', valuation: '$86B', employees: '750+', founded: '2015' },
+      { rank: 2, name: 'Anthropic', valuation: '$18B', employees: '500+', founded: '2021' },
+      { rank: 3, name: 'Cohere', valuation: '$2.2B', employees: '250+', founded: '2019' },
+      { rank: 4, name: 'Mistral AI', valuation: '$2B', employees: '150+', founded: '2023' },
+      { rank: 5, name: 'Stability AI', valuation: '$1B', employees: '200+', founded: '2020' },
     ],
     'Benchmarks': [
-      { name: 'MMLU', description: 'Massive Multitask Language Understanding', tasks: '57 subjects', category: 'Benchmarks' },
-      { name: 'HumanEval', description: 'Code generation benchmark', tasks: 'Python coding', category: 'Benchmarks' },
+      { rank: 1, name: 'MMLU', category: 'Knowledge', tasks: 57, leader: 'GPT-4' },
+      { rank: 2, name: 'HumanEval', category: 'Coding', tasks: 164, leader: 'GPT-4' },
+      { rank: 3, name: 'MATH', category: 'Reasoning', tasks: 500, leader: 'Claude 3' },
+      { rank: 4, name: 'GSM8K', category: 'Math', tasks: 8500, leader: 'GPT-4' },
+      { rank: 5, name: 'HellaSwag', category: 'Common Sense', tasks: 10000, leader: 'GPT-4' },
     ],
     'Frameworks': [
-      { name: 'PyTorch', description: 'Open source ML framework by Meta', language: 'Python', category: 'Frameworks' },
-      { name: 'TensorFlow', description: 'End-to-end ML platform by Google', language: 'Python', category: 'Frameworks' },
+      { rank: 1, name: 'PyTorch', downloads: '150M/mo', stars: '77k', language: 'Python' },
+      { rank: 2, name: 'TensorFlow', downloads: '80M/mo', stars: '180k', language: 'Python' },
+      { rank: 3, name: 'JAX', downloads: '8M/mo', stars: '28k', language: 'Python' },
+      { rank: 4, name: 'Keras', downloads: '25M/mo', stars: '60k', language: 'Python' },
+      { rank: 5, name: 'MXNet', downloads: '2M/mo', stars: '21k', language: 'Python' },
+    ],
+    'Chips': [
+      { rank: 1, name: 'TPU v5e', company: 'Google', type: 'Training', efficiency: 'High' },
+      { rank: 2, name: 'Trainium2', company: 'AWS', type: 'Training', efficiency: 'High' },
+      { rank: 3, name: 'Inferentia2', company: 'AWS', type: 'Inference', efficiency: 'Very High' },
+      { rank: 4, name: 'Gaudi2', company: 'Intel', type: 'Training', efficiency: 'Medium' },
+      { rank: 5, name: 'TPU v4', company: 'Google', type: 'Training', efficiency: 'High' },
     ],
     'Research Labs': [
-      { name: 'Google Brain', description: 'Google AI research team', focus: 'Deep learning', category: 'Research Labs' },
-      { name: 'FAIR', description: 'Facebook AI Research', focus: 'Fundamental AI research', category: 'Research Labs' },
+      { rank: 1, name: 'OpenAI', papers: 250, citations: '45k', focus: 'AGI' },
+      { rank: 2, name: 'DeepMind', papers: 500, citations: '120k', focus: 'Reinforcement Learning' },
+      { rank: 3, name: 'Meta AI (FAIR)', papers: 800, citations: '200k', focus: 'Open Research' },
+      { rank: 4, name: 'Google Brain', papers: 600, citations: '180k', focus: 'Deep Learning' },
+      { rank: 5, name: 'Microsoft Research', papers: 400, citations: '90k', focus: 'Applied AI' },
     ],
     'Founders': [
-      { name: 'Sam Altman', description: 'CEO of OpenAI', company: 'OpenAI', category: 'Founders' },
-      { name: 'Dario Amodei', description: 'CEO of Anthropic', company: 'Anthropic', category: 'Founders' },
-      { name: 'Demis Hassabis', description: 'CEO of DeepMind', company: 'DeepMind', category: 'Founders' },
+      { rank: 1, name: 'Sam Altman', company: 'OpenAI', role: 'CEO', background: 'Y Combinator' },
+      { rank: 2, name: 'Dario Amodei', company: 'Anthropic', role: 'CEO', background: 'OpenAI VP' },
+      { rank: 3, name: 'Demis Hassabis', company: 'DeepMind', role: 'CEO', background: 'Neuroscience' },
+      { rank: 4, name: 'Ilya Sutskever', company: 'Safe Superintelligence', role: 'Co-Founder', background: 'OpenAI Chief Scientist' },
+      { rank: 5, name: 'Emad Mostaque', company: 'Stability AI', role: 'Founder', background: 'Hedge Funds' },
     ],
   };
 
-  const currentData = selectedTopic === 'All'
-    ? Object.values(encyclopediaData).flat()
-    : encyclopediaData[selectedTopic] || [];
+  const DashboardSection = ({ title, data, columns }) => (
+    <div style={{
+      background: 'rgba(0,0,0,0.3)',
+      border: '1px solid #222',
+      borderRadius: '8px',
+      padding: '20px',
+      marginBottom: '30px'
+    }}>
+      <h3 style={{
+        fontSize: '14px',
+        color: '#fff',
+        fontWeight: 700,
+        textTransform: 'uppercase',
+        letterSpacing: '1px',
+        marginBottom: '20px',
+        paddingBottom: '12px',
+        borderBottom: '2px solid #333'
+      }}>
+        {title}
+      </h3>
+
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: theme.fonts.mono }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid #333' }}>
+              <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: 600 }}>#</th>
+              {columns.map((col, i) => (
+                <th key={i} style={{ padding: '10px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: 600 }}>
+                  {col}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((item, index) => (
+              <tr key={index} style={{ borderBottom: '1px solid #222' }}>
+                <td style={{ padding: '12px 10px', fontSize: '13px', color: '#888', fontWeight: 600 }}>
+                  {item.rank}
+                </td>
+                {Object.entries(item).filter(([key]) => key !== 'rank').map(([key, value], i) => (
+                  <td key={i} style={{
+                    padding: '12px 10px',
+                    fontSize: '13px',
+                    color: i === 0 ? '#fff' : '#aaa',
+                    fontWeight: i === 0 ? 600 : 400
+                  }}>
+                    {value}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const sections = {
+    'All': [
+      { title: 'Top AI Models', data: dashboardData['Models'], columns: ['Model', 'Company', 'Score', 'Change'] },
+      { title: 'Leading Companies', data: dashboardData['Companies'], columns: ['Company', 'Valuation', 'Employees', 'Founded'] },
+      { title: 'Top GPUs', data: dashboardData['GPUs'], columns: ['GPU', 'Company', 'TFLOPS', 'Price'] },
+    ],
+    'Companies': [
+      { title: 'Top AI Companies', data: dashboardData['Companies'], columns: ['Company', 'Valuation', 'Employees', 'Founded'] },
+    ],
+    'Models': [
+      { title: 'Model Leaderboard', data: dashboardData['Models'], columns: ['Model', 'Company', 'Score', 'Change'] },
+    ],
+    'GPUs': [
+      { title: 'GPU Rankings', data: dashboardData['GPUs'], columns: ['GPU', 'Company', 'TFLOPS', 'Price'] },
+    ],
+    'Chips': [
+      { title: 'AI Chip Landscape', data: dashboardData['Chips'], columns: ['Chip', 'Company', 'Type', 'Efficiency'] },
+    ],
+    'Benchmarks': [
+      { title: 'Key Benchmarks', data: dashboardData['Benchmarks'], columns: ['Benchmark', 'Category', 'Tasks', 'Leader'] },
+    ],
+    'Frameworks': [
+      { title: 'Framework Popularity', data: dashboardData['Frameworks'], columns: ['Framework', 'Downloads', 'Stars', 'Language'] },
+    ],
+    'Research Labs': [
+      { title: 'Research Impact', data: dashboardData['Research Labs'], columns: ['Lab', 'Papers', 'Citations', 'Focus'] },
+    ],
+    'Founders': [
+      { title: 'Key Founders', data: dashboardData['Founders'], columns: ['Name', 'Company', 'Role', 'Background'] },
+    ],
+  };
+
+  const currentSections = sections[selectedTopic] || sections['All'];
 
   return (
     <div>
       <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '30px'
+        marginBottom: '30px',
+        paddingBottom: '20px',
+        borderBottom: '2px solid #222'
       }}>
         <h2 style={{
-          fontSize: '18px',
+          fontSize: '24px',
           color: '#fff',
           fontWeight: 700,
           margin: 0
         }}>
-          AI ENCYCLOPEDIA
+          AI ATLAS DASHBOARD
         </h2>
-        <div style={{
-          fontSize: '11px',
+        <p style={{
+          fontSize: '13px',
           color: '#666',
-          fontFamily: theme.fonts.mono
+          margin: '8px 0 0 0'
         }}>
-          {currentData.length} entries
-        </div>
+          Real-time rankings, metrics, and intelligence on the AI ecosystem
+        </p>
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-        gap: '20px',
-        marginBottom: '60px'
-      }}>
-        {currentData.map((item, index) => (
-          <div
-            key={index}
-            style={{
-              background: 'rgba(0,0,0,0.3)',
-              border: '1px solid #222',
-              borderRadius: '8px',
-              padding: '20px',
-              transition: 'all 0.2s ease',
-              cursor: 'pointer'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = '#444';
-              e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = '#222';
-              e.currentTarget.style.background = 'rgba(0,0,0,0.3)';
-            }}
-          >
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              marginBottom: '12px'
-            }}>
-              <h3 style={{
-                fontSize: '16px',
-                color: '#fff',
-                fontWeight: 700,
-                margin: 0
-              }}>
-                {item.name}
-              </h3>
-              <span style={{
-                fontSize: '10px',
-                color: '#666',
-                background: 'rgba(255,255,255,0.05)',
-                padding: '4px 8px',
-                borderRadius: '4px',
-                textTransform: 'uppercase',
-                fontFamily: theme.fonts.mono
-              }}>
-                {item.category}
-              </span>
-            </div>
-
-            <p style={{
-              fontSize: '13px',
-              color: '#aaa',
-              lineHeight: '1.6',
-              margin: '0 0 12px 0'
-            }}>
-              {item.description}
-            </p>
-
-            <div style={{
-              display: 'flex',
-              gap: '15px',
-              fontSize: '11px',
-              color: '#666',
-              fontFamily: theme.fonts.mono
-            }}>
-              {item.founded && <span>Founded: {item.founded}</span>}
-              {item.released && <span>Released: {item.released}</span>}
-              {item.specs && <span>{item.specs}</span>}
-              {item.performance && <span>{item.performance}</span>}
-              {item.tasks && <span>{item.tasks}</span>}
-              {item.language && <span>{item.language}</span>}
-              {item.focus && <span>{item.focus}</span>}
-              {item.company && <span>{item.company}</span>}
-            </div>
-          </div>
-        ))}
-      </div>
+      {currentSections.map((section, index) => (
+        <DashboardSection
+          key={index}
+          title={section.title}
+          data={section.data}
+          columns={section.columns}
+        />
+      ))}
     </div>
   );
 }
@@ -1396,7 +1428,7 @@ function App() {
                   </>
                 ) : selectedPage === 'ATLAS' ? (
                   <>
-                    <AtlasEncyclopedia selectedTopic={selectedTopic} />
+                    <AtlasDashboard selectedTopic={selectedTopic} />
 
                     {/* Relevant Articles Section */}
                     <div>
