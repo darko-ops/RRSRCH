@@ -586,12 +586,26 @@ function App() {
   const [posts, setPosts] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [selectedPost, setSelectedPost] = useState(null);
+  const [selectedPage, setSelectedPage] = useState('NEWS');
   const [selectedTopic, setSelectedTopic] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const scrollRef = useRef(0);
   const scrollContainerRef = useRef(null);
 
-  const topics = ['All', 'AI', 'Chips', 'Energy', 'Space', 'Crypto', 'Infrastructure', 'Geopolitics', 'Markets'];
+  const pages = ['NEWS', 'TERMINAL', 'ATLAS'];
+
+  const pageTopics = {
+    'TERMINAL': ['All', 'Stocks', 'Crypto', 'ETFs', 'Indexes'],
+    'NEWS': ['All', 'AI', 'Tech', 'Science', 'Energy', 'Crypto', 'Markets', 'Policy', 'Cybersecurity', 'Hardware', 'Space'],
+    'ATLAS': ['All', 'Companies', 'Models', 'GPUs', 'Chips', 'Benchmarks', 'Frameworks', 'Research Labs', 'Founders']
+  };
+
+  const currentTopics = pageTopics[selectedPage];
+
+  // Reset topic to 'All' when page changes
+  useEffect(() => {
+    setSelectedTopic('All');
+  }, [selectedPage]);
 
   // Fetch posts from API
   useEffect(() => {
@@ -887,7 +901,50 @@ function App() {
                   />
                 </div>
 
-                {/* Topics Bar */}
+                {/* Pages Bar */}
+                <div style={{
+                  display: 'flex',
+                  gap: '15px',
+                  marginBottom: '20px',
+                  paddingBottom: '15px',
+                  borderBottom: '2px solid #222'
+                }}>
+                  {pages.map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setSelectedPage(page)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: selectedPage === page ? '#fff' : '#555',
+                        padding: '0 0 5px 0',
+                        cursor: 'pointer',
+                        fontSize: '16px',
+                        fontFamily: theme.fonts.main,
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '1px',
+                        borderBottom: selectedPage === page ? '2px solid #fff' : '2px solid transparent',
+                        marginBottom: '-17px',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (selectedPage !== page) {
+                          e.currentTarget.style.color = '#aaa';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedPage !== page) {
+                          e.currentTarget.style.color = '#555';
+                        }
+                      }}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Topics Bar (Sub-filters) */}
                 <div style={{
                   display: 'flex',
                   gap: '10px',
@@ -896,7 +953,7 @@ function App() {
                   paddingBottom: '10px',
                   borderBottom: '1px solid #222'
                 }}>
-                  {topics.map((topic) => (
+                  {currentTopics.map((topic) => (
                     <button
                       key={topic}
                       onClick={() => setSelectedTopic(topic)}
@@ -941,7 +998,7 @@ function App() {
                   letterSpacing: '1px',
                   textTransform: 'uppercase'
                 }}>
-                  {selectedTopic === 'All' ? 'Latest Transmissions' : selectedTopic}
+                  {selectedPage} {selectedTopic !== 'All' ? `/ ${selectedTopic}` : ''}
                 </h2>
 
                 {/* Posts from API */}
