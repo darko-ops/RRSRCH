@@ -10,7 +10,7 @@ import json
 API_URL = "https://rrsrch.com/api/posts"
 API_KEY = "75e2278ae36e07077bd7341bffaa758c735608e586962ec343d9470c0ca40e30"
 
-def create_post(title, excerpt, content=""):
+def create_post(title, excerpt, content="", topic="All"):
     """Create a new post on rrsrch.com"""
     headers = {
         "Content-Type": "application/json",
@@ -20,7 +20,8 @@ def create_post(title, excerpt, content=""):
     data = {
         "title": title,
         "excerpt": excerpt,
-        "content": content
+        "content": content,
+        "topic": topic
     }
 
     response = requests.post(API_URL, headers=headers, json=data)
@@ -56,10 +57,12 @@ def delete_post(post_id):
 
 if __name__ == "__main__":
     # Example: Create a new post
+    # Available topics: AI, Chips, Energy, Space, Crypto, Infrastructure, Geopolitics, Markets, All
     create_post(
         title="Network Protocol Update",
         excerpt="Analysis of the current vector space indicates a significant improvement in query resolution times. All nodes are reporting nominal efficiency.",
-        content="Full article content goes here..."
+        content="Full article content goes here...",
+        topic="Infrastructure"
     )
 
     # Example: Get all posts

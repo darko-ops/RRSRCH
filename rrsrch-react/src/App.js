@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Sphere, Stars, Grid } from '@react-three/drei';
 import * as THREE from 'three';
-import { Mail, MessageCircle, FileText, X, Twitter, ArrowRight } from 'lucide-react';
+import { Mail, MessageCircle, FileText, X, Twitter, ArrowRight, Search } from 'lucide-react';
 
 // Theme Configuration
 const theme = {
@@ -561,8 +561,12 @@ function App() {
   const [posts, setPosts] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [selectedPost, setSelectedPost] = useState(null);
+  const [selectedTopic, setSelectedTopic] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const scrollRef = useRef(0);
   const scrollContainerRef = useRef(null);
+
+  const topics = ['All', 'AI', 'Chips', 'Energy', 'Space', 'Crypto', 'Infrastructure', 'Geopolitics', 'Markets'];
 
   // Fetch posts from API
   useEffect(() => {
@@ -578,6 +582,21 @@ function App() {
         setLoadingPosts(false);
       });
   }, []);
+
+  // Filter posts based on topic and search query
+  const filteredPosts = posts.filter(post => {
+    const matchesTopic = selectedTopic === 'All' ||
+      (post.topic && post.topic.toLowerCase() === selectedTopic.toLowerCase()) ||
+      (post.title && post.title.toLowerCase().includes(selectedTopic.toLowerCase())) ||
+      (post.excerpt && post.excerpt.toLowerCase().includes(selectedTopic.toLowerCase()));
+
+    const matchesSearch = !searchQuery ||
+      (post.title && post.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (post.excerpt && post.excerpt.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (post.content && post.content.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    return matchesTopic && matchesSearch;
+  });
 
   // Handle Scroll for 3D Fade effect without causing re-renders
   useEffect(() => {
@@ -814,6 +833,80 @@ function App() {
               />
             ) : (
               <>
+                {/* Search Bar */}
+                <div style={{
+                  marginBottom: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  background: 'rgba(0,0,0,0.3)',
+                  border: '1px solid #333',
+                  borderRadius: '8px',
+                  padding: '10px 15px'
+                }}>
+                  <Search size={16} color="#666" />
+                  <input
+                    type="text"
+                    placeholder="Search transmissions..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{
+                      flex: 1,
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: '14px',
+                      outline: 'none',
+                      fontFamily: theme.fonts.main
+                    }}
+                  />
+                </div>
+
+                {/* Topics Bar */}
+                <div style={{
+                  display: 'flex',
+                  gap: '10px',
+                  marginBottom: '30px',
+                  overflowX: 'auto',
+                  paddingBottom: '10px',
+                  borderBottom: '1px solid #222'
+                }}>
+                  {topics.map((topic) => (
+                    <button
+                      key={topic}
+                      onClick={() => setSelectedTopic(topic)}
+                      style={{
+                        background: selectedTopic === topic ? 'rgba(255,255,255,0.1)' : 'transparent',
+                        border: selectedTopic === topic ? '1px solid rgba(255,255,255,0.2)' : '1px solid #333',
+                        borderRadius: '20px',
+                        color: selectedTopic === topic ? '#fff' : '#666',
+                        padding: '8px 16px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontFamily: theme.fonts.main,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (selectedTopic !== topic) {
+                          e.currentTarget.style.borderColor = '#555';
+                          e.currentTarget.style.color = '#aaa';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedTopic !== topic) {
+                          e.currentTarget.style.borderColor = '#333';
+                          e.currentTarget.style.color = '#666';
+                        }
+                      }}
+                    >
+                      {topic}
+                    </button>
+                  ))}
+                </div>
+
                 <h2 style={{
                   fontSize: '14px',
                   color: '#444',
@@ -823,7 +916,7 @@ function App() {
                   letterSpacing: '1px',
                   textTransform: 'uppercase'
                 }}>
-                  Latest Transmissions
+                  {selectedTopic === 'All' ? 'Latest Transmissions' : selectedTopic}
                 </h2>
 
                 {/* Posts from API */}
@@ -831,12 +924,12 @@ function App() {
                   <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '40px' }}>
                     Loading transmissions...
                   </div>
-                ) : posts.length === 0 ? (
+                ) : filteredPosts.length === 0 ? (
                   <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '40px' }}>
-                    No transmissions available
+                    No transmissions found
                   </div>
                 ) : (
-                  posts.map((post) => (
+                  filteredPosts.map((post) => (
                     <NewsItem
                       key={post.id}
                       date={new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')}

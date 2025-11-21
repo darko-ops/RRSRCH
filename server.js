@@ -78,7 +78,7 @@ app.post('/api/posts', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { title, excerpt, content } = req.body;
+  const { title, excerpt, content, topic } = req.body;
 
   if (!title || !excerpt) {
     return res.status(400).json({ error: 'Title and excerpt are required' });
@@ -93,6 +93,7 @@ app.post('/api/posts', async (req, res) => {
       title,
       excerpt,
       content: content || '',
+      topic: topic || 'All',
       date: new Date().toISOString()
     };
 
