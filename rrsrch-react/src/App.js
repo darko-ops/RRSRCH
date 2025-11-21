@@ -1151,6 +1151,79 @@ function App() {
                 {selectedPage === 'TERMINAL' ? (
                   <>
                     <LiveTable selectedTopic={selectedTopic} />
+
+                    {/* Recommended Articles Section */}
+                    <div style={{ marginTop: '60px' }}>
+                      <h3 style={{
+                        fontSize: '14px',
+                        color: '#666',
+                        marginBottom: '20px',
+                        letterSpacing: '1px',
+                        textTransform: 'uppercase',
+                        fontWeight: 600
+                      }}>
+                        Recommended Reading
+                      </h3>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+                        gap: '20px'
+                      }}>
+                        {filteredPosts.slice(0, 3).map((post) => (
+                          <div
+                            key={post.id}
+                            onClick={() => setSelectedPost(post)}
+                            style={{
+                              background: 'rgba(0,0,0,0.3)',
+                              border: '1px solid #222',
+                              borderRadius: '8px',
+                              padding: '15px',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.borderColor = '#444';
+                              e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.borderColor = '#222';
+                              e.currentTarget.style.background = 'rgba(0,0,0,0.3)';
+                            }}
+                          >
+                            <div style={{
+                              fontSize: '11px',
+                              color: '#666',
+                              marginBottom: '8px',
+                              fontFamily: theme.fonts.mono
+                            }}>
+                              {new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')}
+                            </div>
+                            <h4 style={{
+                              fontSize: '15px',
+                              color: '#fff',
+                              margin: '0 0 10px 0',
+                              fontWeight: 600,
+                              lineHeight: '1.4'
+                            }}>
+                              {post.title}
+                            </h4>
+                            <p style={{
+                              fontSize: '13px',
+                              color: '#888',
+                              margin: 0,
+                              lineHeight: '1.5',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical'
+                            }}>
+                              {post.excerpt}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </>
                 ) : (
                   <>
