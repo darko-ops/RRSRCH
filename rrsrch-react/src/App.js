@@ -300,50 +300,132 @@ function NavButton({ onClick, icon: Icon, label }) {
   );
 }
 
-function NewsItem({ date, title, excerpt }) {
+function NewsItem({ date, title, excerpt, onClick }) {
   return (
-    <div style={{ marginBottom: '40px', borderBottom: '1px solid #222', paddingBottom: '30px' }}>
-      <div style={{ 
-        fontSize: '11px', 
-        color: '#666', 
-        marginBottom: '12px', 
-        fontFamily: theme.fonts.mono 
+    <div
+      style={{ marginBottom: '40px', borderBottom: '1px solid #222', paddingBottom: '30px', cursor: 'pointer' }}
+      onClick={onClick}
+    >
+      <div style={{
+        fontSize: '11px',
+        color: '#666',
+        marginBottom: '12px',
+        fontFamily: theme.fonts.mono
       }}>
         {date}
       </div>
-      <h3 style={{ 
-        margin: '0 0 15px 0', 
-        fontSize: '24px', 
-        color: '#fff', 
+      <h3 style={{
+        margin: '0 0 15px 0',
+        fontSize: '24px',
+        color: '#fff',
         fontWeight: 400,
-        letterSpacing: '-0.02em' 
+        letterSpacing: '-0.02em'
       }}>
         {title}
       </h3>
-      <p style={{ 
-        fontSize: '15px', 
-        lineHeight: '1.7', 
-        color: '#888', 
+      <p style={{
+        fontSize: '15px',
+        lineHeight: '1.7',
+        color: '#888',
         margin: '0 0 20px 0',
         maxWidth: '90%'
       }}>
         {excerpt}
       </p>
-      <button style={{
-        background: 'none',
-        border: 'none',
-        color: '#fff',
-        fontSize: '12px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '5px',
-        padding: 0,
-        cursor: 'pointer',
-        textTransform: 'uppercase',
-        letterSpacing: '1px'
-      }}>
+      <button
+        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: '#fff',
+          fontSize: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '5px',
+          padding: 0,
+          cursor: 'pointer',
+          textTransform: 'uppercase',
+          letterSpacing: '1px'
+        }}
+      >
         Read Report <ArrowRight size={12} />
       </button>
+    </div>
+  );
+}
+
+function ArticleView({ post, onBack, relatedPosts }) {
+  return (
+    <div>
+      <button
+        onClick={onBack}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: '#666',
+          fontSize: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '5px',
+          padding: '0 0 20px 0',
+          cursor: 'pointer',
+          textTransform: 'uppercase',
+          letterSpacing: '1px',
+          marginBottom: '20px'
+        }}
+      >
+        <ArrowRight size={12} style={{ transform: 'rotate(180deg)' }} /> Back to Transmissions
+      </button>
+
+      <div style={{
+        fontSize: '11px',
+        color: '#666',
+        marginBottom: '12px',
+        fontFamily: theme.fonts.mono
+      }}>
+        {new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')}
+      </div>
+
+      <h1 style={{
+        margin: '0 0 30px 0',
+        fontSize: '36px',
+        color: '#fff',
+        fontWeight: 400,
+        letterSpacing: '-0.02em',
+        lineHeight: '1.2'
+      }}>
+        {post.title}
+      </h1>
+
+      <div style={{
+        fontSize: '16px',
+        lineHeight: '1.8',
+        color: '#aaa',
+        marginBottom: '60px',
+        whiteSpace: 'pre-wrap'
+      }}>
+        {post.content || post.excerpt}
+      </div>
+
+      {relatedPosts.length > 0 && (
+        <div style={{ marginTop: '60px', paddingTop: '40px', borderTop: '1px solid #222' }}>
+          <h3 style={{
+            fontSize: '14px',
+            color: '#444',
+            marginBottom: '30px',
+            letterSpacing: '1px',
+            textTransform: 'uppercase'
+          }}>
+            Related Transmissions
+          </h3>
+          {relatedPosts.map((related) => (
+            <div key={related.id} style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #111' }}>
+              <div style={{ fontSize: '16px', color: '#fff', marginBottom: '8px' }}>{related.title}</div>
+              <div style={{ fontSize: '13px', color: '#666' }}>{related.excerpt.substring(0, 100)}...</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -465,12 +547,13 @@ function App() {
   const [menuExpanded, setMenuExpanded] = useState(false);
   const [posts, setPosts] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
+  const [selectedPost, setSelectedPost] = useState(null);
   const scrollRef = useRef(0);
   const scrollContainerRef = useRef(null);
 
   // Fetch posts from API
   useEffect(() => {
-    const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+    const API_URL = process.env.REACT_APP_API_URL || '';
     fetch(`${API_URL}/api/posts`)
       .then(res => res.json())
       .then(data => {
@@ -708,38 +791,49 @@ function App() {
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
         }}>
           
-          {/* Left Column: News Feed */}
+          {/* Left Column: News Feed or Article View */}
           <div>
-            <h2 style={{ 
-              fontSize: '14px', 
-              color: '#444', 
-              borderBottom: '1px solid #222', 
-              paddingBottom: '10px', 
-              marginBottom: '30px',
-              letterSpacing: '1px',
-              textTransform: 'uppercase'
-            }}>
-              Latest Transmissions
-            </h2>
-            
-            {/* Posts from API */}
-            {loadingPosts ? (
-              <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '40px' }}>
-                Loading transmissions...
-              </div>
-            ) : posts.length === 0 ? (
-              <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '40px' }}>
-                No transmissions available
-              </div>
+            {selectedPost ? (
+              <ArticleView
+                post={selectedPost}
+                onBack={() => setSelectedPost(null)}
+                relatedPosts={posts.filter(p => p.id !== selectedPost.id).slice(0, 3)}
+              />
             ) : (
-              posts.map((post) => (
-                <NewsItem
-                  key={post.id}
-                  date={new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')}
-                  title={post.title}
-                  excerpt={post.excerpt}
-                />
-              ))
+              <>
+                <h2 style={{
+                  fontSize: '14px',
+                  color: '#444',
+                  borderBottom: '1px solid #222',
+                  paddingBottom: '10px',
+                  marginBottom: '30px',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase'
+                }}>
+                  Latest Transmissions
+                </h2>
+
+                {/* Posts from API */}
+                {loadingPosts ? (
+                  <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '40px' }}>
+                    Loading transmissions...
+                  </div>
+                ) : posts.length === 0 ? (
+                  <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '40px' }}>
+                    No transmissions available
+                  </div>
+                ) : (
+                  posts.map((post) => (
+                    <NewsItem
+                      key={post.id}
+                      date={new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')}
+                      title={post.title}
+                      excerpt={post.excerpt}
+                      onClick={() => setSelectedPost(post)}
+                    />
+                  ))
+                )}
+              </>
             )}
           </div>
 
