@@ -468,6 +468,165 @@ function ArticleView({ post, onBack, relatedPosts }) {
   );
 }
 
+function LiveTable({ selectedTopic }) {
+  const [assets, setAssets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+
+  useEffect(() => {
+    const fetchAssets = async () => {
+      try {
+        setLoading(true);
+
+        // Fetch crypto data
+        const cryptoIds = ['bitcoin', 'ethereum', 'solana', 'cardano', 'polkadot', 'dogecoin', 'ripple', 'litecoin'];
+        const cryptoResponse = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoIds.join(',')}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`);
+        const cryptoData = await cryptoResponse.json();
+
+        const formattedAssets = Object.entries(cryptoData).map(([id, data]) => ({
+          symbol: id.toUpperCase().slice(0, 3),
+          name: id.charAt(0).toUpperCase() + id.slice(1),
+          price: data.usd || 0,
+          change: data.usd_24h_change || 0,
+          volume: data.usd_24h_vol || 0,
+          type: 'crypto'
+        }));
+
+        setAssets(formattedAssets);
+        setLoading(false);
+        setLastUpdate(new Date());
+      } catch (err) {
+        console.error('Error fetching asset data:', err);
+        setLoading(false);
+      }
+    };
+
+    fetchAssets();
+    const interval = setInterval(fetchAssets, 10000); // 10 second auto-refresh
+    return () => clearInterval(interval);
+  }, [selectedTopic]);
+
+  const formatPrice = (price) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(price);
+  };
+
+  const formatVolume = (volume) => {
+    if (volume >= 1e9) return `$${(volume / 1e9).toFixed(2)}B`;
+    if (volume >= 1e6) return `$${(volume / 1e6).toFixed(2)}M`;
+    return `$${(volume / 1e3).toFixed(2)}K`;
+  };
+
+  const formatChange = (change) => {
+    const sign = change >= 0 ? '+' : '';
+    return `${sign}${change.toFixed(2)}%`;
+  };
+
+  const SkeletonRow = () => (
+    <tr style={{ borderBottom: '1px solid #222' }}>
+      {[1, 2, 3, 4].map(i => (
+        <td key={i} style={{ padding: '15px 10px' }}>
+          <div style={{
+            height: '14px',
+            background: 'rgba(255,255,255,0.05)',
+            borderRadius: '4px',
+            animation: 'pulse 1.5s ease-in-out infinite'
+          }} />
+        </td>
+      ))}
+    </tr>
+  );
+
+  return (
+    <div>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '20px'
+      }}>
+        <h2 style={{
+          fontSize: '18px',
+          color: '#fff',
+          fontWeight: 700,
+          margin: 0
+        }}>
+          LIVE TERMINAL
+        </h2>
+        <div style={{
+          fontSize: '11px',
+          color: '#666',
+          fontFamily: theme.fonts.mono
+        }}>
+          Updated: {lastUpdate.toLocaleTimeString()}
+        </div>
+      </div>
+
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          fontFamily: theme.fonts.mono
+        }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid #333' }}>
+              <th style={{ padding: '12px 10px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase' }}>Asset</th>
+              <th style={{ padding: '12px 10px', textAlign: 'right', fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase' }}>Price</th>
+              <th style={{ padding: '12px 10px', textAlign: 'right', fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase' }}>24h %</th>
+              <th style={{ padding: '12px 10px', textAlign: 'right', fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase' }}>Volume</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <>
+                <SkeletonRow />
+                <SkeletonRow />
+                <SkeletonRow />
+                <SkeletonRow />
+              </>
+            ) : (
+              assets.map((asset, index) => (
+                <tr key={index} style={{ borderBottom: '1px solid #222' }}>
+                  <td style={{ padding: '15px 10px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>{asset.symbol}</div>
+                    <div style={{ fontSize: '11px', color: '#666' }}>{asset.name}</div>
+                  </td>
+                  <td style={{ padding: '15px 10px', textAlign: 'right', fontSize: '14px', color: '#fff' }}>
+                    {formatPrice(asset.price)}
+                  </td>
+                  <td style={{
+                    padding: '15px 10px',
+                    textAlign: 'right',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: asset.change >= 0 ? '#00ff88' : '#ff4444'
+                  }}>
+                    {formatChange(asset.change)}
+                  </td>
+                  <td style={{ padding: '15px 10px', textAlign: 'right', fontSize: '13px', color: '#aaa' }}>
+                    {formatVolume(asset.volume)}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.6; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 function MarketWatch() {
   const [prices, setPrices] = useState({
     'BTC': { price: 0, change: 0 },
@@ -989,37 +1148,45 @@ function App() {
                   ))}
                 </div>
 
-                <h2 style={{
-                  fontSize: '14px',
-                  color: '#444',
-                  borderBottom: '1px solid #222',
-                  paddingBottom: '10px',
-                  marginBottom: '30px',
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase'
-                }}>
-                  {selectedPage} {selectedTopic !== 'All' ? `/ ${selectedTopic}` : ''}
-                </h2>
-
-                {/* Posts from API */}
-                {loadingPosts ? (
-                  <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '40px' }}>
-                    Loading transmissions...
-                  </div>
-                ) : filteredPosts.length === 0 ? (
-                  <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '40px' }}>
-                    No transmissions found
-                  </div>
+                {selectedPage === 'TERMINAL' ? (
+                  <>
+                    <LiveTable selectedTopic={selectedTopic} />
+                  </>
                 ) : (
-                  filteredPosts.map((post) => (
-                    <NewsItem
-                      key={post.id}
-                      date={new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')}
-                      title={post.title}
-                      excerpt={post.excerpt}
-                      onClick={() => setSelectedPost(post)}
-                    />
-                  ))
+                  <>
+                    <h2 style={{
+                      fontSize: '14px',
+                      color: '#444',
+                      borderBottom: '1px solid #222',
+                      paddingBottom: '10px',
+                      marginBottom: '30px',
+                      letterSpacing: '1px',
+                      textTransform: 'uppercase'
+                    }}>
+                      {selectedPage} {selectedTopic !== 'All' ? `/ ${selectedTopic}` : ''}
+                    </h2>
+
+                    {/* Posts from API */}
+                    {loadingPosts ? (
+                      <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '40px' }}>
+                        Loading transmissions...
+                      </div>
+                    ) : filteredPosts.length === 0 ? (
+                      <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '40px' }}>
+                        No transmissions found
+                      </div>
+                    ) : (
+                      filteredPosts.map((post) => (
+                        <NewsItem
+                          key={post.id}
+                          date={new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')}
+                          title={post.title}
+                          excerpt={post.excerpt}
+                          onClick={() => setSelectedPost(post)}
+                        />
+                      ))
+                    )}
+                  </>
                 )}
               </>
             )}
