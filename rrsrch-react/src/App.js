@@ -641,192 +641,1138 @@ function LiveTable({ selectedTopic }) {
   );
 }
 
-function AtlasDashboard({ selectedTopic }) {
-  const dashboardData = {
-    'Models': [
-      { rank: 1, name: 'GPT-4 Turbo', company: 'OpenAI', score: 86.4, change: '+2.1%' },
-      { rank: 2, name: 'Claude 3 Opus', company: 'Anthropic', score: 84.9, change: '+1.8%' },
-      { rank: 3, name: 'Gemini Ultra', company: 'Google', score: 83.7, change: '+0.5%' },
-      { rank: 4, name: 'GPT-4', company: 'OpenAI', score: 83.1, change: '0%' },
-      { rank: 5, name: 'Claude 3 Sonnet', company: 'Anthropic', score: 79.0, change: '+1.2%' },
-    ],
-    'GPUs': [
-      { rank: 1, name: 'H100 SXM', company: 'NVIDIA', tflops: '1979', price: '$30k' },
-      { rank: 2, name: 'MI300X', company: 'AMD', tflops: '1300', price: '$15k' },
-      { rank: 3, name: 'H100 PCIe', company: 'NVIDIA', tflops: '1513', price: '$25k' },
-      { rank: 4, name: 'A100 80GB', company: 'NVIDIA', tflops: '312', price: '$15k' },
-      { rank: 5, name: 'L40S', company: 'NVIDIA', tflops: '362', price: '$10k' },
-    ],
-    'Companies': [
-      { rank: 1, name: 'OpenAI', valuation: '$86B', employees: '750+', founded: '2015' },
-      { rank: 2, name: 'Anthropic', valuation: '$18B', employees: '500+', founded: '2021' },
-      { rank: 3, name: 'Cohere', valuation: '$2.2B', employees: '250+', founded: '2019' },
-      { rank: 4, name: 'Mistral AI', valuation: '$2B', employees: '150+', founded: '2023' },
-      { rank: 5, name: 'Stability AI', valuation: '$1B', employees: '200+', founded: '2020' },
-    ],
-    'Benchmarks': [
-      { rank: 1, name: 'MMLU', category: 'Knowledge', tasks: 57, leader: 'GPT-4' },
-      { rank: 2, name: 'HumanEval', category: 'Coding', tasks: 164, leader: 'GPT-4' },
-      { rank: 3, name: 'MATH', category: 'Reasoning', tasks: 500, leader: 'Claude 3' },
-      { rank: 4, name: 'GSM8K', category: 'Math', tasks: 8500, leader: 'GPT-4' },
-      { rank: 5, name: 'HellaSwag', category: 'Common Sense', tasks: 10000, leader: 'GPT-4' },
-    ],
-    'Frameworks': [
-      { rank: 1, name: 'PyTorch', downloads: '150M/mo', stars: '77k', language: 'Python' },
-      { rank: 2, name: 'TensorFlow', downloads: '80M/mo', stars: '180k', language: 'Python' },
-      { rank: 3, name: 'JAX', downloads: '8M/mo', stars: '28k', language: 'Python' },
-      { rank: 4, name: 'Keras', downloads: '25M/mo', stars: '60k', language: 'Python' },
-      { rank: 5, name: 'MXNet', downloads: '2M/mo', stars: '21k', language: 'Python' },
-    ],
-    'Chips': [
-      { rank: 1, name: 'TPU v5e', company: 'Google', type: 'Training', efficiency: 'High' },
-      { rank: 2, name: 'Trainium2', company: 'AWS', type: 'Training', efficiency: 'High' },
-      { rank: 3, name: 'Inferentia2', company: 'AWS', type: 'Inference', efficiency: 'Very High' },
-      { rank: 4, name: 'Gaudi2', company: 'Intel', type: 'Training', efficiency: 'Medium' },
-      { rank: 5, name: 'TPU v4', company: 'Google', type: 'Training', efficiency: 'High' },
-    ],
-    'Research Labs': [
-      { rank: 1, name: 'OpenAI', papers: 250, citations: '45k', focus: 'AGI' },
-      { rank: 2, name: 'DeepMind', papers: 500, citations: '120k', focus: 'Reinforcement Learning' },
-      { rank: 3, name: 'Meta AI (FAIR)', papers: 800, citations: '200k', focus: 'Open Research' },
-      { rank: 4, name: 'Google Brain', papers: 600, citations: '180k', focus: 'Deep Learning' },
-      { rank: 5, name: 'Microsoft Research', papers: 400, citations: '90k', focus: 'Applied AI' },
-    ],
-    'Founders': [
-      { rank: 1, name: 'Sam Altman', company: 'OpenAI', role: 'CEO', background: 'Y Combinator' },
-      { rank: 2, name: 'Dario Amodei', company: 'Anthropic', role: 'CEO', background: 'OpenAI VP' },
-      { rank: 3, name: 'Demis Hassabis', company: 'DeepMind', role: 'CEO', background: 'Neuroscience' },
-      { rank: 4, name: 'Ilya Sutskever', company: 'Safe Superintelligence', role: 'Co-Founder', background: 'OpenAI Chief Scientist' },
-      { rank: 5, name: 'Emad Mostaque', company: 'Stability AI', role: 'Founder', background: 'Hedge Funds' },
-    ],
+// ATLAS Sidebar Component
+function AtlasSidebar({ selectedTopic, selectedSubsection, hoveredEntity }) {
+  const domainColors = {
+    'Software': '#0088ff',
+    'Hardware': '#00ff88',
+    'Manufacturing': '#ff8800',
+    'Robotics': '#ff0088'
   };
 
-  const DashboardSection = ({ title, data, columns }) => (
+  const domainColor = domainColors[selectedTopic] || '#00ff88';
+
+  // Subsection-specific rankings
+  const subsectionRankings = {
+    'Models': {
+      title: 'Model Rankings',
+      items: [
+        { rank: 1, name: 'GPT-4 Turbo', score: 98, company: 'OpenAI' },
+        { rank: 2, name: 'Claude 3 Opus', score: 97, company: 'Anthropic' },
+        { rank: 3, name: 'Gemini Ultra', score: 95, company: 'Google' },
+        { rank: 4, name: 'Llama 3 405B', score: 92, company: 'Meta' },
+        { rank: 5, name: 'Mistral Large', score: 90, company: 'Mistral AI' },
+        { rank: 6, name: 'Claude 3 Sonnet', score: 88, company: 'Anthropic' },
+        { rank: 7, name: 'GPT-4', score: 87, company: 'OpenAI' },
+        { rank: 8, name: 'Gemini Pro', score: 85, company: 'Google' }
+      ]
+    },
+    'GPUs': {
+      title: 'GPU Rankings',
+      items: [
+        { rank: 1, name: 'H100 SXM', score: 98, company: 'NVIDIA' },
+        { rank: 2, name: 'B200', score: 97, company: 'NVIDIA' },
+        { rank: 3, name: 'H200', score: 95, company: 'NVIDIA' },
+        { rank: 4, name: 'MI300X', score: 93, company: 'AMD' },
+        { rank: 5, name: 'A100 80GB', score: 90, company: 'NVIDIA' },
+        { rank: 6, name: 'H100 PCIe', score: 88, company: 'NVIDIA' },
+        { rank: 7, name: 'RTX 4090', score: 86, company: 'NVIDIA' },
+        { rank: 8, name: 'L40S', score: 82, company: 'NVIDIA' }
+      ]
+    },
+    'AI Frameworks': {
+      title: 'Framework Rankings',
+      items: [
+        { rank: 1, name: 'PyTorch', score: 98, company: 'Meta' },
+        { rank: 2, name: 'JAX', score: 94, company: 'Google' },
+        { rank: 3, name: 'TensorFlow', score: 92, company: 'Google' },
+        { rank: 4, name: 'MLX', score: 88, company: 'Apple' },
+        { rank: 5, name: 'Keras', score: 85, company: 'Independent' },
+        { rank: 6, name: 'MXNet', score: 75, company: 'Apache' }
+      ]
+    },
+    'Fabs': {
+      title: 'Fab Rankings',
+      items: [
+        { rank: 1, name: 'TSMC', score: 99, company: 'Taiwan' },
+        { rank: 2, name: 'Samsung', score: 85, company: 'South Korea' },
+        { rank: 3, name: 'Intel Foundry', score: 78, company: 'USA' },
+        { rank: 4, name: 'SMIC', score: 72, company: 'China' },
+        { rank: 5, name: 'GlobalFoundries', score: 68, company: 'USA' }
+      ]
+    },
+    'Humanoid Robotics': {
+      title: 'Humanoid Robot Rankings',
+      items: [
+        { rank: 1, name: 'Figure 02', score: 94, company: 'Figure AI' },
+        { rank: 2, name: 'Tesla Optimus', score: 92, company: 'Tesla' },
+        { rank: 3, name: 'Agility Digit', score: 90, company: 'Agility Robotics' },
+        { rank: 4, name: '1X NEO', score: 88, company: '1X Technologies' },
+        { rank: 5, name: 'Unitree H1', score: 85, company: 'Unitree' },
+        { rank: 6, name: 'Atlas', score: 83, company: 'Boston Dynamics' }
+      ]
+    }
+  };
+
+  // Entity details for hover previews
+  const entityDetails = {
+    'H100 SXM': { name: 'H100 SXM', subtitle: 'Top-tier data center GPU', specs: ['80GB–96GB HBM3', '700W TDP', 'Best for frontier model training'], score: 98 },
+    'B200': { name: 'B200', subtitle: 'Next-gen Blackwell GPU', specs: ['192GB HBM3e', '1000W TDP', 'Double performance vs H100'], score: 97 },
+    'MI300X': { name: 'MI300X', subtitle: 'AMD AI accelerator', specs: ['192GB HBM3', 'Chiplet architecture', 'Competitive pricing vs NVIDIA'], score: 93 },
+    'H200': { name: 'H200', subtitle: 'Hopper refresh with more memory', specs: ['141GB HBM3e', '700W TDP', 'Inference-optimized'], score: 95 },
+    'A100 80GB': { name: 'A100 80GB', subtitle: 'Previous gen workhorse', specs: ['80GB HBM2e', '400W TDP', 'Still widely deployed'], score: 90 },
+    'RTX 4090': { name: 'RTX 4090', subtitle: 'Consumer GPU for AI', specs: ['24GB GDDR6X', '450W TDP', 'Best price/performance for research'], score: 86 },
+    'GPT-4 Turbo': { name: 'GPT-4 Turbo', subtitle: 'OpenAI flagship model', specs: ['128k context window', '86.4 benchmark score', 'Multimodal capabilities'], score: 98 },
+    'Claude 3 Opus': { name: 'Claude 3 Opus', subtitle: 'Anthropic reasoning champion', specs: ['200k context window', '84.9 benchmark score', 'Strong at analysis'], score: 97 },
+    'Gemini Ultra': { name: 'Gemini Ultra', subtitle: 'Google multimodal model', specs: ['Native multimodal', '83.7 benchmark score', 'Deep Google integration'], score: 95 },
+    'TPU v5e': { name: 'TPU v5e', subtitle: 'Google AI accelerator', specs: ['Cost-optimized training', 'High performance/watt', 'GCP exclusive'], score: 94 },
+    'Trainium2': { name: 'Trainium2', subtitle: 'AWS training chip', specs: ['4x performance vs v1', 'NeuronLink interconnect', 'AWS infrastructure'], score: 92 },
+    'Groq LPU': { name: 'Groq LPU', subtitle: 'Inference specialist chip', specs: ['Ultra-low latency', '500 tok/s inference', 'Deterministic performance'], score: 91 },
+    'PyTorch': { name: 'PyTorch', subtitle: 'Dominant ML framework', specs: ['150M monthly downloads', 'Dynamic computation graphs', 'Meta-backed'], score: 98 },
+    'TSMC': { name: 'TSMC', subtitle: 'Leading semiconductor fab', specs: ['3nm process leader', '90% AI chip production', 'Apple & NVIDIA partner'], score: 99 },
+    'Figure 02': { name: 'Figure 02', subtitle: 'Commercial humanoid robot', specs: ['BMW partnership', 'OpenAI VLA integration', 'Full dexterity'], score: 94 },
+    'Tesla Optimus': { name: 'Tesla Optimus', subtitle: 'Musk humanoid project', specs: ['Tesla AI integration', 'Mass production ready', 'Factory automation'], score: 92 }
+  };
+
+  // Domain-specific insights
+  const domainInsights = {
+    'Software': {
+      topRankings: [
+        { name: 'GPT-4 Turbo', score: 98 },
+        { name: 'Claude 3 Opus', score: 97 },
+        { name: 'Gemini Ultra', score: 95 },
+        { name: 'Llama 3', score: 92 },
+        { name: 'Mistral Large', score: 90 }
+      ],
+      vendors: ['OpenAI', 'Anthropic', 'Google', 'Meta', 'Mistral AI'],
+      trends: [
+        'Reasoning models outpacing benchmarks',
+        'Context windows pushing 1M+ tokens',
+        'Open weights catching up to frontier'
+      ]
+    },
+    'Hardware': {
+      topRankings: [
+        { name: 'H100 SXM', score: 98 },
+        { name: 'B200', score: 97 },
+        { name: 'MI300X', score: 93 },
+        { name: 'A100 80GB', score: 90 },
+        { name: 'RTX 4090', score: 86 }
+      ],
+      vendors: ['NVIDIA', 'AMD', 'Intel', 'Groq', 'Cerebras'],
+      trends: [
+        'HBM3e capacity is the main bottleneck',
+        'NVIDIA supply-constrained into 2026',
+        'Chiplet-based accelerators rising'
+      ]
+    },
+    'Manufacturing': {
+      topRankings: [
+        { name: 'TSMC', score: 99 },
+        { name: 'Samsung', score: 85 },
+        { name: 'Intel Foundry', score: 78 },
+        { name: 'SMIC', score: 72 },
+        { name: 'GlobalFoundries', score: 68 }
+      ],
+      vendors: ['ASML', 'Lam Research', 'Applied Materials', 'Tokyo Electron', 'KLA'],
+      trends: [
+        'CoWoS packaging capacity shortage',
+        '2nm GAA transition in 2025',
+        'US-China supply chain divergence'
+      ]
+    },
+    'Robotics': {
+      topRankings: [
+        { name: 'Figure 02', score: 94 },
+        { name: 'Tesla Optimus', score: 92 },
+        { name: 'Agility Robotics', score: 90 },
+        { name: '1X NEO', score: 88 },
+        { name: 'Unitree H1', score: 85 }
+      ],
+      vendors: ['Figure', 'Tesla', 'Agility', '1X', 'Boston Dynamics'],
+      trends: [
+        'VLA models enabling general manipulation',
+        'Humanoids entering factories 2025',
+        'Embodied AI is the new frontier'
+      ]
+    }
+  };
+
+  const insights = domainInsights[selectedTopic] || domainInsights['Software'];
+  const entity = hoveredEntity ? entityDetails[hoveredEntity] : null;
+  const rankings = selectedSubsection ? subsectionRankings[selectedSubsection] : null;
+
+  // Safety check - if no insights and no rankings, don't render
+  if (!insights && !rankings) {
+    return null;
+  }
+
+  return (
+    <div style={{
+      background: 'rgba(0,0,0,0.5)',
+      border: '1px solid #222',
+      borderRadius: '8px',
+      padding: '20px',
+      backdropFilter: 'blur(10px)'
+    }}>
+      {rankings ? (
+        // Subsection Rankings View
+        <div>
+          <h3 style={{
+            fontSize: '13px',
+            color: domainColor,
+            textTransform: 'uppercase',
+            letterSpacing: '1px',
+            fontWeight: 700,
+            marginBottom: '20px'
+          }}>
+            {rankings.title}
+          </h3>
+          <div>
+            {rankings.items.map((item, i) => (
+              <div key={i} style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                marginBottom: '16px',
+                paddingBottom: '16px',
+                borderBottom: i < rankings.items.length - 1 ? '1px solid #222' : 'none'
+              }}>
+                <div style={{
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  color: domainColor,
+                  fontFamily: theme.fonts.mono,
+                  minWidth: '24px'
+                }}>
+                  {item.rank}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    fontSize: '13px',
+                    color: '#fff',
+                    fontWeight: 600,
+                    marginBottom: '4px'
+                  }}>
+                    {item.name}
+                  </div>
+                  <div style={{
+                    fontSize: '11px',
+                    color: '#666',
+                    fontFamily: theme.fonts.mono
+                  }}>
+                    {item.company}
+                  </div>
+                </div>
+                <div style={{
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  color: domainColor,
+                  fontFamily: theme.fonts.mono
+                }}>
+                  {item.score}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : entity ? (
+        // Entity Preview Mode
+        <div>
+          <div style={{
+            fontSize: '11px',
+            color: domainColor,
+            textTransform: 'uppercase',
+            letterSpacing: '1px',
+            fontWeight: 600,
+            marginBottom: '12px'
+          }}>
+            Entity Preview
+          </div>
+          <h3 style={{
+            fontSize: '18px',
+            color: '#fff',
+            fontWeight: 700,
+            margin: '0 0 4px 0'
+          }}>
+            {entity.name}
+          </h3>
+          <p style={{
+            fontSize: '12px',
+            color: '#888',
+            margin: '0 0 16px 0'
+          }}>
+            {entity.subtitle}
+          </p>
+          <div style={{ marginBottom: '16px' }}>
+            {entity.specs.map((spec, i) => (
+              <div key={i} style={{
+                fontSize: '12px',
+                color: '#aaa',
+                marginBottom: '6px',
+                paddingLeft: '12px',
+                position: 'relative'
+              }}>
+                <span style={{
+                  position: 'absolute',
+                  left: 0,
+                  color: domainColor
+                }}>•</span>
+                {spec}
+              </div>
+            ))}
+          </div>
+          {entity.score && (
+            <div style={{
+              padding: '12px',
+              background: `${domainColor}11`,
+              border: `1px solid ${domainColor}33`,
+              borderRadius: '6px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <span style={{ fontSize: '12px', color: '#aaa' }}>RRSRCH Score</span>
+              <span style={{
+                fontSize: '24px',
+                fontWeight: 700,
+                color: domainColor,
+                fontFamily: theme.fonts.mono
+              }}>
+                {entity.score}
+              </span>
+            </div>
+          )}
+        </div>
+      ) : (
+        // Domain Insights Mode
+        <div>
+          <h3 style={{
+            fontSize: '13px',
+            color: domainColor,
+            textTransform: 'uppercase',
+            letterSpacing: '1px',
+            fontWeight: 700,
+            marginBottom: '20px'
+          }}>
+            Top by RRSRCH Score
+          </h3>
+          <div style={{ marginBottom: '24px' }}>
+            {insights.topRankings.map((item, i) => (
+              <div key={i} style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '10px',
+                fontSize: '13px'
+              }}>
+                <span style={{ color: '#aaa' }}>{item.name}</span>
+                <span style={{
+                  color: domainColor,
+                  fontFamily: theme.fonts.mono,
+                  fontWeight: 600
+                }}>
+                  {item.score}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <h3 style={{
+            fontSize: '13px',
+            color: domainColor,
+            textTransform: 'uppercase',
+            letterSpacing: '1px',
+            fontWeight: 700,
+            marginBottom: '12px'
+          }}>
+            Top Vendors
+          </h3>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '8px',
+            marginBottom: '24px'
+          }}>
+            {insights.vendors.map((vendor, i) => (
+              <span key={i} style={{
+                fontSize: '11px',
+                color: '#888',
+                fontFamily: theme.fonts.mono
+              }}>
+                {vendor}{i < insights.vendors.length - 1 ? ' ·' : ''}
+              </span>
+            ))}
+          </div>
+
+          <h3 style={{
+            fontSize: '13px',
+            color: domainColor,
+            textTransform: 'uppercase',
+            letterSpacing: '1px',
+            fontWeight: 700,
+            marginBottom: '12px'
+          }}>
+            Trends
+          </h3>
+          <div>
+            {insights.trends.map((trend, i) => (
+              <div key={i} style={{
+                fontSize: '12px',
+                color: '#aaa',
+                marginBottom: '8px',
+                paddingLeft: '12px',
+                position: 'relative',
+                lineHeight: '1.5'
+              }}>
+                <span style={{
+                  position: 'absolute',
+                  left: 0,
+                  color: domainColor
+                }}>•</span>
+                {trend}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Subsection Detail Page Component
+function SubsectionDetail({ subsectionName, domainColor, onBack, items, onEntityHover }) {
+  // Subsection content data
+  const subsectionContent = {
+    'Models': {
+      title: 'AI Models',
+      explanation: 'Large language models (LLMs) and foundation models are neural networks trained on massive datasets to understand, generate, and reason about human language. These models range from 7 billion to over 1 trillion parameters and power everything from ChatGPT to coding assistants.',
+      newcomerInfo: [
+        'Start with GPT-4 or Claude 3 for general tasks',
+        'Llama 3 and Mistral are leading open-weight options',
+        'Context window (how much text the model can process) is critical',
+        'Benchmark scores (MMLU, HumanEval) indicate capability',
+        'Multimodal models can process images, not just text'
+      ],
+      keyMetrics: [
+        { label: 'Active Production Models', value: '120+' },
+        { label: 'Average Benchmark Score', value: '79.2/100' },
+        { label: 'Largest Context Window', value: '1M tokens' },
+        { label: 'Market Leaders', value: 'OpenAI, Anthropic' }
+      ]
+    },
+    'GPUs': {
+      title: 'GPUs',
+      explanation: 'Graphics Processing Units (GPUs) are specialized processors designed for parallel computation, making them essential for training and running AI models. NVIDIA dominates the market with H100 and upcoming B200 chips, though AMD and others are competing.',
+      newcomerInfo: [
+        'H100 is the gold standard for training frontier models',
+        'NVIDIA controls ~88% of the AI accelerator market',
+        'HBM (High Bandwidth Memory) capacity is often the bottleneck',
+        'Supply is severely constrained through 2026',
+        'RTX 4090 offers best price/performance for researchers'
+      ],
+      keyMetrics: [
+        { label: 'Peak Performance', value: '1979 TFLOPS (H100)' },
+        { label: 'Market Leader', value: 'NVIDIA' },
+        { label: 'Avg Top-Tier Cost', value: '$18K-$30K' },
+        { label: '2024 Shipments', value: '2.5M units' }
+      ]
+    },
+    'AI Frameworks': {
+      title: 'AI Frameworks',
+      explanation: 'Machine learning frameworks are software libraries that provide the building blocks for developing AI models. PyTorch and TensorFlow dominate, with PyTorch winning mindshare in research while both remain strong in production.',
+      newcomerInfo: [
+        'PyTorch is recommended for most new projects',
+        'Dynamic computation graphs make debugging easier',
+        'JAX is emerging for high-performance computing',
+        'Most modern models are trained with PyTorch',
+        'Framework choice affects ecosystem access'
+      ],
+      keyMetrics: [
+        { label: 'Top Framework', value: 'PyTorch' },
+        { label: 'Monthly Downloads', value: '265M combined' },
+        { label: 'Active ML Projects', value: '1.2M+' },
+        { label: 'GitHub Stars', value: '366K combined' }
+      ]
+    },
+    'Fabs': {
+      title: 'Semiconductor Fabs',
+      explanation: 'Semiconductor fabrication plants (fabs) are specialized facilities that manufacture the chips powering AI. TSMC dominates advanced process nodes, producing over 90% of cutting-edge AI chips. Their 3nm and upcoming 2nm processes are critical to AI hardware advancement.',
+      newcomerInfo: [
+        'TSMC manufactures chips for NVIDIA, Apple, AMD',
+        'CoWoS packaging enables HBM integration',
+        'Geopolitical risk is a major concern',
+        'Process node leadership drives AI performance',
+        'Capacity constraints affect entire industry'
+      ],
+      keyMetrics: [
+        { label: 'Market Leader', value: 'TSMC' },
+        { label: 'Leading Process', value: '3nm' },
+        { label: 'Major Fabs', value: '5 key players' },
+        { label: 'TSMC Market Share', value: '90% advanced nodes' }
+      ]
+    },
+    'Humanoid Robotics': {
+      title: 'Humanoid Robotics',
+      explanation: 'Humanoid robots are autonomous systems designed to replicate human form and movement. Recent advances in AI and actuator technology have enabled Figure 02, Tesla Optimus, and others to perform complex manipulation tasks.',
+      newcomerInfo: [
+        'Figure 02 leads in commercial deployment',
+        'Tesla Optimus targets mass manufacturing',
+        'Hardware costs are decreasing rapidly',
+        'Autonomy stacks leverage LLMs for task planning',
+        'Key challenges: dexterity, power, and cost'
+      ],
+      keyMetrics: [
+        { label: 'Leading Platform', value: 'Figure 02' },
+        { label: 'Est. Market Size', value: '$38B by 2035' },
+        { label: 'Active Platforms', value: '12+' },
+        { label: 'Key Players', value: 'Figure, Tesla, 1X' }
+      ]
+    }
+  };
+
+  const content = subsectionContent[subsectionName] || {
+    title: subsectionName,
+    explanation: `Detailed information about ${subsectionName} in the AI ecosystem.`,
+    newcomerInfo: [
+      'This is a key component of modern AI infrastructure',
+      'Understanding this area is essential for AI practitioners',
+      'Market dynamics are rapidly evolving'
+    ],
+    keyMetrics: []
+  };
+
+  return (
+    <div>
+      {/* Back button */}
+      <button
+        onClick={onBack}
+        style={{
+          background: 'transparent',
+          border: `1px solid ${domainColor}`,
+          borderRadius: '6px',
+          color: domainColor,
+          padding: '8px 16px',
+          fontSize: '12px',
+          fontWeight: 600,
+          cursor: 'pointer',
+          marginBottom: '30px',
+          transition: 'all 0.2s ease'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = `${domainColor}22`;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent';
+        }}
+      >
+        ← Back to {subsectionName.split(' ')[0]} Overview
+      </button>
+
+      {/* Title */}
+      <h1 style={{
+        fontSize: '36px',
+        color: domainColor,
+        fontWeight: 700,
+        margin: '0 0 20px 0',
+        letterSpacing: '1px'
+      }}>
+        {content.title}
+      </h1>
+
+      {/* Explanation */}
+      <div style={{
+        background: 'rgba(0,0,0,0.3)',
+        border: '1px solid #222',
+        borderRadius: '8px',
+        padding: '24px',
+        marginBottom: '30px'
+      }}>
+        <h3 style={{
+          fontSize: '14px',
+          color: domainColor,
+          textTransform: 'uppercase',
+          letterSpacing: '1px',
+          fontWeight: 700,
+          marginBottom: '16px'
+        }}>
+          What is this?
+        </h3>
+        <p style={{
+          fontSize: '15px',
+          color: '#aaa',
+          lineHeight: '1.8',
+          margin: 0
+        }}>
+          {content.explanation}
+        </p>
+      </div>
+
+      {/* Key Metrics */}
+      {content.keyMetrics.length > 0 && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '15px',
+          marginBottom: '30px'
+        }}>
+          {content.keyMetrics.map((metric, i) => (
+            <div key={i} style={{
+              background: 'rgba(0,0,0,0.3)',
+              border: '1px solid #222',
+              borderRadius: '8px',
+              padding: '20px'
+            }}>
+              <div style={{
+                fontSize: '11px',
+                color: '#666',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                marginBottom: '8px'
+              }}>
+                {metric.label}
+              </div>
+              <div style={{
+                fontSize: '24px',
+                color: domainColor,
+                fontWeight: 700,
+                fontFamily: theme.fonts.mono
+              }}>
+                {metric.value}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Info for Newcomers */}
+      <div style={{
+        background: 'rgba(0,0,0,0.3)',
+        border: '1px solid #222',
+        borderRadius: '8px',
+        padding: '24px',
+        marginBottom: '30px'
+      }}>
+        <h3 style={{
+          fontSize: '14px',
+          color: domainColor,
+          textTransform: 'uppercase',
+          letterSpacing: '1px',
+          fontWeight: 700,
+          marginBottom: '16px'
+        }}>
+          Essential Knowledge
+        </h3>
+        <div>
+          {content.newcomerInfo.map((info, i) => (
+            <div key={i} style={{
+              fontSize: '14px',
+              color: '#aaa',
+              marginBottom: '12px',
+              paddingLeft: '20px',
+              position: 'relative',
+              lineHeight: '1.6'
+            }}>
+              <span style={{
+                position: 'absolute',
+                left: 0,
+                color: domainColor,
+                fontSize: '18px'
+              }}>•</span>
+              {info}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Entity Collage */}
+      {items && items.length > 0 && (
+        <div style={{
+          background: 'rgba(0,0,0,0.3)',
+          border: '1px solid #222',
+          borderRadius: '8px',
+          padding: '24px'
+        }}>
+          <h3 style={{
+            fontSize: '14px',
+            color: domainColor,
+            textTransform: 'uppercase',
+            letterSpacing: '1px',
+            fontWeight: 700,
+            marginBottom: '20px'
+          }}>
+            Explore {subsectionName}
+          </h3>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+            gap: '12px'
+          }}>
+            {items.map((item, i) => (
+              <div
+                key={i}
+                onMouseEnter={() => onEntityHover && onEntityHover(item)}
+                onMouseLeave={() => onEntityHover && onEntityHover(null)}
+                style={{
+                  background: `${domainColor}11`,
+                  border: `1px solid ${domainColor}33`,
+                  borderRadius: '6px',
+                  padding: '16px',
+                  fontSize: '13px',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'center',
+                  fontWeight: 500
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.background = `${domainColor}22`;
+                  e.currentTarget.style.borderColor = domainColor;
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.background = `${domainColor}11`;
+                  e.currentTarget.style.borderColor = `${domainColor}33`;
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AtlasDashboard({ selectedTopic, onEntityHover, onSubsectionClick }) {
+  // Domain subsections data
+  const domainData = {
+    'Software': {
+      subsections: [
+        {
+          title: 'Models',
+          items: ['GPT-4 Turbo', 'Claude 3 Opus', 'Gemini Ultra', 'Llama 3', 'Qwen 2.5', 'Mistral Large']
+        },
+        {
+          title: 'Model Families',
+          items: ['Transformers', 'Diffusion Models', 'Mixture-of-Experts', 'State Space Models', 'Retrieval-Augmented']
+        },
+        {
+          title: 'AI Frameworks',
+          items: ['PyTorch', 'JAX', 'TensorFlow', 'MLX', 'Keras']
+        },
+        {
+          title: 'Runtimes / Serving',
+          items: ['vLLM', 'Ollama', 'Triton', 'TensorRT', 'llama.cpp', 'SGLang']
+        },
+        {
+          title: 'AI Benchmarks',
+          items: ['MMLU', 'GSM8K', 'HumanEval', 'MATH', 'MLPerf', 'GPQA']
+        },
+        {
+          title: 'Core Infrastructure',
+          items: ['Qdrant', 'Pinecone', 'Weaviate', 'Ray', 'Airflow', 'Weights & Biases', 'MLflow']
+        }
+      ]
+    },
+    'Hardware': {
+      subsections: [
+        {
+          title: 'GPUs',
+          items: ['H100 SXM', 'B200', 'MI300X', 'H200', 'A100 80GB', 'RTX 4090']
+        },
+        {
+          title: 'AI Accelerators / ASICs',
+          items: ['TPU v5e', 'Groq LPU', 'Cerebras WSE-3', 'Trainium2', 'Inferentia2', 'SambaNova SN40L']
+        },
+        {
+          title: 'Memory & Interconnect',
+          items: ['HBM3e', 'HBM3', 'NVLink', 'PCIe Gen5', 'CXL', 'Infinity Fabric']
+        },
+        {
+          title: 'Data Center Servers',
+          items: ['NVIDIA DGX', 'Supermicro AI', 'Dell PowerEdge', 'HPE Cray', 'AWS Trainium Pods']
+        },
+        {
+          title: 'Networking',
+          items: ['Infiniband', 'RoCE', 'Ultra Ethernet', 'Spectrum-X', 'AI Cluster Fabric']
+        }
+      ]
+    },
+    'Manufacturing': {
+      subsections: [
+        {
+          title: 'Fabs',
+          items: ['TSMC', 'Intel Foundry', 'Samsung', 'SMIC', 'GlobalFoundries']
+        },
+        {
+          title: 'Packaging & Assembly',
+          items: ['CoWoS', 'Chiplets', '3D Stacking', 'Advanced Packaging', 'FOWLP']
+        },
+        {
+          title: 'Component Supply',
+          items: ['SK Hynix (HBM)', 'Micron (HBM)', 'Samsung Memory', 'TSMC CoWoS']
+        },
+        {
+          title: 'Equipment Makers',
+          items: ['ASML', 'Lam Research', 'Applied Materials', 'Tokyo Electron', 'KLA']
+        },
+        {
+          title: 'Supply Chain',
+          items: ['Substrates', 'Lithography', 'Cooling Systems', 'Photoresists', 'Chemicals']
+        }
+      ]
+    },
+    'Robotics': {
+      subsections: [
+        {
+          title: 'Humanoid Robotics',
+          items: ['Figure 02', 'Tesla Optimus', 'Agility Robotics', '1X NEO', 'Unitree H1']
+        },
+        {
+          title: 'Industrial Robotics',
+          items: ['Fanuc', 'ABB', 'Kuka', 'Yaskawa', 'Universal Robots']
+        },
+        {
+          title: 'Embedded AI / Edge Chips',
+          items: ['Jetson Orin', 'Snapdragon 8 Gen 3', 'Apple Neural Engine', 'Hailo-8', 'Edge TPU']
+        },
+        {
+          title: 'Sensors & Actuators',
+          items: ['LiDAR', 'Depth Cameras', 'IMUs', 'Force Sensors', 'Servo Motors']
+        },
+        {
+          title: 'Autonomy Stacks',
+          items: ['Tesla FSD', 'Waymo Driver', 'NVIDIA DRIVE', 'Apollo', 'Mobileye SuperVision']
+        }
+      ]
+    }
+  };
+
+  const InfoCard = ({ title, value, subtitle, icon, trend }) => (
     <div style={{
       background: 'rgba(0,0,0,0.3)',
       border: '1px solid #222',
       borderRadius: '8px',
       padding: '20px',
-      marginBottom: '30px'
+      flex: 1,
+      minWidth: '200px'
     }}>
-      <h3 style={{
-        fontSize: '14px',
+      <div style={{
+        fontSize: '11px',
+        color: '#666',
+        textTransform: 'uppercase',
+        letterSpacing: '1px',
+        marginBottom: '12px',
+        fontWeight: 600
+      }}>
+        {icon && <span style={{ marginRight: '8px' }}>{icon}</span>}
+        {title}
+      </div>
+      <div style={{
+        fontSize: '28px',
         color: '#fff',
+        fontWeight: 700,
+        marginBottom: '8px',
+        fontFamily: theme.fonts.main
+      }}>
+        {value}
+      </div>
+      <div style={{
+        fontSize: '12px',
+        color: '#888',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
+      }}>
+        <span>{subtitle}</span>
+        {trend && (
+          <span style={{
+            color: trend.startsWith('+') ? '#00ff88' : trend.startsWith('-') ? '#ff4444' : '#888',
+            fontWeight: 600,
+            fontFamily: theme.fonts.mono
+          }}>
+            {trend}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+
+  const FeatureCard = ({ name, description, metrics, image }) => (
+    <div style={{
+      background: 'rgba(0,0,0,0.3)',
+      border: '1px solid #222',
+      borderRadius: '8px',
+      padding: '20px',
+      display: 'flex',
+      gap: '20px',
+      alignItems: 'flex-start'
+    }}>
+      {image && (
+        <div style={{
+          width: '80px',
+          height: '80px',
+          background: 'rgba(255,255,255,0.05)',
+          borderRadius: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '32px',
+          flexShrink: 0
+        }}>
+          {image}
+        </div>
+      )}
+      <div style={{ flex: 1 }}>
+        <h4 style={{
+          fontSize: '18px',
+          color: '#fff',
+          fontWeight: 700,
+          margin: '0 0 8px 0'
+        }}>
+          {name}
+        </h4>
+        <p style={{
+          fontSize: '13px',
+          color: '#aaa',
+          lineHeight: '1.6',
+          margin: '0 0 12px 0'
+        }}>
+          {description}
+        </p>
+        <div style={{
+          display: 'flex',
+          gap: '20px',
+          fontSize: '12px',
+          fontFamily: theme.fonts.mono
+        }}>
+          {metrics.map((metric, i) => (
+            <div key={i}>
+              <span style={{ color: '#666' }}>{metric.label}: </span>
+              <span style={{ color: '#fff', fontWeight: 600 }}>{metric.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Domain color mapping
+  const domainColors = {
+    'Software': '#0088ff',
+    'Hardware': '#00ff88',
+    'Manufacturing': '#ff8800',
+    'Robotics': '#ff0088'
+  };
+
+  // Subsection descriptions
+  const subsectionDescriptions = {
+    'Models': 'Foundation models and LLMs driving the current AI revolution',
+    'Model Families': 'Architectural paradigms and approaches to building AI systems',
+    'AI Frameworks': 'Core libraries for building and training neural networks',
+    'Runtimes / Serving': 'Tools for deploying and running models in production',
+    'AI Benchmarks': 'Standardized tests measuring model capabilities',
+    'Core Infrastructure': 'Vector databases, orchestration, and ML tooling',
+    'GPUs': 'Graphics processors powering AI training and inference',
+    'AI Accelerators / ASICs': 'Custom silicon designed specifically for AI workloads',
+    'Memory & Interconnect': 'High-bandwidth memory and chip-to-chip communication',
+    'Data Center Servers': 'Compute systems optimized for large-scale AI',
+    'Networking': 'High-speed fabrics connecting AI clusters',
+    'Fabs': 'Semiconductor fabrication facilities producing AI chips',
+    'Packaging & Assembly': 'Advanced techniques for assembling modern chips',
+    'Component Supply': 'Critical components in the AI silicon supply chain',
+    'Equipment Makers': 'Companies producing semiconductor manufacturing equipment',
+    'Supply Chain': 'Materials and processes enabling chip production',
+    'Humanoid Robotics': 'Human-form robots with AI capabilities',
+    'Industrial Robotics': 'Manufacturing and automation robot systems',
+    'Embedded AI / Edge Chips': 'AI processors for edge devices and robotics',
+    'Sensors & Actuators': 'Hardware enabling robot perception and movement',
+    'Autonomy Stacks': 'Software systems for autonomous navigation'
+  };
+
+  // Subsection component - displays items in a collage with explore button
+  const SubsectionCard = ({ title, items, domainColor, onEntityHover, onSubsectionClick }) => (
+    <div style={{
+      background: 'rgba(0,0,0,0.2)',
+      border: '1px solid #222',
+      borderRadius: '8px',
+      padding: '20px',
+      marginBottom: '20px'
+    }}>
+      <h4 style={{
+        fontSize: '13px',
+        color: domainColor,
         fontWeight: 700,
         textTransform: 'uppercase',
         letterSpacing: '1px',
-        marginBottom: '20px',
-        paddingBottom: '12px',
-        borderBottom: '2px solid #333'
+        marginBottom: '8px'
       }}>
         {title}
-      </h3>
+      </h4>
+      <p style={{
+        fontSize: '12px',
+        color: '#666',
+        margin: '0 0 20px 0',
+        lineHeight: '1.5'
+      }}>
+        {subsectionDescriptions[title] || 'Explore this category'}
+      </p>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: theme.fonts.mono }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid #333' }}>
-              <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: 600 }}>#</th>
-              {columns.map((col, i) => (
-                <th key={i} style={{ padding: '10px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: 600 }}>
-                  {col}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((item, index) => (
-              <tr key={index} style={{ borderBottom: '1px solid #222' }}>
-                <td style={{ padding: '12px 10px', fontSize: '13px', color: '#888', fontWeight: 600 }}>
-                  {item.rank}
-                </td>
-                {Object.entries(item).filter(([key]) => key !== 'rank').map(([key, value], i) => (
-                  <td key={i} style={{
-                    padding: '12px 10px',
-                    fontSize: '13px',
-                    color: i === 0 ? '#fff' : '#aaa',
-                    fontWeight: i === 0 ? 600 : 400
-                  }}>
-                    {value}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Collage Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+        gap: '10px'
+      }}>
+        {/* Explore More Button - larger and prominent */}
+        <div
+          onClick={() => onSubsectionClick && onSubsectionClick(title)}
+          style={{
+            gridColumn: 'span 2',
+            gridRow: 'span 2',
+            background: `linear-gradient(135deg, ${domainColor}22 0%, ${domainColor}11 100%)`,
+            border: `2px solid ${domainColor}`,
+            borderRadius: '8px',
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+            minHeight: '140px'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = `linear-gradient(135deg, ${domainColor}33 0%, ${domainColor}22 100%)`;
+            e.currentTarget.style.transform = 'scale(1.02)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = `linear-gradient(135deg, ${domainColor}22 0%, ${domainColor}11 100%)`;
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+        >
+          <div style={{
+            fontSize: '16px',
+            fontWeight: 700,
+            color: domainColor,
+            marginBottom: '8px',
+            textAlign: 'center'
+          }}>
+            Explore {title}
+          </div>
+          <div style={{
+            fontSize: '11px',
+            color: '#888',
+            textAlign: 'center'
+          }}>
+            View full directory →
+          </div>
+        </div>
+
+        {/* Item Pills */}
+        {items.slice(0, 8).map((item, i) => (
+          <div key={i} style={{
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid #333',
+            borderRadius: '6px',
+            padding: '12px 10px',
+            fontSize: '11px',
+            color: '#aaa',
+            fontFamily: theme.fonts.mono,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            minHeight: '60px',
+            lineHeight: '1.3'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = domainColor;
+            e.currentTarget.style.color = '#fff';
+            e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+            if (onEntityHover) onEntityHover(item);
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = '#333';
+            e.currentTarget.style.color = '#aaa';
+            e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+            if (onEntityHover) onEntityHover(null);
+          }}
+          >
+            {item}
+          </div>
+        ))}
       </div>
     </div>
   );
 
-  const sections = {
-    'All': [
-      { title: 'Top AI Models', data: dashboardData['Models'], columns: ['Model', 'Company', 'Score', 'Change'] },
-      { title: 'Leading Companies', data: dashboardData['Companies'], columns: ['Company', 'Valuation', 'Employees', 'Founded'] },
-      { title: 'Top GPUs', data: dashboardData['GPUs'], columns: ['GPU', 'Company', 'TFLOPS', 'Price'] },
-    ],
-    'Companies': [
-      { title: 'Top AI Companies', data: dashboardData['Companies'], columns: ['Company', 'Valuation', 'Employees', 'Founded'] },
-    ],
-    'Models': [
-      { title: 'Model Leaderboard', data: dashboardData['Models'], columns: ['Model', 'Company', 'Score', 'Change'] },
-    ],
-    'GPUs': [
-      { title: 'GPU Rankings', data: dashboardData['GPUs'], columns: ['GPU', 'Company', 'TFLOPS', 'Price'] },
-    ],
-    'Chips': [
-      { title: 'AI Chip Landscape', data: dashboardData['Chips'], columns: ['Chip', 'Company', 'Type', 'Efficiency'] },
-    ],
-    'Benchmarks': [
-      { title: 'Key Benchmarks', data: dashboardData['Benchmarks'], columns: ['Benchmark', 'Category', 'Tasks', 'Leader'] },
-    ],
-    'Frameworks': [
-      { title: 'Framework Popularity', data: dashboardData['Frameworks'], columns: ['Framework', 'Downloads', 'Stars', 'Language'] },
-    ],
-    'Research Labs': [
-      { title: 'Research Impact', data: dashboardData['Research Labs'], columns: ['Lab', 'Papers', 'Citations', 'Focus'] },
-    ],
-    'Founders': [
-      { title: 'Key Founders', data: dashboardData['Founders'], columns: ['Name', 'Company', 'Role', 'Background'] },
-    ],
+  // Get current domain data - default to Software if not set
+  const currentDomain = domainData[selectedTopic] || domainData['Software'];
+  const currentColor = domainColors[selectedTopic] || domainColors['Software'];
+
+  // Domain descriptions
+  const domainDescriptions = {
+    'Software': 'The intelligence layer — code, models, and measurements of AI capabilities',
+    'Hardware': 'The muscle layer — physical compute that powers and trains AI systems',
+    'Manufacturing': 'The metabolism layer — global industrial chain making AI silicon possible',
+    'Robotics': 'The embodiment layer — where AI interacts with the physical world'
   };
 
-  const currentSections = sections[selectedTopic] || sections['All'];
+  // If no valid domain, don't render
+  if (!currentDomain) {
+    return null;
+  }
 
   return (
     <div>
+      {/* Domain Header */}
       <div style={{
-        marginBottom: '30px',
+        marginBottom: '40px',
         paddingBottom: '20px',
-        borderBottom: '2px solid #222'
+        borderBottom: `2px solid ${currentColor}`
       }}>
         <h2 style={{
-          fontSize: '24px',
-          color: '#fff',
+          fontSize: '32px',
+          color: currentColor,
           fontWeight: 700,
-          margin: 0
+          margin: '0 0 12px 0',
+          textTransform: 'uppercase',
+          letterSpacing: '2px'
         }}>
-          AI ATLAS DASHBOARD
+          {selectedTopic}
         </h2>
         <p style={{
-          fontSize: '13px',
-          color: '#666',
-          margin: '8px 0 0 0'
+          fontSize: '15px',
+          color: '#888',
+          margin: 0,
+          lineHeight: '1.6'
         }}>
-          Real-time rankings, metrics, and intelligence on the AI ecosystem
+          {domainDescriptions[selectedTopic]}
         </p>
       </div>
 
-      {currentSections.map((section, index) => (
-        <DashboardSection
-          key={index}
-          title={section.title}
-          data={section.data}
-          columns={section.columns}
-        />
-      ))}
+      {/* Subsections */}
+      <div>
+        {currentDomain.subsections.map((subsection, index) => (
+          <SubsectionCard
+            key={index}
+            title={subsection.title}
+            items={subsection.items}
+            domainColor={currentColor}
+            onEntityHover={onEntityHover}
+            onSubsectionClick={onSubsectionClick}
+          />
+        ))}
+      </div>
     </div>
   );
 }
+
 
 function MarketWatch() {
   const [prices, setPrices] = useState({
@@ -948,7 +1894,9 @@ function App() {
   const [selectedPost, setSelectedPost] = useState(null);
   const [selectedPage, setSelectedPage] = useState('NEWS');
   const [selectedTopic, setSelectedTopic] = useState('All');
+  const [selectedSubsection, setSelectedSubsection] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [hoveredEntity, setHoveredEntity] = useState(null);
   const scrollRef = useRef(0);
   const scrollContainerRef = useRef(null);
 
@@ -957,14 +1905,20 @@ function App() {
   const pageTopics = {
     'TERMINAL': ['All', 'Stocks', 'Crypto', 'ETFs', 'Indexes'],
     'NEWS': ['All', 'AI', 'Tech', 'Science', 'Energy', 'Crypto', 'Markets', 'Policy', 'Cybersecurity', 'Hardware', 'Space'],
-    'ATLAS': ['All', 'Companies', 'Models', 'GPUs', 'Chips', 'Benchmarks', 'Frameworks', 'Research Labs', 'Founders']
+    'ATLAS': ['Software', 'Hardware', 'Manufacturing', 'Robotics']
   };
 
   const currentTopics = pageTopics[selectedPage];
 
-  // Reset topic to 'All' when page changes
+  // Reset topic when page changes
   useEffect(() => {
-    setSelectedTopic('All');
+    if (selectedPage === 'ATLAS') {
+      setSelectedTopic('Software');
+    } else if (selectedPage === 'TERMINAL') {
+      setSelectedTopic('All');
+    } else if (selectedPage === 'NEWS') {
+      setSelectedTopic('All');
+    }
   }, [selectedPage]);
 
   // Fetch posts from API
@@ -1428,10 +2382,71 @@ function App() {
                   </>
                 ) : selectedPage === 'ATLAS' ? (
                   <>
-                    <AtlasDashboard selectedTopic={selectedTopic} />
+                    {selectedSubsection ? (
+                      <SubsectionDetail
+                        subsectionName={selectedSubsection}
+                        domainColor={
+                          selectedTopic === 'Software' ? '#0088ff' :
+                          selectedTopic === 'Hardware' ? '#00ff88' :
+                          selectedTopic === 'Manufacturing' ? '#ff8800' :
+                          '#ff0088'
+                        }
+                        onBack={() => setSelectedSubsection(null)}
+                        items={(() => {
+                          const domainData = {
+                            'Software': {
+                              subsections: [
+                                { title: 'Models', items: ['GPT-4 Turbo', 'Claude 3 Opus', 'Gemini Ultra', 'Llama 3', 'Qwen 2.5', 'Mistral Large', 'GPT-4o', 'Claude 3.5 Sonnet', 'Gemini 1.5 Pro', 'Command R+', 'Grok-2', 'DeepSeek-V2'] },
+                                { title: 'Model Families', items: ['Transformers', 'Diffusion Models', 'Mixture-of-Experts', 'State Space Models', 'Retrieval-Augmented', 'Vision Transformers', 'Multimodal Models', 'Generative Adversarial Networks'] },
+                                { title: 'AI Frameworks', items: ['PyTorch', 'JAX', 'TensorFlow', 'MLX', 'Keras', 'Hugging Face Transformers', 'LangChain', 'LlamaIndex'] },
+                                { title: 'Runtimes / Serving', items: ['vLLM', 'Ollama', 'Triton', 'TensorRT', 'llama.cpp', 'SGLang', 'Text Generation Inference', 'Mosaic ML'] },
+                                { title: 'AI Benchmarks', items: ['MMLU', 'GSM8K', 'HumanEval', 'MATH', 'MLPerf', 'GPQA', 'HellaSwag', 'TruthfulQA'] },
+                                { title: 'Core Infrastructure', items: ['Qdrant', 'Pinecone', 'Weaviate', 'Ray', 'Airflow', 'Weights & Biases', 'MLflow', 'Chroma', 'Redis', 'Milvus'] }
+                              ]
+                            },
+                            'Hardware': {
+                              subsections: [
+                                { title: 'GPUs', items: ['H100 SXM', 'B200', 'MI300X', 'H200', 'A100 80GB', 'RTX 4090', 'L40S', 'MI250X', 'RTX 6000 Ada'] },
+                                { title: 'AI Accelerators / ASICs', items: ['TPU v5e', 'Groq LPU', 'Cerebras WSE-3', 'Trainium2', 'Inferentia2', 'SambaNova SN40L', 'Graphcore IPU'] },
+                                { title: 'Memory & Interconnect', items: ['HBM3e', 'HBM3', 'NVLink', 'PCIe Gen5', 'CXL', 'Infinity Fabric', 'NVSwitch'] },
+                                { title: 'Data Center Servers', items: ['NVIDIA DGX', 'Supermicro AI', 'Dell PowerEdge', 'HPE Cray', 'AWS Trainium Pods', 'Lambda GPU Cloud'] },
+                                { title: 'Networking', items: ['Infiniband', 'RoCE', 'Ultra Ethernet', 'Spectrum-X', 'AI Cluster Fabric', '400G Ethernet'] }
+                              ]
+                            },
+                            'Manufacturing': {
+                              subsections: [
+                                { title: 'Fabs', items: ['TSMC', 'Intel Foundry', 'Samsung', 'SMIC', 'GlobalFoundries', 'UMC'] },
+                                { title: 'Packaging & Assembly', items: ['CoWoS', 'Chiplets', '3D Stacking', 'Advanced Packaging', 'FOWLP', '2.5D Integration'] },
+                                { title: 'Component Supply', items: ['SK Hynix (HBM)', 'Micron (HBM)', 'Samsung Memory', 'TSMC CoWoS', 'ASE Technology'] },
+                                { title: 'Equipment Makers', items: ['ASML', 'Lam Research', 'Applied Materials', 'Tokyo Electron', 'KLA', 'SCREEN Holdings'] },
+                                { title: 'Supply Chain', items: ['Substrates', 'Lithography', 'Cooling Systems', 'Photoresists', 'Chemicals', 'Wafer Materials'] }
+                              ]
+                            },
+                            'Robotics': {
+                              subsections: [
+                                { title: 'Humanoid Robotics', items: ['Figure 02', 'Tesla Optimus', 'Agility Robotics', '1X NEO', 'Unitree H1', 'Sanctuary AI Phoenix'] },
+                                { title: 'Industrial Robotics', items: ['Fanuc', 'ABB', 'Kuka', 'Yaskawa', 'Universal Robots', 'Boston Dynamics Spot'] },
+                                { title: 'Embedded AI / Edge Chips', items: ['Jetson Orin', 'Snapdragon 8 Gen 3', 'Apple Neural Engine', 'Hailo-8', 'Edge TPU', 'RK3588'] },
+                                { title: 'Sensors & Actuators', items: ['LiDAR', 'Depth Cameras', 'IMUs', 'Force Sensors', 'Servo Motors', 'Tactile Sensors'] },
+                                { title: 'Autonomy Stacks', items: ['Tesla FSD', 'Waymo Driver', 'NVIDIA DRIVE', 'Apollo', 'Mobileye SuperVision', 'Autoware'] }
+                              ]
+                            }
+                          };
+                          const subsection = domainData[selectedTopic]?.subsections.find(s => s.title === selectedSubsection);
+                          return subsection?.items || [];
+                        })()}
+                        onEntityHover={setHoveredEntity}
+                      />
+                    ) : (
+                      <AtlasDashboard
+                        selectedTopic={selectedTopic}
+                        onEntityHover={setHoveredEntity}
+                        onSubsectionClick={setSelectedSubsection}
+                      />
+                    )}
 
                     {/* Relevant Articles Section */}
-                    <div>
+                    <div style={{ marginTop: selectedSubsection ? '30px' : '0' }}>
                       <h3 style={{
                         fontSize: '14px',
                         color: '#666',
@@ -1498,23 +2513,33 @@ function App() {
           {/* Right Column: Sticky Sidebar */}
           <div style={{ position: 'relative' }}>
              <div style={{ position: 'sticky', top: '40px' }}>
-               <MarketWatch />
-               
-               <div style={{ marginTop: '40px', border: '1px solid #222', padding: '20px', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)' }}>
-                 <h3 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#fff' }}>LABORATORY STATUS</h3>
-                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px' }}>
-                   <span style={{ color: '#666' }}>Active Nodes</span>
-                   <span style={{ color: '#fff', fontFamily: theme.fonts.mono }}>8,492</span>
-                 </div>
-                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px' }}>
-                   <span style={{ color: '#666' }}>Total Compute</span>
-                   <span style={{ color: '#fff', fontFamily: theme.fonts.mono }}>42.8 PF</span>
-                 </div>
-                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                   <span style={{ color: '#666' }}>Uptime</span>
-                   <span style={{ color: '#00ff00', fontFamily: theme.fonts.mono }}>99.99%</span>
-                 </div>
-               </div>
+               {selectedPage === 'ATLAS' ? (
+                 <AtlasSidebar
+                   selectedTopic={selectedTopic}
+                   selectedSubsection={selectedSubsection}
+                   hoveredEntity={hoveredEntity}
+                 />
+               ) : (
+                 <>
+                   <MarketWatch />
+
+                   <div style={{ marginTop: '40px', border: '1px solid #222', padding: '20px', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)' }}>
+                     <h3 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#fff' }}>LABORATORY STATUS</h3>
+                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px' }}>
+                       <span style={{ color: '#666' }}>Active Nodes</span>
+                       <span style={{ color: '#fff', fontFamily: theme.fonts.mono }}>8,492</span>
+                     </div>
+                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px' }}>
+                       <span style={{ color: '#666' }}>Total Compute</span>
+                       <span style={{ color: '#fff', fontFamily: theme.fonts.mono }}>42.8 PF</span>
+                     </div>
+                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                       <span style={{ color: '#666' }}>Uptime</span>
+                       <span style={{ color: '#00ff00', fontFamily: theme.fonts.mono }}>99.99%</span>
+                     </div>
+                   </div>
+                 </>
+               )}
              </div>
           </div>
 
