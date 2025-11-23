@@ -3,16 +3,60 @@ const { TwitterApi } = require('twitter-api-v2');
 const cors = require('cors');
 const fs = require('fs').promises;
 const path = require('path');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const session = require('express-session');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true
+}));
 app.use(express.json());
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'rrsrch-secret-key-2025',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Initialize Twitter client
 const twitterClient = new TwitterApi(process.env.TWITTER_BEARER_TOKEN);
+
+// Configure Google OAuth Strategy
+passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: `${process.env.API_URL || 'http://localhost:3001'}/auth/google/callback`
+  },
+  function(accessToken, refreshToken, profile, cb) {
+    // Here you would normally save the user to a database
+    // For now, we'll just return the profile
+    return cb(null, {
+      id: profile.id,
+      name: profile.displayName,
+      email: profile.emails[0].value,
+      picture: profile.photos[0].value
+    });
+  }
+));
+
+passport.serializeUser((user, done) => {
+  done(null, user);
+});
+
+passport.deserializeUser((user, done) => {
+  done(null, user);
+});
 
 // Posts storage file
 const POSTS_FILE = path.join(__dirname, 'posts.json');
@@ -36,17 +80,18 @@ app.get('/api/tweets', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Then fetch their tweets
+    // Then fetch their tweets (with full text, not truncated)
     const tweets = await twitterClient.v2.userTimeline(user.data.id, {
       max_results: 5,
-      'tweet.fields': ['created_at', 'public_metrics'],
-      expansions: ['author_id'],
-      'user.fields': ['username', 'name']
+      'tweet.fields': ['created_at', 'public_metrics', 'text'],
+      expansions: ['author_id', 'referenced_tweets.id'],
+      'user.fields': ['username', 'name'],
+      exclude: 'retweets'
     });
 
     const formattedTweets = tweets.data.data.map(tweet => ({
       id: tweet.id,
-      text: tweet.text,
+      text: tweet.text, // Twitter API v2 returns full text by default
       created_at: tweet.created_at,
       metrics: tweet.public_metrics
     }));
@@ -130,6 +175,39 @@ app.delete('/api/posts/:id', async (req, res) => {
     console.error('Error deleting post:', error);
     res.status(500).json({ error: 'Failed to delete post' });
   }
+});
+
+// Google OAuth routes
+app.get('/auth/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] })
+);
+
+app.get('/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/' }),
+  function(req, res) {
+    // Successful authentication, redirect to frontend with user data
+    const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
+    res.redirect(`${frontendURL}?auth=success&user=${encodeURIComponent(JSON.stringify(req.user))}`);
+  }
+);
+
+// Get current user
+app.get('/auth/user', (req, res) => {
+  if (req.isAuthenticated()) {
+    res.json({ user: req.user });
+  } else {
+    res.status(401).json({ error: 'Not authenticated' });
+  }
+});
+
+// Logout
+app.get('/auth/logout', (req, res) => {
+  req.logout((err) => {
+    if (err) {
+      return res.status(500).json({ error: 'Logout failed' });
+    }
+    res.json({ success: true });
+  });
 });
 
 initPostsFile().then(() => {
