@@ -317,15 +317,54 @@ function NewsItem({ date, title, excerpt, onClick }) {
   // Check if excerpt is same as title (tidbit post)
   const isTidbit = !excerpt || excerpt.trim() === '' || excerpt.trim() === title.trim();
 
+  // Tidbit/tweet style - rounded box
+  if (isTidbit) {
+    return (
+      <div
+        style={{
+          marginBottom: '30px',
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: '16px',
+          padding: '24px',
+          cursor: 'default'
+        }}
+      >
+        <div style={{
+          fontSize: '10px',
+          color: '#aaa',
+          marginBottom: '12px',
+          fontFamily: theme.fonts.mono,
+          textTransform: 'uppercase',
+          letterSpacing: '1px',
+          fontWeight: 600
+        }}>
+          Update · {date}
+        </div>
+        <h3 style={{
+          margin: '0',
+          fontSize: '18px',
+          color: '#fff',
+          fontWeight: 400,
+          letterSpacing: '-0.02em',
+          lineHeight: '1.5'
+        }}>
+          {parseMarkdown(title)}
+        </h3>
+      </div>
+    );
+  }
+
+  // Regular article style
   return (
     <div
       style={{
         marginBottom: '40px',
         borderBottom: '1px solid #222',
         paddingBottom: '30px',
-        cursor: isTidbit ? 'default' : 'pointer'
+        cursor: 'pointer'
       }}
-      onClick={isTidbit ? undefined : onClick}
+      onClick={onClick}
     >
       <div style={{
         fontSize: '11px',
@@ -344,52 +383,142 @@ function NewsItem({ date, title, excerpt, onClick }) {
       }}>
         {parseMarkdown(title)}
       </h3>
-      {!isTidbit && (
-        <>
-          <p style={{
-            fontSize: '15px',
-            lineHeight: '1.7',
-            color: '#888',
-            margin: '0 0 20px 0',
-            maxWidth: '90%'
-          }}>
-            {parseMarkdown(excerpt)}
-          </p>
-          <button
-            onClick={(e) => { e.stopPropagation(); onClick(); }}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#fff',
-              fontSize: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              padding: 0,
-              cursor: 'pointer',
-              textTransform: 'uppercase',
-              letterSpacing: '1px'
-            }}
-          >
-            Read Report <ArrowRight size={12} />
-          </button>
-        </>
-      )}
+      <p style={{
+        fontSize: '15px',
+        lineHeight: '1.7',
+        color: '#888',
+        margin: '0 0 20px 0',
+        maxWidth: '90%'
+      }}>
+        {parseMarkdown(excerpt)}
+      </p>
+      <button
+        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: '#fff',
+          fontSize: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '5px',
+          padding: 0,
+          cursor: 'pointer',
+          textTransform: 'uppercase',
+          letterSpacing: '1px'
+        }}
+      >
+        Read Report <ArrowRight size={12} />
+      </button>
     </div>
   );
 }
 
-function ArticleView({ post, onBack, relatedPosts }) {
-  // Parse markdown-style bold text (**text**)
+function ArticleView({ post, onBack, relatedPosts, onSelectPost }) {
+  // Parse markdown-style bold text (**text**), headers (###), and URLs
   const parseMarkdown = (text) => {
     if (!text) return '';
 
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, index) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={index} style={{ color: '#fff', fontWeight: 600 }}>{part.slice(2, -2)}</strong>;
+    // Split by newlines to handle headers line by line
+    const lines = text.split('\n');
+    return lines.map((line, lineIndex) => {
+      // Check for headers (### header text)
+      if (line.trim().startsWith('###')) {
+        const headerText = line.replace(/^###\s*/, '').trim();
+        return (
+          <h3 key={lineIndex} style={{
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: '20px',
+            margin: '30px 0 15px 0',
+            lineHeight: '1.3'
+          }}>
+            {headerText}
+          </h3>
+        );
       }
-      return <span key={index}>{part}</span>;
+
+      // Check for Source: URL pattern - match and replace entire line
+      if (line.match(/Source:/i) && line.match(/https?:\/\//)) {
+        // First try to match markdown link syntax: [text](url)
+        const markdownMatch = line.match(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/);
+        if (markdownMatch) {
+          const cleanUrl = markdownMatch[2].trim();
+          return (
+            <div key={lineIndex} style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #333' }}>
+              <span style={{ color: '#666' }}>Source: </span>
+              <a
+                href={cleanUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: '#00ff88',
+                  textDecoration: 'none',
+                  borderBottom: '1px solid #00ff88'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+              >
+                Here
+              </a>
+            </div>
+          );
+        }
+        // Fallback to plain URL matching
+        const urlMatch = line.match(/(https?:\/\/[^\s)]+)/);
+        if (urlMatch) {
+          const cleanUrl = urlMatch[1].replace(/[.,;:)}\]]+$/, ''); // Remove trailing punctuation
+          return (
+            <div key={lineIndex} style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #333' }}>
+              <span style={{ color: '#666' }}>Source: </span>
+              <a
+                href={cleanUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: '#00ff88',
+                  textDecoration: 'none',
+                  borderBottom: '1px solid #00ff88'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+              >
+                Here
+              </a>
+            </div>
+          );
+        }
+      }
+
+      // Handle bold text and inline URLs within regular lines
+      const parts = line.split(/(\*\*.*?\*\*|https?:\/\/[^\s]+)/g);
+      const parsedLine = parts.map((part, index) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return <strong key={`${lineIndex}-${index}`} style={{ color: '#fff', fontWeight: 600 }}>{part.slice(2, -2)}</strong>;
+        }
+        if (part.match(/^https?:\/\//)) {
+          return (
+            <a
+              key={`${lineIndex}-${index}`}
+              href={part}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: '#00ff88',
+                textDecoration: 'none',
+                borderBottom: '1px solid #00ff88'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+            >
+              Here
+            </a>
+          );
+        }
+        return <span key={`${lineIndex}-${index}`}>{part}</span>;
+      });
+
+      return <div key={lineIndex}>{parsedLine}</div>;
     });
   };
 
@@ -457,7 +586,23 @@ function ArticleView({ post, onBack, relatedPosts }) {
             Related Transmissions
           </h3>
           {relatedPosts.map((related) => (
-            <div key={related.id} style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #111' }}>
+            <div
+              key={related.id}
+              onClick={() => onSelectPost && onSelectPost(related)}
+              style={{
+                marginBottom: '20px',
+                paddingBottom: '20px',
+                borderBottom: '1px solid #111',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = '0.7';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = '1';
+              }}
+            >
               <div style={{ fontSize: '16px', color: '#fff', marginBottom: '8px' }}>{related.title}</div>
               <div style={{ fontSize: '13px', color: '#666' }}>{related.excerpt.substring(0, 100)}...</div>
             </div>
@@ -468,11 +613,63 @@ function ArticleView({ post, onBack, relatedPosts }) {
   );
 }
 
-function LiveTable({ selectedTopic }) {
+function LiveTable({ selectedTopic, selectedPreset }) {
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const isFirstFetch = useRef(true);
+
+  // Preset symbol mappings
+  const presetSymbols = {
+    'AI & Chips': [
+      'NVDA',   // Nvidia
+      'AMD',    // Advanced Micro Devices
+      'AVGO',   // Broadcom
+      'TSM',    // Taiwan Semiconductor Manufacturing Company
+      'INTC',   // Intel
+      'QCOM',   // Qualcomm
+      'MU',     // Micron Technology
+      'SNOW',   // Snowflake
+      'SMCI',   // Super Micro Computer
+      'GOOGL',  // Alphabet (Google)
+      'PLTR',   // Palantir Technologies
+      'CLS'     // Celestica
+    ],
+    'Robotics': [
+      'SYM',    // Symbotic
+      'KYCCF',  // Keyence
+      'ISRG',   // Intuitive Surgical
+      'ZBRA',   // Zebra Technologies
+      'PATH',   // UiPath
+      'EMR',    // Emerson Electric
+      'TRMB',   // Trimble
+      'OMCL',   // Omnicell
+      'LECO',   // Lincoln Electric Holdings
+      'ABB'     // ABB
+    ],
+    'Defense': [
+      'LMT',    // Lockheed Martin
+      'RTX',    // Raytheon
+      'NOC',    // Northrop Grumman
+      'GD',     // General Dynamics
+      'HWM',    // Howmet Aerospace
+      'AXON',   // Axon Enterprise
+      'HII',    // Huntington Ingalls Industries
+      'KTOS',   // Kratos Defense & Security
+      'AVAV'    // AeroVironment
+    ],
+    'Energy & Power': [
+      'NEE',    // NextEra Energy
+      'GEV',    // GE Vernova
+      'FSLR',   // First Solar
+      'BE',     // Bloom Energy
+      'BEP',    // Brookfield Renewable Partners
+      'CVX',    // Chevron
+      'XOM',    // Exxon Mobil
+      'BP',     // BP
+      'SRLP'    // Solid Power
+    ],
+  };
 
   useEffect(() => {
     const fetchAssets = async () => {
@@ -482,28 +679,135 @@ function LiveTable({ selectedTopic }) {
           setLoading(true);
         }
 
-        // Fetch crypto data
-        const cryptoIds = ['bitcoin', 'ethereum', 'solana', 'cardano', 'polkadot', 'dogecoin', 'ripple', 'litecoin'];
-        const cryptoResponse = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoIds.join(',')}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`);
+        const API_URL = process.env.REACT_APP_API_URL || '';
+        let allAssets = [];
 
-        if (!cryptoResponse.ok) {
-          throw new Error(`HTTP error! status: ${cryptoResponse.status}`);
+        // Fetch data based on selected topic
+        if (selectedTopic === 'Markets') {
+          // Fetch macro market indices
+          const marketResponse = await fetch(`${API_URL}/api/markets`);
+
+          if (marketResponse.ok) {
+            const marketData = await marketResponse.json();
+
+            if (marketData.markets && marketData.markets.length > 0) {
+              const formattedMarkets = marketData.markets.map(market => ({
+                symbol: market.symbol,
+                name: market.name,
+                price: market.price,
+                change: market.change,
+                volume: 0,
+                high: market.high,
+                low: market.low,
+                type: 'market'
+              }));
+              allAssets = [...allAssets, ...formattedMarkets];
+            }
+          }
+        } else if (selectedTopic === 'Crypto') {
+          // Fetch crypto data - Top 15 by market cap
+          const cryptoIds = [
+            'bitcoin', 'ethereum', 'tether', 'binancecoin', 'solana',
+            'usd-coin', 'ripple', 'dogecoin', 'cardano', 'tron',
+            'avalanche-2', 'chainlink', 'polkadot', 'shiba-inu', 'bitcoin-cash'
+          ];
+          const cryptoResponse = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoIds.join(',')}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true&include_24hr_high=true&include_24hr_low=true`);
+
+          if (cryptoResponse.ok) {
+            const cryptoData = await cryptoResponse.json();
+
+            if (cryptoData && Object.keys(cryptoData).length > 0) {
+              const nameMap = {
+                'bitcoin': { symbol: 'BTC', name: 'Bitcoin' },
+                'ethereum': { symbol: 'ETH', name: 'Ethereum' },
+                'tether': { symbol: 'USDT', name: 'Tether' },
+                'binancecoin': { symbol: 'BNB', name: 'BNB' },
+                'solana': { symbol: 'SOL', name: 'Solana' },
+                'usd-coin': { symbol: 'USDC', name: 'USD Coin' },
+                'ripple': { symbol: 'XRP', name: 'XRP' },
+                'dogecoin': { symbol: 'DOGE', name: 'Dogecoin' },
+                'cardano': { symbol: 'ADA', name: 'Cardano' },
+                'tron': { symbol: 'TRX', name: 'TRON' },
+                'avalanche-2': { symbol: 'AVAX', name: 'Avalanche' },
+                'chainlink': { symbol: 'LINK', name: 'Chainlink' },
+                'polkadot': { symbol: 'DOT', name: 'Polkadot' },
+                'shiba-inu': { symbol: 'SHIB', name: 'Shiba Inu' },
+                'bitcoin-cash': { symbol: 'BCH', name: 'Bitcoin Cash' }
+              };
+
+              const formattedCrypto = Object.entries(cryptoData).map(([id, data]) => {
+                const mapped = nameMap[id] || { symbol: id.toUpperCase().slice(0, 4), name: id };
+
+                return {
+                  symbol: mapped.symbol,
+                  name: mapped.name,
+                  price: data.usd || 0,
+                  change: data.usd_24h_change || 0,
+                  volume: data.usd_24h_vol || 0,
+                  marketCap: data.usd_market_cap || 0,
+                  high: data.usd_24h_high || 0,
+                  low: data.usd_24h_low || 0,
+                  type: 'crypto'
+                };
+              });
+
+              // Sort by market cap descending
+              formattedCrypto.sort((a, b) => b.marketCap - a.marketCap);
+              allAssets = [...allAssets, ...formattedCrypto];
+            }
+          }
+        } else if (selectedTopic === 'Stocks') {
+          // Fetch stock data from backend
+          const stockResponse = await fetch(`${API_URL}/api/stocks`);
+
+          if (stockResponse.ok) {
+            const stockData = await stockResponse.json();
+
+            if (stockData.stocks && stockData.stocks.length > 0) {
+              const formattedStocks = stockData.stocks.map(stock => ({
+                symbol: stock.symbol,
+                name: stock.symbol,
+                price: stock.price,
+                change: stock.change,
+                volume: stock.volume,
+                high: stock.high,
+                low: stock.low,
+                type: 'stock'
+              }));
+              allAssets = [...allAssets, ...formattedStocks];
+            }
+          }
+        } else if (selectedTopic === 'ETFs') {
+          // Fetch AI ETF data from backend
+          const etfResponse = await fetch(`${API_URL}/api/etfs`);
+
+          if (etfResponse.ok) {
+            const etfData = await etfResponse.json();
+
+            if (etfData.etfs && etfData.etfs.length > 0) {
+              const formattedEtfs = etfData.etfs.map(etf => ({
+                symbol: etf.symbol,
+                name: etf.symbol,
+                price: etf.price,
+                change: etf.change,
+                volume: etf.volume,
+                high: etf.high,
+                low: etf.low,
+                type: 'etf'
+              }));
+              allAssets = [...allAssets, ...formattedEtfs];
+            }
+          }
         }
 
-        const cryptoData = await cryptoResponse.json();
+        // Apply preset filter if selected
+        if (selectedPreset && selectedPreset !== 'All' && presetSymbols[selectedPreset]) {
+          const presetList = presetSymbols[selectedPreset];
+          allAssets = allAssets.filter(asset => presetList.includes(asset.symbol));
+        }
 
-        // Check if we got valid data
-        if (cryptoData && Object.keys(cryptoData).length > 0) {
-          const formattedAssets = Object.entries(cryptoData).map(([id, data]) => ({
-            symbol: id.toUpperCase().slice(0, 3),
-            name: id.charAt(0).toUpperCase() + id.slice(1),
-            price: data.usd || 0,
-            change: data.usd_24h_change || 0,
-            volume: data.usd_24h_vol || 0,
-            type: 'crypto'
-          }));
-
-          setAssets(formattedAssets);
+        if (allAssets.length > 0) {
+          setAssets(allAssets);
           setLastUpdate(new Date());
           isFirstFetch.current = false;
         }
@@ -516,9 +820,10 @@ function LiveTable({ selectedTopic }) {
     };
 
     fetchAssets();
-    const interval = setInterval(fetchAssets, 10000); // 10 second auto-refresh
+    const interval = setInterval(fetchAssets, 30000); // 30 second auto-refresh (to avoid rate limits)
     return () => clearInterval(interval);
-  }, [selectedTopic]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTopic, selectedPreset]);
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('en-US', {
@@ -542,7 +847,7 @@ function LiveTable({ selectedTopic }) {
 
   const SkeletonRow = () => (
     <tr style={{ borderBottom: '1px solid #222' }}>
-      {[1, 2, 3, 4].map(i => (
+      {[1, 2, 3, 4, 5].map(i => (
         <td key={i} style={{ padding: '15px 10px' }}>
           <div style={{
             height: '14px',
@@ -580,6 +885,131 @@ function LiveTable({ selectedTopic }) {
         </div>
       </div>
 
+      {/* Session Summary Strip */}
+      {selectedTopic === 'Markets' && assets.length > 0 && (
+        <div style={{
+          background: 'rgba(0,0,0,0.3)',
+          border: '1px solid #222',
+          borderRadius: '6px',
+          padding: '12px 16px',
+          marginBottom: '20px',
+          fontSize: '12px',
+          fontFamily: theme.fonts.mono,
+          color: '#aaa',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '20px',
+          flexWrap: 'wrap'
+        }}>
+          <span style={{ color: '#666', fontWeight: 600 }}>US Session:</span>
+          {(() => {
+            const spyAsset = assets.find(a => a.symbol === 'S&P 500');
+            const nasdaqAsset = assets.find(a => a.symbol === 'NASDAQ');
+            const vixAsset = assets.find(a => a.symbol === 'VIX (Volatility)');
+            const positiveCount = assets.filter(a => a.change > 0).length;
+            const negativeCount = assets.filter(a => a.change < 0).length;
+            const sessionSentiment = positiveCount > negativeCount ? 'Bullish' : negativeCount > positiveCount ? 'Bearish' : 'Mixed';
+            const sentimentColor = sessionSentiment === 'Bullish' ? '#00ff88' : sessionSentiment === 'Bearish' ? '#ff4444' : '#ffa500';
+
+            return (
+              <>
+                <span style={{ color: sentimentColor, fontWeight: 600 }}>{sessionSentiment}</span>
+                {spyAsset && (
+                  <>
+                    <span>·</span>
+                    <span>
+                      S&P <span style={{ color: spyAsset.change >= 0 ? '#00ff88' : '#ff4444', fontWeight: 600 }}>
+                        {spyAsset.change >= 0 ? '+' : ''}{spyAsset.change.toFixed(2)}%
+                      </span>
+                    </span>
+                  </>
+                )}
+                {nasdaqAsset && (
+                  <>
+                    <span>·</span>
+                    <span>
+                      NASDAQ <span style={{ color: nasdaqAsset.change >= 0 ? '#00ff88' : '#ff4444', fontWeight: 600 }}>
+                        {nasdaqAsset.change >= 0 ? '+' : ''}{nasdaqAsset.change.toFixed(2)}%
+                      </span>
+                    </span>
+                  </>
+                )}
+                {vixAsset && vixAsset.price > 0 && (
+                  <>
+                    <span>·</span>
+                    <span>
+                      VIX {vixAsset.price.toFixed(1)} <span style={{
+                        color: vixAsset.price < 15 ? '#00ff88' : vixAsset.price > 25 ? '#ff4444' : '#ffa500',
+                        fontWeight: 600
+                      }}>
+                        ({vixAsset.price < 15 ? 'Calm' : vixAsset.price > 25 ? 'High' : 'Elevated'})
+                      </span>
+                    </span>
+                  </>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {selectedTopic === 'Crypto' && assets.length > 0 && (
+        <div style={{
+          background: 'rgba(0,0,0,0.3)',
+          border: '1px solid #222',
+          borderRadius: '6px',
+          padding: '12px 16px',
+          marginBottom: '20px',
+          fontSize: '12px',
+          fontFamily: theme.fonts.mono,
+          color: '#aaa',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '20px',
+          flexWrap: 'wrap'
+        }}>
+          <span style={{ color: '#666', fontWeight: 600 }}>Crypto Market:</span>
+          {(() => {
+            const btcAsset = assets.find(a => a.symbol === 'BTC');
+            const ethAsset = assets.find(a => a.symbol === 'ETH');
+            const positiveCount = assets.filter(a => a.change > 0).length;
+            const negativeCount = assets.filter(a => a.change < 0).length;
+            const sessionSentiment = positiveCount > negativeCount ? 'Bullish' : negativeCount > positiveCount ? 'Bearish' : 'Mixed';
+            const sentimentColor = sessionSentiment === 'Bullish' ? '#00ff88' : sessionSentiment === 'Bearish' ? '#ff4444' : '#ffa500';
+
+            return (
+              <>
+                <span style={{ color: sentimentColor, fontWeight: 600 }}>{sessionSentiment}</span>
+                {btcAsset && (
+                  <>
+                    <span>·</span>
+                    <span>
+                      BTC <span style={{ color: btcAsset.change >= 0 ? '#00ff88' : '#ff4444', fontWeight: 600 }}>
+                        {btcAsset.change >= 0 ? '+' : ''}{btcAsset.change.toFixed(2)}%
+                      </span>
+                    </span>
+                  </>
+                )}
+                {ethAsset && (
+                  <>
+                    <span>·</span>
+                    <span>
+                      ETH <span style={{ color: ethAsset.change >= 0 ? '#00ff88' : '#ff4444', fontWeight: 600 }}>
+                        {ethAsset.change >= 0 ? '+' : ''}{ethAsset.change.toFixed(2)}%
+                      </span>
+                    </span>
+                  </>
+                )}
+                <span>·</span>
+                <span>
+                  {positiveCount} Up, {negativeCount} Down
+                </span>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
       <div style={{ overflowX: 'auto' }}>
         <table style={{
           width: '100%',
@@ -591,6 +1021,7 @@ function LiveTable({ selectedTopic }) {
               <th style={{ padding: '12px 10px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase' }}>Asset</th>
               <th style={{ padding: '12px 10px', textAlign: 'right', fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase' }}>Price</th>
               <th style={{ padding: '12px 10px', textAlign: 'right', fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase' }}>24h %</th>
+              <th style={{ padding: '12px 10px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase' }}>Day Range</th>
               <th style={{ padding: '12px 10px', textAlign: 'right', fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase' }}>Volume</th>
             </tr>
           </thead>
@@ -603,29 +1034,90 @@ function LiveTable({ selectedTopic }) {
                 <SkeletonRow />
               </>
             ) : (
-              assets.map((asset, index) => (
-                <tr key={index} style={{ borderBottom: '1px solid #222' }}>
-                  <td style={{ padding: '15px 10px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>{asset.symbol}</div>
-                    <div style={{ fontSize: '11px', color: '#666' }}>{asset.name}</div>
-                  </td>
-                  <td style={{ padding: '15px 10px', textAlign: 'right', fontSize: '14px', color: '#fff' }}>
-                    {formatPrice(asset.price)}
-                  </td>
-                  <td style={{
-                    padding: '15px 10px',
-                    textAlign: 'right',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    color: asset.change >= 0 ? '#00ff88' : '#ff4444'
-                  }}>
-                    {formatChange(asset.change)}
-                  </td>
-                  <td style={{ padding: '15px 10px', textAlign: 'right', fontSize: '13px', color: '#aaa' }}>
-                    {formatVolume(asset.volume)}
-                  </td>
-                </tr>
-              ))
+              assets.map((asset, index) => {
+                const isDataOffline = !asset.price || asset.price === 0;
+                const isPreMarket = asset.type === 'stock' && new Date().getDay() !== 0 && new Date().getDay() !== 6;
+
+                return (
+                  <tr key={index} style={{ borderBottom: '1px solid #222' }}>
+                    <td style={{ padding: '15px 10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>{asset.symbol}</div>
+                          <div style={{ fontSize: '11px', color: '#666' }}>{asset.name}</div>
+                        </div>
+                        {isDataOffline && (
+                          <span style={{
+                            fontSize: '9px',
+                            padding: '2px 6px',
+                            background: 'rgba(255,68,68,0.1)',
+                            color: '#ff4444',
+                            border: '1px solid rgba(255,68,68,0.3)',
+                            borderRadius: '3px',
+                            textTransform: 'uppercase',
+                            fontWeight: 600,
+                            letterSpacing: '0.5px'
+                          }}>
+                            {asset.type === 'stock' || asset.type === 'etf' ? 'PRE-MARKET' : 'DATA OFFLINE'}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ padding: '15px 10px', textAlign: 'right', fontSize: '14px', color: isDataOffline ? '#555' : '#fff' }}>
+                      {isDataOffline ? '—' : formatPrice(asset.price)}
+                    </td>
+                    <td style={{
+                      padding: '15px 10px',
+                      textAlign: 'right',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: isDataOffline ? '#555' : (asset.change >= 0 ? '#00ff88' : '#ff4444')
+                    }}>
+                      {isDataOffline ? '—' : formatChange(asset.change)}
+                    </td>
+                    <td style={{ padding: '15px 10px' }}>
+                      {!isDataOffline && asset.high && asset.low && asset.high > asset.low ? (
+                        <div style={{ width: '120px' }}>
+                          <div style={{
+                            height: '4px',
+                            background: '#222',
+                            borderRadius: '2px',
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}>
+                            <div style={{
+                              position: 'absolute',
+                              left: `${((asset.price - asset.low) / (asset.high - asset.low)) * 100}%`,
+                              top: '50%',
+                              transform: 'translate(-50%, -50%)',
+                              width: '8px',
+                              height: '8px',
+                              borderRadius: '50%',
+                              background: asset.change >= 0 ? '#00ff88' : '#ff4444',
+                              border: '1px solid #000'
+                            }} />
+                          </div>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            fontSize: '9px',
+                            color: '#555',
+                            marginTop: '4px'
+                          }}>
+                            <span>{formatPrice(asset.low)}</span>
+                            <span>{formatPrice(asset.high)}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '11px', color: '#555' }}>—</div>
+                      )}
+                    </td>
+                    <td style={{ padding: '15px 10px', textAlign: 'right', fontSize: '13px', color: isDataOffline ? '#555' : '#aaa' }}>
+                      {isDataOffline ? '—' : formatVolume(asset.volume)}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -658,16 +1150,18 @@ function AtlasSidebar({ selectedTopic, selectedSubsection, hoveredEntity }) {
     'Models': {
       title: 'Model Rankings',
       items: [
-        { rank: 1, name: 'GPT-4o', score: 100, company: 'OpenAI' },
-        { rank: 2, name: 'Gemini 3 Pro', score: 98, company: 'Google DeepMind' },
-        { rank: 3, name: 'Claude 3.5 Opus', score: 97, company: 'Anthropic' },
-        { rank: 4, name: 'Llama 3.1 405B', score: 95, company: 'Meta' },
-        { rank: 5, name: 'Qwen 2.5-72B', score: 93, company: 'Alibaba' },
-        { rank: 6, name: 'Mistral Large 2', score: 91, company: 'Mistral AI' },
-        { rank: 7, name: 'GPT-4o mini', score: 89, company: 'OpenAI' },
-        { rank: 8, name: 'DeepSeek-V3', score: 88, company: 'DeepSeek' },
-        { rank: 9, name: 'Gemma 2-27B', score: 86, company: 'Google' },
-        { rank: 10, name: 'Phi-4', score: 85, company: 'Microsoft Research' }
+        { rank: 1, name: 'Gemini 3 Pro Preview', score: 100, company: 'Google DeepMind' },
+        { rank: 2, name: 'GPT-5.1 (High)', score: 99, company: 'OpenAI' },
+        { rank: 3, name: 'GPT-5 Codex (High)', score: 98, company: 'OpenAI' },
+        { rank: 4, name: 'GPT-5 (High)', score: 97, company: 'OpenAI' },
+        { rank: 5, name: 'Kimi K2 Thinking', score: 96, company: 'Moonshot AI' },
+        { rank: 6, name: 'GPT-5 (Medium)', score: 95, company: 'OpenAI' },
+        { rank: 7, name: 'o3', score: 94, company: 'OpenAI' },
+        { rank: 8, name: 'Grok 4', score: 93, company: 'xAI' },
+        { rank: 9, name: 'GPT-5 Mini (High)', score: 92, company: 'OpenAI' },
+        { rank: 10, name: 'Grok 4.1 Fast', score: 91, company: 'xAI' },
+        { rank: 11, name: 'GPT-4o', score: 90, company: 'OpenAI' },
+        { rank: 12, name: 'Claude 3.5 Opus', score: 89, company: 'Anthropic' }
       ]
     },
     'GPUs': {
@@ -1474,7 +1968,7 @@ function AtlasSidebar({ selectedTopic, selectedSubsection, hoveredEntity }) {
           </div>
         </div>
       ) : (
-        // Domain Insights Mode
+        // Domain RRSRCH Leaderboard Mode
         <div>
           <h3 style={{
             fontSize: '13px',
@@ -1484,76 +1978,289 @@ function AtlasSidebar({ selectedTopic, selectedSubsection, hoveredEntity }) {
             fontWeight: 700,
             marginBottom: '20px'
           }}>
-            Top Rankings
+            RRSRCH Leaderboards
           </h3>
-          <div style={{ marginBottom: '24px' }}>
-            {insights.topRankings.map((item, i) => (
-              <div key={i} style={{
-                marginBottom: '10px',
-                fontSize: '13px',
-                color: '#aaa'
-              }}>
-                {i + 1}. {item.name}
-              </div>
-            ))}
-          </div>
 
-          <h3 style={{
-            fontSize: '13px',
-            color: domainColor,
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-            fontWeight: 700,
-            marginBottom: '12px'
-          }}>
-            Top Vendors
-          </h3>
-          <div style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '8px',
-            marginBottom: '24px'
-          }}>
-            {insights.vendors.map((vendor, i) => (
-              <span key={i} style={{
+          {/* Software Domain - Models */}
+          {selectedTopic === 'Software' && (
+            <div>
+              <div style={{
                 fontSize: '11px',
-                color: '#888',
-                fontFamily: theme.fonts.mono
+                color: '#666',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                fontWeight: 600,
+                marginBottom: '12px'
               }}>
-                {vendor}{i < insights.vendors.length - 1 ? ' ·' : ''}
-              </span>
-            ))}
-          </div>
-
-          <h3 style={{
-            fontSize: '13px',
-            color: domainColor,
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-            fontWeight: 700,
-            marginBottom: '12px'
-          }}>
-            Trends
-          </h3>
-          <div>
-            {insights.trends.map((trend, i) => (
-              <div key={i} style={{
-                fontSize: '12px',
-                color: '#aaa',
-                marginBottom: '8px',
-                paddingLeft: '12px',
-                position: 'relative',
-                lineHeight: '1.5'
-              }}>
-                <span style={{
-                  position: 'absolute',
-                  left: 0,
-                  color: domainColor
-                }}>•</span>
-                {trend}
+                Top AI Models
               </div>
-            ))}
-          </div>
+              <div style={{ marginBottom: '20px' }}>
+                {subsectionRankings['Models'].items.slice(0, 8).map((item, i) => (
+                  <div key={i} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    marginBottom: '10px',
+                    paddingBottom: '10px',
+                    borderBottom: i < 7 ? '1px solid #1a1a1a' : 'none'
+                  }}>
+                    <div style={{
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: domainColor,
+                      fontFamily: theme.fonts.mono,
+                      minWidth: '20px'
+                    }}>
+                      {item.rank}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#fff',
+                        fontWeight: 500
+                      }}>
+                        {item.name}
+                      </div>
+                      <div style={{
+                        fontSize: '10px',
+                        color: '#555',
+                        fontFamily: theme.fonts.mono
+                      }}>
+                        {item.company}
+                      </div>
+                    </div>
+                    <div style={{
+                      fontSize: '11px',
+                      color: '#666',
+                      fontFamily: theme.fonts.mono
+                    }}>
+                      {item.score}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Hardware Domain - GPUs */}
+          {selectedTopic === 'Hardware' && (
+            <div>
+              <div style={{
+                fontSize: '11px',
+                color: '#666',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                fontWeight: 600,
+                marginBottom: '12px'
+              }}>
+                Top AI GPUs
+              </div>
+              <div style={{ marginBottom: '20px' }}>
+                {subsectionRankings['GPUs'].items.slice(0, 8).map((item, i) => (
+                  <div key={i} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    marginBottom: '10px',
+                    paddingBottom: '10px',
+                    borderBottom: i < 7 ? '1px solid #1a1a1a' : 'none'
+                  }}>
+                    <div style={{
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: domainColor,
+                      fontFamily: theme.fonts.mono,
+                      minWidth: '20px'
+                    }}>
+                      {item.rank}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#fff',
+                        fontWeight: 500
+                      }}>
+                        {item.name}
+                      </div>
+                      <div style={{
+                        fontSize: '10px',
+                        color: '#555',
+                        fontFamily: theme.fonts.mono
+                      }}>
+                        {item.company}
+                      </div>
+                    </div>
+                    <div style={{
+                      fontSize: '11px',
+                      color: '#666',
+                      fontFamily: theme.fonts.mono
+                    }}>
+                      {item.score}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Manufacturing Domain - Fabs */}
+          {selectedTopic === 'Manufacturing' && (
+            <div>
+              <div style={{
+                fontSize: '11px',
+                color: '#666',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                fontWeight: 600,
+                marginBottom: '12px'
+              }}>
+                Top Semiconductor Fabs
+              </div>
+              <div style={{ marginBottom: '20px' }}>
+                {subsectionRankings['Fabs'].items.slice(0, 8).map((item, i) => (
+                  <div key={i} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    marginBottom: '10px',
+                    paddingBottom: '10px',
+                    borderBottom: i < 7 ? '1px solid #1a1a1a' : 'none'
+                  }}>
+                    <div style={{
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: domainColor,
+                      fontFamily: theme.fonts.mono,
+                      minWidth: '20px'
+                    }}>
+                      {item.rank}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#fff',
+                        fontWeight: 500
+                      }}>
+                        {item.name}
+                      </div>
+                      <div style={{
+                        fontSize: '10px',
+                        color: '#555',
+                        fontFamily: theme.fonts.mono
+                      }}>
+                        {item.company}
+                      </div>
+                    </div>
+                    <div style={{
+                      fontSize: '11px',
+                      color: '#666',
+                      fontFamily: theme.fonts.mono
+                    }}>
+                      {item.score}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Robotics Domain - Humanoid Robots */}
+          {selectedTopic === 'Robotics' && (
+            <div>
+              <div style={{
+                fontSize: '11px',
+                color: '#666',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                fontWeight: 600,
+                marginBottom: '12px'
+              }}>
+                Top Humanoid Robots
+              </div>
+              <div style={{ marginBottom: '20px' }}>
+                {subsectionRankings['Humanoid Robotics'].items.slice(0, 8).map((item, i) => (
+                  <div key={i} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    marginBottom: '10px',
+                    paddingBottom: '10px',
+                    borderBottom: i < 7 ? '1px solid #1a1a1a' : 'none'
+                  }}>
+                    <div style={{
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: domainColor,
+                      fontFamily: theme.fonts.mono,
+                      minWidth: '20px'
+                    }}>
+                      {item.rank}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#fff',
+                        fontWeight: 500
+                      }}>
+                        {item.name}
+                      </div>
+                      <div style={{
+                        fontSize: '10px',
+                        color: '#555',
+                        fontFamily: theme.fonts.mono
+                      }}>
+                        {item.company}
+                      </div>
+                    </div>
+                    <div style={{
+                      fontSize: '11px',
+                      color: '#666',
+                      fontFamily: theme.fonts.mono
+                    }}>
+                      {item.score}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* People Domain - Keep trends for now since we don't have people rankings */}
+          {selectedTopic === 'People' && (
+            <div>
+              <div style={{
+                fontSize: '11px',
+                color: '#666',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                fontWeight: 600,
+                marginBottom: '12px'
+              }}>
+                AI Leadership Landscape
+              </div>
+              <div>
+                {insights.trends.map((trend, i) => (
+                  <div key={i} style={{
+                    fontSize: '12px',
+                    color: '#aaa',
+                    marginBottom: '10px',
+                    paddingBottom: '10px',
+                    paddingLeft: '12px',
+                    position: 'relative',
+                    lineHeight: '1.5',
+                    borderBottom: i < insights.trends.length - 1 ? '1px solid #1a1a1a' : 'none'
+                  }}>
+                    <span style={{
+                      position: 'absolute',
+                      left: 0,
+                      color: domainColor
+                    }}>•</span>
+                    {trend}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1561,7 +2268,9 @@ function AtlasSidebar({ selectedTopic, selectedSubsection, hoveredEntity }) {
 }
 
 // Subsection Detail Page Component
-function SubsectionDetail({ subsectionName, domainColor, onBack, items, onEntityHover }) {
+function SubsectionDetail({ subsectionName, domainColor, onBack, items, onEntityHover, onEntityClick }) {
+  const [expandedEntity, setExpandedEntity] = useState(null);
+
   // Subsection content data
   const subsectionContent = {
     'Models': {
@@ -1728,40 +2437,232 @@ function SubsectionDetail({ subsectionName, domainColor, onBack, items, onEntity
         </p>
       </div>
 
-      {/* Key Metrics */}
-      {content.keyMetrics.length > 0 && (
+      {/* Entity Collage */}
+      {items && items.length > 0 && (
         <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '15px',
-          marginBottom: '30px'
+          background: 'rgba(0,0,0,0.3)',
+          border: '1px solid #222',
+          borderRadius: '8px',
+          padding: '24px'
         }}>
-          {content.keyMetrics.map((metric, i) => (
-            <div key={i} style={{
-              background: 'rgba(0,0,0,0.3)',
-              border: '1px solid #222',
-              borderRadius: '8px',
-              padding: '20px'
-            }}>
-              <div style={{
-                fontSize: '11px',
-                color: '#666',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                marginBottom: '8px'
-              }}>
-                {metric.label}
+          <h3 style={{
+            fontSize: '14px',
+            color: domainColor,
+            textTransform: 'uppercase',
+            letterSpacing: '1px',
+            fontWeight: 700,
+            marginBottom: '20px'
+          }}>
+            Explore {subsectionName}
+          </h3>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+            gap: '12px'
+          }}>
+            {items.map((item, i) => (
+              <React.Fragment key={i}>
+                <div
+                  onClick={() => {
+                    if (entityInfo[item]) {
+                      setExpandedEntity(expandedEntity === item ? null : item);
+                    }
+                  }}
+                  onMouseEnter={() => onEntityHover && onEntityHover(item)}
+                  onMouseLeave={() => onEntityHover && onEntityHover(null)}
+                  style={{
+                    background: expandedEntity === item ? `${domainColor}22` : `${domainColor}11`,
+                    border: expandedEntity === item ? `1px solid ${domainColor}` : `1px solid ${domainColor}33`,
+                    borderRadius: '6px',
+                    padding: '16px',
+                    fontSize: '13px',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    textAlign: 'center',
+                    fontWeight: 500
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.background = `${domainColor}22`;
+                    e.currentTarget.style.borderColor = domainColor;
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseOut={(e) => {
+                    if (expandedEntity !== item) {
+                      e.currentTarget.style.background = `${domainColor}11`;
+                      e.currentTarget.style.borderColor = `${domainColor}33`;
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }
+                  }}
+                >
+                {item}
               </div>
-              <div style={{
-                fontSize: '24px',
-                color: domainColor,
-                fontWeight: 700,
-                fontFamily: theme.fonts.mono
-              }}>
-                {metric.value}
-              </div>
-            </div>
-          ))}
+
+              {/* Expanded entity info */}
+              {expandedEntity === item && entityInfo[item] && (
+                <div style={{
+                  gridColumn: '1 / -1',
+                  background: 'rgba(0,0,0,0.5)',
+                  border: `1px solid ${domainColor}`,
+                  borderRadius: '8px',
+                  padding: '20px',
+                  marginTop: '-10px',
+                  marginBottom: '10px'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    marginBottom: '15px'
+                  }}>
+                    <div>
+                      <h4 style={{
+                        fontSize: '18px',
+                        color: '#fff',
+                        margin: '0 0 5px 0',
+                        fontWeight: 700
+                      }}>
+                        {entityInfo[item].name}
+                      </h4>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#666',
+                        fontFamily: theme.fonts.mono
+                      }}>
+                        {entityInfo[item].developer}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedEntity(null);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#666',
+                        fontSize: '20px',
+                        cursor: 'pointer',
+                        padding: 0,
+                        lineHeight: 1
+                      }}
+                      onMouseEnter={(e) => e.target.style.color = '#fff'}
+                      onMouseLeave={(e) => e.target.style.color = '#666'}
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  {/* Benchmarks Grid (if available) */}
+                  {(entityInfo[item].contextWindow || entityInfo[item].aaiIndex) && (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
+                      gap: '10px',
+                      marginBottom: '15px',
+                      padding: '12px',
+                      background: 'rgba(0,0,0,0.3)',
+                      borderRadius: '6px'
+                    }}>
+                      {entityInfo[item].contextWindow && (
+                        <div>
+                          <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>CONTEXT</div>
+                          <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].contextWindow}</div>
+                        </div>
+                      )}
+                      {entityInfo[item].aaiIndex && (
+                        <div>
+                          <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>AAI INDEX</div>
+                          <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].aaiIndex}</div>
+                        </div>
+                      )}
+                      {entityInfo[item].critPt && (
+                        <div>
+                          <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>CRITPT</div>
+                          <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].critPt}</div>
+                        </div>
+                      )}
+                      {entityInfo[item].mmmuPro && (
+                        <div>
+                          <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>MMMU PRO</div>
+                          <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].mmmuPro}</div>
+                        </div>
+                      )}
+                      {entityInfo[item].price && (
+                        <div>
+                          <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>PRICE</div>
+                          <div style={{ fontSize: '11px', color: domainColor, fontWeight: 600 }}>{entityInfo[item].price}</div>
+                        </div>
+                      )}
+                      {entityInfo[item].speed && entityInfo[item].speed !== 'TBD' && (
+                        <div>
+                          <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>SPEED</div>
+                          <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].speed}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{
+                      fontSize: '10px',
+                      color: domainColor,
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px',
+                      marginBottom: '5px',
+                      fontWeight: 600
+                    }}>Type</div>
+                    <div style={{ fontSize: '13px', color: '#fff', lineHeight: '1.5' }}>
+                      {entityInfo[item].type}
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{
+                      fontSize: '10px',
+                      color: domainColor,
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px',
+                      marginBottom: '5px',
+                      fontWeight: 600
+                    }}>Strengths</div>
+                    <div style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5' }}>
+                      {entityInfo[item].strengths}
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{
+                      fontSize: '10px',
+                      color: domainColor,
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px',
+                      marginBottom: '5px',
+                      fontWeight: 600
+                    }}>Use Cases</div>
+                    <div style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5' }}>
+                      {entityInfo[item].useCases}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{
+                      fontSize: '10px',
+                      color: domainColor,
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px',
+                      marginBottom: '5px',
+                      fontWeight: 600
+                    }}>Notes</div>
+                    <div style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5' }}>
+                      {entityInfo[item].notes}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </React.Fragment>
+            ))}
+          </div>
         </div>
       )}
 
@@ -1771,7 +2672,7 @@ function SubsectionDetail({ subsectionName, domainColor, onBack, items, onEntity
         border: '1px solid #222',
         borderRadius: '8px',
         padding: '24px',
-        marginBottom: '30px'
+        marginTop: '30px'
       }}>
         <h3 style={{
           fontSize: '14px',
@@ -1804,76 +2705,18 @@ function SubsectionDetail({ subsectionName, domainColor, onBack, items, onEntity
           ))}
         </div>
       </div>
-
-      {/* Entity Collage */}
-      {items && items.length > 0 && (
-        <div style={{
-          background: 'rgba(0,0,0,0.3)',
-          border: '1px solid #222',
-          borderRadius: '8px',
-          padding: '24px'
-        }}>
-          <h3 style={{
-            fontSize: '14px',
-            color: domainColor,
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-            fontWeight: 700,
-            marginBottom: '20px'
-          }}>
-            Explore {subsectionName}
-          </h3>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-            gap: '12px'
-          }}>
-            {items.map((item, i) => (
-              <div
-                key={i}
-                onMouseEnter={() => onEntityHover && onEntityHover(item)}
-                onMouseLeave={() => onEntityHover && onEntityHover(null)}
-                style={{
-                  background: `${domainColor}11`,
-                  border: `1px solid ${domainColor}33`,
-                  borderRadius: '6px',
-                  padding: '16px',
-                  fontSize: '13px',
-                  color: '#fff',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  textAlign: 'center',
-                  fontWeight: 500
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.background = `${domainColor}22`;
-                  e.currentTarget.style.borderColor = domainColor;
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.background = `${domainColor}11`;
-                  e.currentTarget.style.borderColor = `${domainColor}33`;
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }}
-              >
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
-function AtlasDashboard({ selectedTopic, onEntityHover, onSubsectionClick }) {
+function AtlasDashboard({ selectedTopic, onEntityHover, onSubsectionClick, onEntityClick }) {
   // Domain subsections data
   const domainData = {
     'Software': {
       subsections: [
         {
           title: 'Models',
-          items: ['GPT-4 Turbo', 'Claude 3 Opus', 'Gemini Ultra', 'Llama 3', 'Qwen 2.5', 'Mistral Large']
+          items: ['Gemini 3 Pro Preview', 'GPT-5.1 (High)', 'GPT-5 Codex (High)', 'GPT-5 (High)', 'Kimi K2 Thinking', 'GPT-5 (Medium)', 'o3', 'Grok 4', 'GPT-5 Mini (High)', 'Grok 4.1 Fast', 'GPT-4o', 'Claude 3.5 Opus']
         },
         {
           title: 'Model Families',
@@ -2135,7 +2978,10 @@ function AtlasDashboard({ selectedTopic, onEntityHover, onSubsectionClick }) {
   };
 
   // Subsection component - displays items in a collage with explore button
-  const SubsectionCard = ({ title, items, domainColor, onEntityHover, onSubsectionClick }) => (
+  const SubsectionCard = ({ title, items, domainColor, onEntityHover, onSubsectionClick, onEntityClick }) => {
+  const [expandedEntity, setExpandedEntity] = useState(null);
+
+  return (
     <div style={{
       background: 'rgba(0,0,0,0.2)',
       border: '1px solid #222',
@@ -2215,42 +3061,215 @@ function AtlasDashboard({ selectedTopic, onEntityHover, onSubsectionClick }) {
 
         {/* Item Pills */}
         {items.slice(0, 8).map((item, i) => (
-          <div key={i} style={{
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid #333',
-            borderRadius: '6px',
-            padding: '12px 10px',
-            fontSize: '11px',
-            color: '#aaa',
-            fontFamily: theme.fonts.mono,
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textAlign: 'center',
-            minHeight: '60px',
-            lineHeight: '1.3'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = domainColor;
-            e.currentTarget.style.color = '#fff';
-            e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-            if (onEntityHover) onEntityHover(item);
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = '#333';
-            e.currentTarget.style.color = '#aaa';
-            e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-            if (onEntityHover) onEntityHover(null);
-          }}
-          >
-            {item}
-          </div>
+          <React.Fragment key={i}>
+            <div style={{
+              background: expandedEntity === item ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
+              border: expandedEntity === item ? `1px solid ${domainColor}` : '1px solid #333',
+              borderRadius: '6px',
+              padding: '12px 10px',
+              fontSize: '11px',
+              color: expandedEntity === item ? '#fff' : '#aaa',
+              fontFamily: theme.fonts.mono,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              minHeight: '60px',
+              lineHeight: '1.3'
+            }}
+            onClick={() => {
+              if (entityInfo[item]) {
+                setExpandedEntity(expandedEntity === item ? null : item);
+              }
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = domainColor;
+              e.currentTarget.style.color = '#fff';
+              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+              if (onEntityHover) onEntityHover(item);
+            }}
+            onMouseLeave={(e) => {
+              if (expandedEntity !== item) {
+                e.currentTarget.style.borderColor = '#333';
+                e.currentTarget.style.color = '#aaa';
+                e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+              }
+              if (onEntityHover) onEntityHover(null);
+            }}
+            >
+              {item}
+            </div>
+
+            {/* Expanded entity info */}
+            {expandedEntity === item && entityInfo[item] && (
+              <div style={{
+                gridColumn: '1 / -1',
+                background: 'rgba(0,0,0,0.5)',
+                border: `1px solid ${domainColor}`,
+                borderRadius: '8px',
+                padding: '20px',
+                marginTop: '-10px',
+                marginBottom: '10px'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  marginBottom: '15px'
+                }}>
+                  <div>
+                    <h4 style={{
+                      fontSize: '18px',
+                      color: '#fff',
+                      margin: '0 0 5px 0',
+                      fontWeight: 700
+                    }}>
+                      {entityInfo[item].name}
+                    </h4>
+                    <div style={{
+                      fontSize: '12px',
+                      color: '#666',
+                      fontFamily: theme.fonts.mono
+                    }}>
+                      {entityInfo[item].developer}
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedEntity(null);
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#666',
+                      fontSize: '20px',
+                      cursor: 'pointer',
+                      padding: 0,
+                      lineHeight: 1
+                    }}
+                    onMouseEnter={(e) => e.target.style.color = '#fff'}
+                    onMouseLeave={(e) => e.target.style.color = '#666'}
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* Benchmarks Grid (if available) */}
+                {(entityInfo[item].contextWindow || entityInfo[item].aaiIndex) && (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
+                    gap: '10px',
+                    marginBottom: '15px',
+                    padding: '12px',
+                    background: 'rgba(0,0,0,0.3)',
+                    borderRadius: '6px'
+                  }}>
+                    {entityInfo[item].contextWindow && (
+                      <div>
+                        <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>CONTEXT</div>
+                        <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].contextWindow}</div>
+                      </div>
+                    )}
+                    {entityInfo[item].aaiIndex && (
+                      <div>
+                        <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>AAI INDEX</div>
+                        <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].aaiIndex}</div>
+                      </div>
+                    )}
+                    {entityInfo[item].critPt && (
+                      <div>
+                        <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>CRITPT</div>
+                        <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].critPt}</div>
+                      </div>
+                    )}
+                    {entityInfo[item].mmmuPro && (
+                      <div>
+                        <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>MMMU PRO</div>
+                        <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].mmmuPro}</div>
+                      </div>
+                    )}
+                    {entityInfo[item].price && (
+                      <div>
+                        <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>PRICE</div>
+                        <div style={{ fontSize: '11px', color: domainColor, fontWeight: 600 }}>{entityInfo[item].price}</div>
+                      </div>
+                    )}
+                    {entityInfo[item].speed && entityInfo[item].speed !== 'TBD' && (
+                      <div>
+                        <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>SPEED</div>
+                        <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].speed}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{
+                    fontSize: '10px',
+                    color: domainColor,
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    marginBottom: '5px',
+                    fontWeight: 600
+                  }}>Type</div>
+                  <div style={{ fontSize: '13px', color: '#fff', lineHeight: '1.5' }}>
+                    {entityInfo[item].type}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{
+                    fontSize: '10px',
+                    color: domainColor,
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    marginBottom: '5px',
+                    fontWeight: 600
+                  }}>Strengths</div>
+                  <div style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5' }}>
+                    {entityInfo[item].strengths}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{
+                    fontSize: '10px',
+                    color: domainColor,
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    marginBottom: '5px',
+                    fontWeight: 600
+                  }}>Use Cases</div>
+                  <div style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5' }}>
+                    {entityInfo[item].useCases}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{
+                    fontSize: '10px',
+                    color: domainColor,
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    marginBottom: '5px',
+                    fontWeight: 600
+                  }}>Notes</div>
+                  <div style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5' }}>
+                    {entityInfo[item].notes}
+                  </div>
+                </div>
+              </div>
+            )}
+          </React.Fragment>
         ))}
       </div>
     </div>
   );
+  };
 
   // Get current domain data - default to Software if not set
   const currentDomain = domainData[selectedTopic] || domainData['Software'];
@@ -2308,6 +3327,7 @@ function AtlasDashboard({ selectedTopic, onEntityHover, onSubsectionClick }) {
             domainColor={currentColor}
             onEntityHover={onEntityHover}
             onSubsectionClick={onSubsectionClick}
+            onEntityClick={onEntityClick}
           />
         ))}
       </div>
@@ -2317,33 +3337,76 @@ function AtlasDashboard({ selectedTopic, onEntityHover, onSubsectionClick }) {
 
 
 function MarketWatch() {
-  const [prices, setPrices] = useState({
-    'BTC': { price: 0, change: 0 },
-    'ETH': { price: 0, change: 0 },
-    'NVDA': { price: 0, change: 0 },
-    'TSLA': { price: 0, change: 0 }
+  const [watchList, setWatchList] = useState(() => {
+    const saved = localStorage.getItem('marketWatchList');
+    return saved ? JSON.parse(saved) : ['BTC', 'ETH', 'NVDA', 'TSLA'];
   });
+  const [prices, setPrices] = useState({});
   const [loading, setLoading] = useState(true);
+  const [showAddTicker, setShowAddTicker] = useState(false);
+  const [newTicker, setNewTicker] = useState('');
+
+  useEffect(() => {
+    localStorage.setItem('marketWatchList', JSON.stringify(watchList));
+  }, [watchList]);
 
   useEffect(() => {
     const fetchPrices = async () => {
       try {
-        // Using CoinGecko API for crypto (free, no API key needed)
-        const cryptoResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true');
-        const cryptoData = await cryptoResponse.json();
+        const newPrices = {};
+        const API_URL = process.env.REACT_APP_API_URL || '';
 
-        setPrices({
-          'BTC': {
-            price: cryptoData.bitcoin?.usd || 0,
-            change: cryptoData.bitcoin?.usd_24h_change || 0
-          },
-          'ETH': {
-            price: cryptoData.ethereum?.usd || 0,
-            change: cryptoData.ethereum?.usd_24h_change || 0
-          },
-          'NVDA': { price: 0, change: 0 }, // Placeholder for stock data
-          'TSLA': { price: 0, change: 0 }  // Placeholder for stock data
-        });
+        // Separate crypto and stock tickers
+        const cryptoTickers = watchList.filter(t => ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'AVAX', 'DOT'].includes(t.toUpperCase()));
+        const stockTickers = watchList.filter(t => !['BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'AVAX', 'DOT'].includes(t.toUpperCase()));
+
+        // Fetch crypto prices
+        if (cryptoTickers.length > 0) {
+          const cryptoMap = {
+            'BTC': 'bitcoin', 'ETH': 'ethereum', 'SOL': 'solana',
+            'XRP': 'ripple', 'DOGE': 'dogecoin', 'ADA': 'cardano',
+            'AVAX': 'avalanche-2', 'DOT': 'polkadot'
+          };
+          const ids = cryptoTickers.map(t => cryptoMap[t.toUpperCase()]).filter(Boolean).join(',');
+
+          if (ids) {
+            const cryptoResponse = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`);
+            const cryptoData = await cryptoResponse.json();
+
+            cryptoTickers.forEach(ticker => {
+              const id = cryptoMap[ticker.toUpperCase()];
+              if (cryptoData[id]) {
+                newPrices[ticker] = {
+                  price: cryptoData[id].usd || 0,
+                  change: cryptoData[id].usd_24h_change || 0
+                };
+              }
+            });
+          }
+        }
+
+        // Fetch stock prices from backend
+        if (stockTickers.length > 0) {
+          for (const ticker of stockTickers) {
+            try {
+              const stockResponse = await fetch(`${API_URL}/api/stock/${ticker}`);
+              if (stockResponse.ok) {
+                const stockData = await stockResponse.json();
+                newPrices[ticker] = {
+                  price: stockData.price || 0,
+                  change: stockData.change || 0
+                };
+              } else {
+                newPrices[ticker] = { price: 0, change: 0 };
+              }
+            } catch (err) {
+              console.error(`Error fetching ${ticker}:`, err);
+              newPrices[ticker] = { price: 0, change: 0 };
+            }
+          }
+        }
+
+        setPrices(newPrices);
         setLoading(false);
       } catch (err) {
         console.error('Error fetching prices:', err);
@@ -2354,7 +3417,7 @@ function MarketWatch() {
     fetchPrices();
     const interval = setInterval(fetchPrices, 60000); // Update every minute
     return () => clearInterval(interval);
-  }, []);
+  }, [watchList]);
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('en-US', {
@@ -2370,6 +3433,19 @@ function MarketWatch() {
     return `${sign}${change.toFixed(2)}%`;
   };
 
+  const handleAddTicker = () => {
+    const ticker = newTicker.trim().toUpperCase();
+    if (ticker && !watchList.includes(ticker)) {
+      setWatchList([...watchList, ticker]);
+      setNewTicker('');
+      setShowAddTicker(false);
+    }
+  };
+
+  const handleRemoveTicker = (ticker) => {
+    setWatchList(watchList.filter(t => t !== ticker));
+  };
+
   return (
     <div style={{
       background: 'rgba(20,20,20,0.5)',
@@ -2380,13 +3456,69 @@ function MarketWatch() {
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '10px',
+        justifyContent: 'space-between',
         marginBottom: '20px',
         paddingBottom: '15px',
         borderBottom: '1px solid #333'
       }}>
         <span style={{ fontSize: '12px', fontWeight: 600, color: '#fff' }}>MARKET WATCH</span>
+        <button
+          onClick={() => setShowAddTicker(!showAddTicker)}
+          style={{
+            background: 'none',
+            border: '1px solid #333',
+            color: '#fff',
+            padding: '4px 8px',
+            fontSize: '12px',
+            cursor: 'pointer',
+            borderRadius: '3px',
+            transition: 'all 0.2s'
+          }}
+          onMouseEnter={(e) => e.target.style.borderColor = '#666'}
+          onMouseLeave={(e) => e.target.style.borderColor = '#333'}
+        >
+          {showAddTicker ? '✕' : '+'}
+        </button>
       </div>
+
+      {showAddTicker && (
+        <div style={{ marginBottom: '15px' }}>
+          <input
+            type="text"
+            value={newTicker}
+            onChange={(e) => setNewTicker(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleAddTicker()}
+            placeholder="Enter ticker (e.g., BTC, AAPL)"
+            style={{
+              width: '100%',
+              padding: '8px',
+              background: 'rgba(0,0,0,0.3)',
+              border: '1px solid #333',
+              color: '#fff',
+              fontSize: '13px',
+              borderRadius: '3px',
+              marginBottom: '8px',
+              outline: 'none'
+            }}
+          />
+          <button
+            onClick={handleAddTicker}
+            style={{
+              width: '100%',
+              padding: '8px',
+              background: '#0066ff',
+              border: 'none',
+              color: '#fff',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              borderRadius: '3px'
+            }}
+          >
+            Add Ticker
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
@@ -2394,39 +3526,283 @@ function MarketWatch() {
         </div>
       ) : (
         <div>
-          {Object.entries(prices).map(([symbol, data]) => (
-            <div key={symbol} style={{
-              marginBottom: '20px',
-              paddingBottom: '15px',
-              borderBottom: '1px solid #222'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
-                    {symbol}
+          {watchList.map((symbol) => {
+            const data = prices[symbol] || { price: 0, change: 0 };
+            return (
+              <div key={symbol} style={{
+                marginBottom: '20px',
+                paddingBottom: '15px',
+                borderBottom: '1px solid #222',
+                position: 'relative'
+              }}>
+                <button
+                  onClick={() => handleRemoveTicker(symbol)}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    right: 0,
+                    background: 'none',
+                    border: 'none',
+                    color: '#666',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    padding: '2px 4px'
+                  }}
+                  onMouseEnter={(e) => e.target.style.color = '#ff4444'}
+                  onMouseLeave={(e) => e.target.style.color = '#666'}
+                >
+                  ✕
+                </button>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '20px' }}>
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
+                      {symbol}
+                    </div>
+                    <div style={{ fontSize: '18px', color: '#fff', fontFamily: theme.fonts.mono }}>
+                      {data.price > 0 ? formatPrice(data.price) : '—'}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '18px', color: '#fff', fontFamily: theme.fonts.mono }}>
-                    {data.price > 0 ? formatPrice(data.price) : '—'}
-                  </div>
+                  {data.price > 0 && (
+                    <div style={{
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: data.change >= 0 ? '#00ff88' : '#ff4444',
+                      fontFamily: theme.fonts.mono
+                    }}>
+                      {formatChange(data.change)}
+                    </div>
+                  )}
                 </div>
-                {data.price > 0 && (
-                  <div style={{
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    color: data.change >= 0 ? '#00ff88' : '#ff4444',
-                    fontFamily: theme.fonts.mono
-                  }}>
-                    {formatChange(data.change)}
-                  </div>
-                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
+
+// Entity info database
+const entityInfo = {
+  'GPT-4o': {
+    name: 'GPT-4o',
+    developer: 'OpenAI',
+    type: 'Multimodal frontier model',
+    strengths: 'Fast reasoning, audio-native capabilities, strong coding + agent performance, robust real-time vision/audio.',
+    useCases: 'Agents, coding copilots, high-context chat, real-time multimodal apps.',
+    notes: 'Best all-around model for speed + breadth; strong API cost/performance.'
+  },
+  'Gemini 3 Pro': {
+    name: 'Gemini 3 Pro',
+    developer: 'Google DeepMind',
+    type: 'Multimodal generalist model',
+    strengths: 'Extremely strong reasoning on complex tasks, native video & long-context strengths, great math/science.',
+    useCases: 'Research, problem-solving, long document QA, multimodal pipelines.',
+    notes: 'Strong competitor to Opus/4o for reasoning workloads.'
+  },
+  'Claude 3.5 Opus': {
+    name: 'Claude 3.5 Opus',
+    developer: 'Anthropic',
+    type: 'Frontier reasoning & aligned LLM',
+    strengths: 'Best-in-class safety/alignment, exceptional writing, formal reasoning, and long-context coherence.',
+    useCases: 'Legal, policy, strategic planning, long-form writing, analysis.',
+    notes: 'Performs extremely well on tasks requiring nuance and deep clarity.'
+  },
+  'Llama 3.1 405B': {
+    name: 'Llama 3.1 405B',
+    developer: 'Meta',
+    type: 'Open-weight frontier model',
+    strengths: 'Huge context, excellent multilingual ability, competitive with commercial models in open-weight form.',
+    useCases: 'Self-hosted agents, enterprise deployments, research.',
+    notes: 'Ideal for DGX/cluster setups; unmatched flexibility for on-prem ops.'
+  },
+  'Qwen 2.5-72B': {
+    name: 'Qwen 2.5-72B',
+    developer: 'Alibaba',
+    type: 'Open-weight flagship model',
+    strengths: 'Great coding, multilingual proficiency, competitive reasoning at a fraction of compute.',
+    useCases: 'Cost-efficient reasoning, code assistants, enterprise internal workloads.',
+    notes: 'Often overperforms relative to size; extremely efficient at inference.'
+  },
+  'Mistral Large 2': {
+    name: 'Mistral Large 2',
+    developer: 'Mistral AI',
+    type: 'High-efficiency flagship model',
+    strengths: 'Extremely fast, highly optimized, great for structured reasoning and enterprise tasks.',
+    useCases: 'Fast agents, financial workflows, retrieval-heavy pipelines.',
+    notes: 'Known for speed + efficiency with strong reasoning balance.'
+  },
+  'GPT-4o mini': {
+    name: 'GPT-4o mini',
+    developer: 'OpenAI',
+    type: 'Small multimodal intelligence model',
+    strengths: 'Very fast, very cheap, surprisingly high quality for size; good for lightweight reasoning + agents.',
+    useCases: 'Bots, automation, embedded AI inside products.',
+    notes: 'Highest "cost-to-performance" ratio in OpenAI\'s lineup.'
+  },
+  'DeepSeek-V3': {
+    name: 'DeepSeek-V3',
+    developer: 'DeepSeek',
+    type: 'Advanced open-weight transformer',
+    strengths: 'Strong analytical reasoning, efficient architecture, highly competitive coding ability.',
+    useCases: 'Research setups, on-prem deployments, cost-optimized clusters.',
+    notes: 'Known for efficiency and outperforming Western models in many benchmarks.'
+  },
+  'Gemma 2-27B': {
+    name: 'Gemma 2-27B',
+    developer: 'Google',
+    type: 'Open-weight model (mid-size)',
+    strengths: 'Great safety, stable performance, ideal for fine-tuning, strong for resource-constrained self-hosting.',
+    useCases: 'Custom fine-tuned systems, mid-tier local agents, domain-specific LLMs.',
+    notes: 'Part of a reliable open-source ecosystem with clean training pipeline.'
+  },
+  'Phi-4': {
+    name: 'Phi-4',
+    developer: 'Microsoft Research',
+    type: 'Small reasoning model',
+    strengths: 'Shockingly strong reasoning for size, efficient and cheap to run, top-tier for lightweight cognitive tasks.',
+    useCases: 'On-device AI, fast agents, embedded reasoning tools.',
+    notes: 'The "small model that punches above its weight"—highly flexible for local or product use.'
+  },
+  'Gemini 3 Pro Preview': {
+    name: 'Gemini 3 Pro Preview',
+    developer: 'Google',
+    type: 'Next-gen multimodal frontier',
+    contextWindow: '1M tokens',
+    aaiIndex: '73',
+    critPt: '9%',
+    mmmuPro: '80%',
+    price: '$4.50 / 1M tokens',
+    speed: 'TBD',
+    latency: 'TBD',
+    strengths: 'Leading visual reasoning (80% MMMU Pro), massive context window, strong physics understanding (9% CritPt).',
+    useCases: 'Long-context research, scientific analysis, visual understanding tasks.',
+    notes: 'Highest AAI Index (73) and MMMU Pro score in current lineup; ideal for complex multimodal reasoning.'
+  },
+  'GPT-5.1 (High)': {
+    name: 'GPT-5.1 (High)',
+    developer: 'OpenAI',
+    type: 'Frontier reasoning model',
+    contextWindow: '400k tokens',
+    aaiIndex: '70',
+    critPt: '5%',
+    mmmuPro: '76%',
+    price: '$3.44 / 1M tokens',
+    speed: '152 tokens/s',
+    latency: '29.80s',
+    strengths: 'High AAI index (70), strong visual reasoning (76% MMMU Pro), fast inference at 152 tok/s.',
+    useCases: 'Production AI apps, agents, advanced reasoning tasks.',
+    notes: 'Balanced performance/cost; excellent for high-throughput workloads.'
+  },
+  'GPT-5 Codex (High)': {
+    name: 'GPT-5 Codex (High)',
+    developer: 'OpenAI',
+    type: 'Code-specialized model',
+    contextWindow: '400k tokens',
+    aaiIndex: '68',
+    price: '$3.44 / 1M tokens',
+    speed: '123 tokens/s',
+    latency: '20.80s',
+    strengths: 'Optimized for coding tasks, AAI 68, strong inference speed at 123 tok/s.',
+    useCases: 'Code generation, software engineering copilots, technical documentation.',
+    notes: 'Specialized variant of GPT-5 for software development workflows.'
+  },
+  'GPT-5 (High)': {
+    name: 'GPT-5 (High)',
+    developer: 'OpenAI',
+    type: 'Frontier general-purpose model',
+    contextWindow: '400k tokens',
+    aaiIndex: '68',
+    critPt: '6%',
+    mmmuPro: '74%',
+    price: '$3.44 / 1M tokens',
+    strengths: 'Strong general reasoning (AAI 68), solid physics performance (6% CritPt), 74% MMMU Pro.',
+    useCases: 'General AI tasks, research, content creation.',
+    notes: 'Flagship GPT-5 tier; reliable for broad use cases.'
+  },
+  'Kimi K2 Thinking': {
+    name: 'Kimi K2 Thinking',
+    developer: 'Moonshot AI',
+    type: 'Reasoning-focused model',
+    contextWindow: '256k tokens',
+    aaiIndex: '67',
+    critPt: '3%',
+    price: '$1.07 / 1M tokens',
+    speed: '77 tokens/s',
+    latency: '0.79s',
+    strengths: 'Excellent cost-to-performance ($1.07/1M tokens), AAI 67, ultra-low latency (0.79s).',
+    useCases: 'Cost-sensitive deployments, real-time apps, high-frequency inference.',
+    notes: 'Best value in AAI 67+ tier; ideal for budget-conscious production use.'
+  },
+  'GPT-5 (Medium)': {
+    name: 'GPT-5 (Medium)',
+    developer: 'OpenAI',
+    type: 'Mid-tier general model',
+    contextWindow: '400k tokens',
+    aaiIndex: '66',
+    mmmuPro: '74%',
+    price: '$3.44 / 1M tokens',
+    strengths: 'AAI 66, strong visual reasoning (74% MMMU Pro), same pricing as High tier.',
+    useCases: 'Balanced workloads, cost-conscious general tasks.',
+    notes: 'Slight performance tradeoff vs High tier; same cost structure.'
+  },
+  'o3': {
+    name: 'o3',
+    developer: 'OpenAI',
+    type: 'Reasoning model',
+    contextWindow: '200k tokens',
+    aaiIndex: '65',
+    mmmuPro: '70%',
+    price: '$3.50 / 1M tokens',
+    speed: '207 tokens/s',
+    latency: '12.97s',
+    strengths: 'Fastest inference (207 tok/s), AAI 65, low latency (12.97s).',
+    useCases: 'Real-time applications, high-throughput systems.',
+    notes: 'Speed-optimized variant; ideal when latency matters most.'
+  },
+  'Grok 4': {
+    name: 'Grok 4',
+    developer: 'xAI',
+    type: 'Frontier model',
+    contextWindow: '256k tokens',
+    aaiIndex: '65',
+    critPt: '2%',
+    mmmuPro: '69%',
+    price: '$6.00 / 1M tokens',
+    speed: '39 tokens/s',
+    latency: '8.93s',
+    strengths: 'AAI 65, low latency (8.93s), competitive visual reasoning (69% MMMU Pro).',
+    useCases: 'xAI ecosystem integration, multimodal tasks.',
+    notes: 'Premium pricing ($6/1M tokens); strong for physics and visual tasks.'
+  },
+  'GPT-5 Mini (High)': {
+    name: 'GPT-5 Mini (High)',
+    developer: 'OpenAI',
+    type: 'Efficient small model',
+    contextWindow: '400k tokens',
+    aaiIndex: '64',
+    mmmuPro: '70%',
+    price: '$0.69 / 1M tokens',
+    strengths: 'Excellent cost-to-performance ($0.69/1M), AAI 64, strong visual reasoning (70%).',
+    useCases: 'High-volume inference, embedded AI, cost-sensitive production.',
+    notes: 'Best price/performance in GPT-5 family; ideal for scale.'
+  },
+  'Grok 4.1 Fast': {
+    name: 'Grok 4.1 Fast',
+    developer: 'xAI',
+    type: 'Ultra-fast inference model',
+    contextWindow: '2M tokens',
+    aaiIndex: '64',
+    critPt: '3%',
+    mmmuPro: '63%',
+    price: '$0.28 / 1M tokens',
+    speed: '76 tokens/s',
+    latency: '13.61s',
+    strengths: 'Massive 2M context, cheapest option ($0.28/1M), AAI 64, decent speed (76 tok/s).',
+    useCases: 'Ultra-long context tasks, cost-sensitive large-scale deployments.',
+    notes: 'Unmatched context length; exceptional value for document-heavy workloads.'
+  }
+};
 
 function App() {
   const [activeModal, setActiveModal] = useState(null);
@@ -2437,20 +3813,23 @@ function App() {
   const [selectedPage, setSelectedPage] = useState('NEWS');
   const [selectedTopic, setSelectedTopic] = useState('All');
   const [selectedSubsection, setSelectedSubsection] = useState(null);
+  const [selectedPreset, setSelectedPreset] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredEntity, setHoveredEntity] = useState(null);
+  const [selectedEntity, setSelectedEntity] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [user, setUser] = useState(null);
   const [showUserLogin, setShowUserLogin] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const scrollRef = useRef(0);
   const scrollContainerRef = useRef(null);
 
   const pages = ['NEWS', 'TERMINAL', 'ATLAS'];
 
   const pageTopics = {
-    'TERMINAL': ['All', 'Stocks', 'Crypto', 'ETFs', 'Indexes'],
+    'TERMINAL': ['Markets', 'Stocks', 'Crypto', 'ETFs'],
     'NEWS': ['All', 'AI', 'Tech', 'Science', 'Energy', 'Crypto', 'Markets', 'Policy', 'Cybersecurity', 'Hardware', 'Space'],
     'ATLAS': ['Software', 'Hardware', 'Manufacturing', 'Robotics', 'People']
   };
@@ -2474,16 +3853,61 @@ function App() {
 
   const currentTopics = getAvailableTopics();
 
-  // Reset topic when page changes
+  // Handle admin login
+  const handleAdminLogin = async () => {
+    const API_URL = process.env.REACT_APP_API_URL || '';
+
+    try {
+      const response = await fetch(`${API_URL}/api/auth/admin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ password: adminPassword })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.isAdmin) {
+          setIsAdmin(true);
+          setAdminPassword('');
+          setShowAdminLogin(false);
+          localStorage.setItem('rrsrch_admin', 'true');
+        }
+      } else {
+        alert('Incorrect password');
+      }
+    } catch (err) {
+      console.error('Admin login error:', err);
+      alert('Login failed');
+    }
+  };
+
+  // Handle window resize for mobile detection
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Reset topic and preset when page changes
   useEffect(() => {
     if (selectedPage === 'ATLAS') {
       setSelectedTopic('Software');
     } else if (selectedPage === 'TERMINAL') {
-      setSelectedTopic('All');
+      setSelectedTopic('Markets');
+      setSelectedPreset('All');
     } else if (selectedPage === 'NEWS') {
       setSelectedTopic('All');
     }
   }, [selectedPage]);
+
+  // Reset preset when topic changes
+  useEffect(() => {
+    setSelectedPreset('All');
+  }, [selectedTopic]);
 
   // Check for OAuth callback and restore user session
   useEffect(() => {
@@ -2649,7 +4073,7 @@ function App() {
                 onClick={() => {
                   // This will be handled by Google OAuth
                   const API_URL = process.env.REACT_APP_API_URL || '';
-                  window.location.href = `${API_URL}/auth/google`;
+                  window.location.href = `${API_URL}/api/auth/google`;
                 }}
                 style={{
                   background: 'white',
@@ -2711,10 +4135,8 @@ function App() {
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
                     onKeyPress={(e) => {
-                      if (e.key === 'Enter' && adminPassword === 'rrsrch2025') {
-                        setIsAdmin(true);
-                        setAdminPassword('');
-                        setShowAdminLogin(false);
+                      if (e.key === 'Enter') {
+                        handleAdminLogin();
                       }
                     }}
                     style={{
@@ -2729,15 +4151,7 @@ function App() {
                     }}
                   />
                   <button
-                    onClick={() => {
-                      if (adminPassword === 'rrsrch2025') {
-                        setIsAdmin(true);
-                        setAdminPassword('');
-                        setShowAdminLogin(false);
-                      } else {
-                        alert('Incorrect password');
-                      }
-                    }}
+                    onClick={handleAdminLogin}
                     style={{
                       background: '#ff4444',
                       color: 'white',
@@ -2957,6 +4371,29 @@ function App() {
             </div>
           );
         }
+      case 'disclaimer':
+        return (
+          <div style={{ maxWidth: '700px', textAlign: 'left', maxHeight: '70vh', overflowY: 'auto' }}>
+            <h2 style={{ margin: '0 0 30px 0', fontSize: '24px', textAlign: 'center', position: 'sticky', top: 0, background: '#161616', paddingBottom: '20px', zIndex: 1 }}>RRSRCH.com Disclaimer</h2>
+            <div style={{ fontSize: '14px', lineHeight: '1.8', color: '#aaa', paddingRight: '10px' }}>
+              <p>
+                The information provided on RRSRCH.com ("RRSRCH," "we," "our," or "the Site") is for general informational and educational purposes only. While we strive to cover developments across technology, artificial intelligence, science, markets, and related fields with accuracy and clarity, all content is provided "as is" and without any guarantees of completeness, timeliness, or accuracy.
+              </p>
+              <p>
+                Nothing on this website constitutes professional, legal, financial, investment, or trading advice. RRSRCH does not provide financial advice, investment recommendations, or individualized guidance of any kind. Any market analysis, commentary, or opinions expressed are strictly for informational purposes and should not be interpreted as a suggestion to buy, sell, or hold any security, cryptocurrency, or asset. You are solely responsible for evaluating the risks and conducting your own due diligence before making any financial or business decisions.
+              </p>
+              <p>
+                RRSRCH assumes no responsibility or liability for any errors, omissions, losses, or damages resulting from the use of the Site, reliance on its content, or the interpretation of any analysis or commentary. All views expressed on this Site or associated social platforms are subject to change at any time without notice.
+              </p>
+              <p>
+                By using RRSRCH.com, you agree that your use of the Site is at your own risk and that you will not hold RRSRCH, its contributors, or its affiliates liable for any decisions or outcomes related to the information provided.
+              </p>
+              <p style={{ marginBottom: 0 }}>
+                If you require financial, legal, or professional advice, please consult a qualified professional.
+              </p>
+            </div>
+          </div>
+        );
       default: return null;
     }
   };
@@ -2990,8 +4427,8 @@ function App() {
         {/* Profile Button (Top-left of page, scrolls with content) */}
         <div style={{
           position: 'absolute',
-          top: '40px',
-          left: '40px',
+          top: isMobile ? '20px' : '40px',
+          left: isMobile ? '20px' : '40px',
           zIndex: 10
         }}>
           <NavButton onClick={() => setActiveModal('profile')} icon={User} label="Profile" />
@@ -3000,8 +4437,8 @@ function App() {
         {/* Top Navigation (Fixed position) */}
         <div style={{
           position: 'fixed',
-          top: '40px',
-          right: '40px',
+          top: isMobile ? '20px' : '40px',
+          right: isMobile ? '20px' : '40px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-end',
@@ -3087,12 +4524,12 @@ function App() {
           maxWidth: '1200px',
           width: '100%',
           margin: '0 auto',
-          padding: '60px 40px',
+          padding: isMobile ? '40px 20px' : '60px 40px',
           minHeight: '100vh',
           position: 'relative',
           zIndex: 5,
           background: 'rgba(22, 22, 22, 0.85)',
-          borderRadius: '24px',
+          borderRadius: isMobile ? '16px' : '24px',
           backdropFilter: 'blur(20px)',
           border: '1px solid rgba(255, 255, 255, 0.05)',
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
@@ -3103,6 +4540,7 @@ function App() {
               post={selectedPost}
               onBack={() => setSelectedPost(null)}
               relatedPosts={posts.filter(p => p.id !== selectedPost.id).slice(0, 3)}
+              onSelectPost={setSelectedPost}
             />
           ) : (
             <>
@@ -3223,17 +4661,76 @@ function App() {
                 ))}
               </div>
 
+              {/* Preset Filters Row - Only show on TERMINAL page for Stocks */}
+              {selectedPage === 'TERMINAL' && (selectedTopic === 'Stocks' || selectedTopic === 'ETFs') && (
+                <div style={{
+                  display: 'flex',
+                  gap: '8px',
+                  marginBottom: '30px',
+                  overflowX: 'auto',
+                  paddingBottom: '10px'
+                }}>
+                  <span style={{
+                    fontSize: '11px',
+                    color: '#555',
+                    padding: '8px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontFamily: theme.fonts.mono,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    Presets:
+                  </span>
+                  {['All', 'AI & Chips', 'Robotics', 'Defense', 'Energy & Power'].map((preset) => (
+                    <button
+                      key={preset}
+                      onClick={() => setSelectedPreset(preset)}
+                      style={{
+                        background: selectedPreset === preset ? 'rgba(0,255,136,0.1)' : 'transparent',
+                        border: selectedPreset === preset ? '1px solid rgba(0,255,136,0.3)' : '1px solid #222',
+                        borderRadius: '16px',
+                        color: selectedPreset === preset ? '#00ff88' : '#666',
+                        padding: '6px 14px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontFamily: theme.fonts.main,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.2s ease',
+                        fontWeight: selectedPreset === preset ? 600 : 400
+                      }}
+                      onMouseEnter={(e) => {
+                        if (selectedPreset !== preset) {
+                          e.currentTarget.style.borderColor = '#333';
+                          e.currentTarget.style.color = '#aaa';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedPreset !== preset) {
+                          e.currentTarget.style.borderColor = '#222';
+                          e.currentTarget.style.color = '#666';
+                        }
+                      }}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Two Column Layout: Content + Sidebar */}
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: '2fr 1fr',
+                gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
                 gap: '60px'
               }}>
                 {/* Left Column: Main Content */}
                 <div>
                   {selectedPage === 'TERMINAL' ? (
                   <>
-                    <LiveTable selectedTopic={selectedTopic} />
+                    <LiveTable selectedTopic={selectedTopic} selectedPreset={selectedPreset} />
 
                     {/* Recommended Articles Section */}
                     <div style={{ marginTop: '60px' }}>
@@ -3284,25 +4781,12 @@ function App() {
                             <h4 style={{
                               fontSize: '15px',
                               color: '#fff',
-                              margin: '0 0 10px 0',
+                              margin: '0',
                               fontWeight: 600,
                               lineHeight: '1.4'
                             }}>
                               {post.title}
                             </h4>
-                            <p style={{
-                              fontSize: '13px',
-                              color: '#888',
-                              margin: 0,
-                              lineHeight: '1.5',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              display: '-webkit-box',
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: 'vertical'
-                            }}>
-                              {post.excerpt}
-                            </p>
                           </div>
                         ))}
                       </div>
@@ -3325,7 +4809,7 @@ function App() {
                           const domainData = {
                             'Software': {
                               subsections: [
-                                { title: 'Models', items: ['GPT-4o', 'Gemini 3 Pro', 'Claude 3.5 Opus', 'Llama 3.1 405B', 'Qwen 2.5-72B', 'Mistral Large 2', 'GPT-4o mini', 'DeepSeek-V3', 'Gemma 2-27B', 'Phi-4', 'Command R+', 'Grok-2'] },
+                                { title: 'Models', items: ['Gemini 3 Pro Preview', 'GPT-5.1 (High)', 'GPT-5 Codex (High)', 'GPT-5 (High)', 'Kimi K2 Thinking', 'GPT-5 (Medium)', 'o3', 'Grok 4', 'GPT-5 Mini (High)', 'Grok 4.1 Fast', 'GPT-4o', 'Claude 3.5 Opus'] },
                                 { title: 'Model Families', items: ['Transformers', 'Diffusion Models', 'Mixture-of-Experts', 'State Space Models', 'Retrieval-Augmented', 'Vision Transformers', 'Multimodal Models', 'Generative Adversarial Networks'] },
                                 { title: 'AI Frameworks', items: ['PyTorch', 'JAX', 'TensorFlow', 'MLX', 'Keras', 'Hugging Face Transformers', 'LangChain', 'LlamaIndex'] },
                                 { title: 'Runtimes / Serving', items: ['vLLM', 'Ollama', 'Triton', 'TensorRT', 'llama.cpp', 'SGLang', 'Text Generation Inference', 'Mosaic ML'] },
@@ -3373,12 +4857,14 @@ function App() {
                           return subsection?.items || [];
                         })()}
                         onEntityHover={setHoveredEntity}
+                        onEntityClick={setSelectedEntity}
                       />
                     ) : (
                       <AtlasDashboard
                         selectedTopic={selectedTopic}
                         onEntityHover={setHoveredEntity}
                         onSubsectionClick={setSelectedSubsection}
+                        onEntityClick={setSelectedEntity}
                       />
                     )}
 
@@ -3396,13 +4882,34 @@ function App() {
                       </h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
                         {filteredPosts.slice(0, 5).map((post) => (
-                          <NewsItem
+                          <div
                             key={post.id}
-                            date={new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')}
-                            title={post.title}
-                            excerpt={post.excerpt}
                             onClick={() => setSelectedPost(post)}
-                          />
+                            style={{
+                              marginBottom: '20px',
+                              borderBottom: '1px solid #222',
+                              paddingBottom: '15px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <div style={{
+                              fontSize: '11px',
+                              color: '#666',
+                              marginBottom: '8px',
+                              fontFamily: theme.fonts.mono
+                            }}>
+                              {new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')}
+                            </div>
+                            <h4 style={{
+                              fontSize: '16px',
+                              color: '#fff',
+                              margin: '0',
+                              fontWeight: 400,
+                              lineHeight: '1.4'
+                            }}>
+                              {post.title}
+                            </h4>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -3446,24 +4953,56 @@ function App() {
                 </div>
 
                 {/* Right Column: Sticky Sidebar */}
-                <div style={{ position: 'relative' }}>
-                  <div style={{ position: 'sticky', top: '40px' }}>
-                    {selectedPage === 'ATLAS' ? (
-                      <AtlasSidebar
-                        selectedTopic={selectedTopic}
-                        selectedSubsection={selectedSubsection}
-                        hoveredEntity={hoveredEntity}
-                      />
-                    ) : (
-                      <MarketWatch />
-                    )}
+                {!isMobile && (
+                  <div style={{ position: 'relative' }}>
+                    <div style={{ position: 'sticky', top: '40px' }}>
+                      {selectedPage === 'ATLAS' ? (
+                        <AtlasSidebar
+                          selectedTopic={selectedTopic}
+                          selectedSubsection={selectedSubsection}
+                          hoveredEntity={hoveredEntity}
+                        />
+                      ) : (
+                        <MarketWatch />
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </>
           )}
+
+          {/* Footer */}
+          <div style={{
+            marginTop: '60px',
+            paddingTop: '30px',
+            borderTop: '1px solid #222',
+            textAlign: 'center',
+            fontSize: '12px',
+            color: '#666'
+          }}>
+            <button
+              onClick={() => setActiveModal('disclaimer')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#666',
+                fontSize: '12px',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                fontFamily: theme.fonts.main
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#aaa'}
+              onMouseLeave={(e) => e.currentTarget.style.color = '#666'}
+            >
+              Disclaimer
+            </button>
+            <div style={{ marginTop: '10px', fontSize: '11px' }}>
+              © {new Date().getFullYear()} RRSRCH.com
+            </div>
+          </div>
         </div>
-        
+
         <div style={{ height: '100px' }}></div>
       </div>
 

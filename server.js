@@ -6,6 +6,7 @@ const path = require('path');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
+const bcrypt = require('bcrypt');
 require('dotenv').config();
 
 const app = express();
@@ -36,7 +37,7 @@ const twitterClient = new TwitterApi(process.env.TWITTER_BEARER_TOKEN);
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: `${process.env.API_URL || 'http://localhost:3001'}/auth/google/callback`
+    callbackURL: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/api/auth/google/callback`
   },
   function(accessToken, refreshToken, profile, cb) {
     // Here you would normally save the user to a database
@@ -69,6 +70,207 @@ async function initPostsFile() {
     await fs.writeFile(POSTS_FILE, JSON.stringify([], null, 2));
   }
 }
+
+// API endpoint to fetch market indices
+app.get('/api/markets', async (req, res) => {
+  try {
+    // Use ETFs and proxy stocks for market data (Finnhub compatible)
+    const indices = [
+      { symbol: 'SPY', name: 'S&P 500' },
+      { symbol: 'DIA', name: 'Dow Jones' },
+      { symbol: 'QQQ', name: 'NASDAQ' },
+      { symbol: 'IWM', name: 'Russell 2000' },
+      { symbol: 'VXX', name: 'VIX (Volatility)' },
+      { symbol: 'GLD', name: 'Gold' },
+      { symbol: 'USO', name: 'Crude Oil' },
+      { symbol: 'TLT', name: '10Y Treasury' }
+    ];
+
+    const API_KEY = process.env.FINNHUB_API_KEY;
+
+    if (!API_KEY) {
+      return res.status(500).json({ error: 'Finnhub API key not configured' });
+    }
+
+    const marketPromises = indices.map(async ({ symbol, name }) => {
+      try {
+        const quoteResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${API_KEY}`);
+        const quoteData = await quoteResponse.json();
+
+        const change = quoteData.c && quoteData.pc ? ((quoteData.c - quoteData.pc) / quoteData.pc) * 100 : 0;
+
+        return {
+          symbol: name,
+          name,
+          price: quoteData.c || 0,
+          change: change,
+          previousClose: quoteData.pc || 0,
+          high: quoteData.h || 0,
+          low: quoteData.l || 0
+        };
+      } catch (err) {
+        console.error(`Error fetching ${symbol}:`, err);
+        return {
+          symbol: name,
+          name,
+          price: 0,
+          change: 0,
+          previousClose: 0,
+          high: 0,
+          low: 0
+        };
+      }
+    });
+
+    const markets = await Promise.all(marketPromises);
+    res.json({ markets });
+  } catch (error) {
+    console.error('Error fetching market data:', error);
+    res.status(500).json({ error: 'Failed to fetch market data', details: error.message });
+  }
+});
+
+// API endpoint to fetch individual stock quote from Finnhub
+app.get('/api/stock/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const API_KEY = process.env.FINNHUB_API_KEY;
+
+    if (!API_KEY) {
+      return res.status(500).json({ error: 'Finnhub API key not configured' });
+    }
+
+    const quoteResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol.toUpperCase()}&token=${API_KEY}`);
+    const quoteData = await quoteResponse.json();
+
+    // Calculate change percentage
+    const change = quoteData.c && quoteData.pc ? ((quoteData.c - quoteData.pc) / quoteData.pc) * 100 : 0;
+
+    res.json({
+      symbol,
+      price: quoteData.c || 0,
+      change: change,
+      previousClose: quoteData.pc || 0,
+      high: quoteData.h || 0,
+      low: quoteData.l || 0
+    });
+  } catch (error) {
+    console.error('Error fetching stock quote:', error);
+    res.status(500).json({ error: 'Failed to fetch stock quote', details: error.message });
+  }
+});
+
+// API endpoint to fetch stock quotes from Finnhub
+app.get('/api/stocks', async (req, res) => {
+  try {
+    // AI-specific stocks: GPU makers, cloud AI providers, AI chip companies
+    const stockSymbols = ['NVDA', 'AMD', 'MSFT', 'GOOGL', 'META', 'AVGO', 'TSLA', 'ORCL', 'PLTR', 'C3.AI'];
+    const API_KEY = process.env.FINNHUB_API_KEY;
+
+    if (!API_KEY) {
+      return res.status(500).json({ error: 'Finnhub API key not configured' });
+    }
+
+    const stockPromises = stockSymbols.map(async (symbol) => {
+      try {
+        // Fetch current quote
+        const quoteResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${API_KEY}`);
+        const quoteData = await quoteResponse.json();
+
+        // Calculate 24h change percentage
+        const change = quoteData.c && quoteData.pc ? ((quoteData.c - quoteData.pc) / quoteData.pc) * 100 : 0;
+
+        return {
+          symbol,
+          price: quoteData.c || 0,
+          change: change,
+          previousClose: quoteData.pc || 0,
+          high: quoteData.h || 0,
+          low: quoteData.l || 0,
+          volume: 0 // Finnhub free tier doesn't provide volume in quote endpoint
+        };
+      } catch (err) {
+        console.error(`Error fetching ${symbol}:`, err);
+        return {
+          symbol,
+          price: 0,
+          change: 0,
+          previousClose: 0,
+          high: 0,
+          low: 0,
+          volume: 0
+        };
+      }
+    });
+
+    const stocks = await Promise.all(stockPromises);
+    res.json({ stocks });
+  } catch (error) {
+    console.error('Error fetching stock data:', error);
+    res.status(500).json({ error: 'Failed to fetch stock data', details: error.message });
+  }
+});
+
+// API endpoint to fetch AI ETFs from Finnhub
+app.get('/api/etfs', async (req, res) => {
+  try {
+    // Top AI-focused ETFs
+    const etfSymbols = [
+      'BOTZ',  // Global X Robotics & AI ETF
+      'ROBT',  // First Trust Nasdaq AI & Robotics ETF
+      'IRBO',  // iShares Robotics and AI Multisector ETF
+      'ARKQ',  // ARK Autonomous Tech & Robotics ETF
+      'THNQ',  // ROBO Global AI ETF
+      'AIQ',   // Global X AI & Technology ETF
+      'WTAI',  // WisdomTree AI Enhanced Value Fund
+      'AIEQ',  // AI Powered Equity ETF
+      'LRNZ',  // TrueShares Tech, AI & Deep Learning ETF
+      'BIGZ'   // Roundhill Generative AI & Technology ETF
+    ];
+
+    const API_KEY = process.env.FINNHUB_API_KEY;
+
+    if (!API_KEY) {
+      return res.status(500).json({ error: 'Finnhub API key not configured' });
+    }
+
+    const etfPromises = etfSymbols.map(async (symbol) => {
+      try {
+        const quoteResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${API_KEY}`);
+        const quoteData = await quoteResponse.json();
+
+        const change = quoteData.c && quoteData.pc ? ((quoteData.c - quoteData.pc) / quoteData.pc) * 100 : 0;
+
+        return {
+          symbol,
+          price: quoteData.c || 0,
+          change: change,
+          previousClose: quoteData.pc || 0,
+          high: quoteData.h || 0,
+          low: quoteData.l || 0,
+          volume: 0
+        };
+      } catch (err) {
+        console.error(`Error fetching ${symbol}:`, err);
+        return {
+          symbol,
+          price: 0,
+          change: 0,
+          previousClose: 0,
+          high: 0,
+          low: 0,
+          volume: 0
+        };
+      }
+    });
+
+    const etfs = await Promise.all(etfPromises);
+    res.json({ etfs });
+  } catch (error) {
+    console.error('Error fetching ETF data:', error);
+    res.status(500).json({ error: 'Failed to fetch ETF data', details: error.message });
+  }
+});
 
 // API endpoint to fetch tweets
 app.get('/api/tweets', async (req, res) => {
@@ -125,8 +327,8 @@ app.post('/api/posts', async (req, res) => {
 
   const { title, excerpt, content, topic } = req.body;
 
-  if (!title || !excerpt) {
-    return res.status(400).json({ error: 'Title and excerpt are required' });
+  if (!title) {
+    return res.status(400).json({ error: 'Title is required' });
   }
 
   try {
@@ -136,7 +338,7 @@ app.post('/api/posts', async (req, res) => {
     const newPost = {
       id: Date.now().toString(),
       title,
-      excerpt,
+      excerpt: excerpt || '', // Make excerpt optional for tweets/updates
       content: content || '',
       topic: topic || 'All',
       date: new Date().toISOString()
@@ -178,11 +380,11 @@ app.delete('/api/posts/:id', async (req, res) => {
 });
 
 // Google OAuth routes
-app.get('/auth/google',
+app.get('/api/auth/google',
   passport.authenticate('google', { scope: ['profile', 'email'] })
 );
 
-app.get('/auth/google/callback',
+app.get('/api/auth/google/callback',
   passport.authenticate('google', { failureRedirect: '/' }),
   function(req, res) {
     // Successful authentication, redirect to frontend with user data
@@ -192,7 +394,7 @@ app.get('/auth/google/callback',
 );
 
 // Get current user
-app.get('/auth/user', (req, res) => {
+app.get('/api/auth/user', (req, res) => {
   if (req.isAuthenticated()) {
     res.json({ user: req.user });
   } else {
@@ -201,13 +403,42 @@ app.get('/auth/user', (req, res) => {
 });
 
 // Logout
-app.get('/auth/logout', (req, res) => {
+app.get('/api/auth/logout', (req, res) => {
   req.logout((err) => {
     if (err) {
       return res.status(500).json({ error: 'Logout failed' });
     }
     res.json({ success: true });
   });
+});
+
+// Admin authentication endpoint
+app.post('/api/auth/admin', async (req, res) => {
+  const { password } = req.body;
+
+  if (!password) {
+    return res.status(400).json({ error: 'Password required' });
+  }
+
+  try {
+    // You can generate a new hash by running: node -e "const bcrypt = require('bcrypt'); bcrypt.hash('yourpassword', 10).then(console.log)"
+    const passwordHash = process.env.ADMIN_PASSWORD_HASH;
+
+    if (!passwordHash) {
+      return res.status(500).json({ error: 'Admin password not configured' });
+    }
+
+    const isValid = await bcrypt.compare(password, passwordHash);
+
+    if (isValid) {
+      res.json({ success: true, isAdmin: true });
+    } else {
+      res.status(401).json({ error: 'Invalid password' });
+    }
+  } catch (err) {
+    console.error('Error verifying admin password:', err);
+    res.status(500).json({ error: 'Authentication failed' });
+  }
 });
 
 initPostsFile().then(() => {
