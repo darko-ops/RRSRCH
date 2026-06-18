@@ -226,7 +226,12 @@ Each phase: **deliverables · success criteria (exit gate) · primary risk.**
   - Filesystem library loader (markdown), watch/reload.
   - Hybrid retrieval v1 (BM25 + structural; embeddings optional via API).
   - `pack / expand / sources / related` as an **MCP server** + CLI.
+  - **`remember()` write-back** (pulled forward from Phase 3): an agent can save a
+    `finding` into the library mid-session. Plain append + dedup only — no
+    auto-extraction, no inference; keeps garbage-in risk near zero.
   - Golden set grown to ~20 cases; regression harness in CI.
+  - Permissive license (open-core) + minimal README/install so it's installable
+    by a stranger, not just you.
 - **Exit gate:** install in Claude Code, point at a real repo's library, and an
   agent completes a real task using packs — and you'd rather use it than not.
   Recall@budget and mandatory coverage tracked and green.
@@ -248,7 +253,8 @@ Each phase: **deliverables · success criteria (exit gate) · primary risk.**
   - Auto-extract candidate items from a repo (README, ADRs, docs, code comments).
   - Extract from agent transcripts/sessions.
   - Dedup + conflict/supersession detection + staleness flagging.
-  - `remember()` write-back API so agents save findings into the library.
+  - (`remember()` write-back already shipped in Phase 1 — here it gains
+    extraction/enrichment, not basic capture.)
   - Lightweight human review queue for extracted items.
 - **Exit gate:** a user goes from empty → useful library on a new project in
   minutes without hand-writing notes.
@@ -313,7 +319,8 @@ works — and tests — without any network/LLM/embedding calls.)*
 
 ## 10. Decisions
 
-**Settled:**
+All six settled (1, 4, 6 below resolved in planning).
+
 2. **ICP → solo coding-agent users.** Reachable, self-serve, daily pain. Teams
    reuse the same engine + isolation later; don't split focus.
 3. **Embeddings → local-default, paid-pluggable.** Phase 1 ships on BM25 +
@@ -325,16 +332,18 @@ works — and tests — without any network/LLM/embedding calls.)*
    and the model/GPU ranking content and three.js code. Reuse the *idea*, not the
    artifact.
 
-**Open (gating Phase 0 — see chat):**
-1. **Business shape** — open-core (rec) vs pure OSS vs hosted SaaS. A
-   values/ambition call; changes whether/when Phase 4 is "the business."
-4. **Authoring tax** — does starting from a blank library block *you* personally
-   right now? If yes, pull Phase 3 forward; if no, hand-authoring the seed library
-   *is* the golden-set work (rec: keep Phase 3 where it is).
-6. **Name/repo collision** — `backpack/` is a different artifact from the
-   news site now on rrsrch.com. Does `backpack/` become *the* RRSRCH repo (and
-   rrsrch.com eventually front this product), or stay separate sharing the name?
-   Five-minute call now, painful rename later — settle before "repo structure."
+1. **Business shape → open-core.** Core (engine + MCP server + eval harness) is
+   permissively licensed from commit one; hosted/team/isolation (Phase 4) is the
+   business but stays separable and later. The open eval harness is a credibility
+   flex. Pricing deferred.
+4. **Authoring tax → partial (write-back early).** Full auto-extraction stays in
+   Phase 3, but `remember()` write-back is **pulled forward to Phase 1** so the
+   library grows from agent findings as you work — no manual-note tax, no
+   garbage-in risk yet. Hand-authoring the seed library remains the golden-set work.
+6. **Name/repo → RRSRCH *is* the tool.** This product is the canonical RRSRCH
+   going forward. The existing news site stays live and untouched for now;
+   pointing rrsrch.com at the tool is a deliberate later task, out of scope for
+   Phases 0–1. Everything lives in this repo; no rename, no migration now.
 
 ---
 
