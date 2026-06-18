@@ -1,0 +1,1 @@
+{ "name":"rrsrch-backpack","version":"0.0.1","type":"module","bin":{"rrsrch":"./cli.js"} }
