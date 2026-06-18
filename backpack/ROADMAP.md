@@ -28,6 +28,13 @@ install tools themselves, and they're reachable. Teams/hosted come later.
 **Distribution:** MCP server first. The product is something *another agent
 calls mid-task*, not an app a human babysits.
 
+**The wedge is quality, not cost.** With 200k windows + prompt caching, "fewer
+tokens" is a *cost* argument, and cost-optimizers are commoditizable. Our actual
+claim is stronger: **more context degrades the agent** (distraction,
+lost-in-the-middle), so a 2.5k structured Pack *beats* an 8k dump on
+**task-success** — not just on price. If that's true we have a quality product;
+if it only wins on tokens we have a discount. Proving this is experiment #1 (§6).
+
 **Why we can win:** the moat isn't storage (commodity) — it's the **index +
 budget-aware packing + safety guarantees**, validated by an eval harness most
 competitors don't have.
@@ -42,8 +49,12 @@ competitors don't have.
    more (progressive disclosure), don't pre-load it.
 3. **Deterministic & explainable core.** Every pack can show *why* each item was
    included. Debuggability is a feature.
-4. **Safety survives compression.** `always`/do-not-break items and secret
-   redaction are guarantees, not best-effort.
+4. **Safety survives compression — but is capped.** `always`/do-not-break items
+   and secret redaction are guarantees, not best-effort. *And* reserved items are
+   bounded: they may not exceed a ceiling of the smallest (Brief) tier. Breaching
+   the cap is an **error** and a library-health lint ("too many things marked
+   do-not-break"), never a silent overflow — or the guarantee becomes the new
+   flood with extra steps.
 5. **Thin vertical slices.** Every phase is shippable and dogfooded on a real
    project before the next begins.
 6. **Token honesty.** Always account for and report token cost. The number on
@@ -147,7 +158,8 @@ breakdown) and a `budget` accounting so packs are inspectable and testable.
    confidence, and graph relatedness (items linked to already-chosen items get a
    boost — the ATLAS knowledge-graph heritage).
 5. **Pack (budget knapsack).**
-   - Reserve `always` items first (safety survives compression).
+   - Reserve `always` items first — but enforce the reserved-items cap (§2.4):
+     if they exceed the Brief-tier ceiling, error + emit a library-health lint.
    - Greedily fill remaining budget by blended score.
    - If an item is too big, use its `brief`, or compress on the fly (cached).
    - Exclude `stale` (Archive — `expand` only).
@@ -163,8 +175,20 @@ Sources (on demand) · Archive (never auto).
 
 The product is only as good as the pack. Measure it.
 
+- **Experiment #1 — run before building the moat: Pack-vs-dump on
+  task-success.** Three arms on the same tasks: (a) full **dump** (~8k, all
+  project items), (b) budget-matched **naive** top-k (~2.5k, similarity only, no
+  structure), (c) budget-matched **Pack** (~2.5k, structured). Two outcomes that
+  matter: *Pack > dump* on task-success proves the quality wedge (not just cost);
+  *Pack > naive* proves the edge is **structure**, not mere truncation (anyone
+  can truncate). If "less is more" doesn't appear here, change the positioning
+  *before* building the index. This is the gating experiment, not a late metric.
 - **Golden set:** 20–50 `(task, project) → {must-have ids, nice-to-have ids,
   must-not-include ids}` cases. Start with hand-authored Bouncr cases; grow it.
+  *Caveat:* at this N with subjective labels and LLM-judge variance, early
+  numbers are **directional only** — trust recall@budget as a proxy *only once it
+  correlates with task-success* on real cases; growing the set is a first-class
+  chore, not a someday.
 - **Metrics:**
   - *Mandatory coverage* — 100% of `always` items present (hard gate).
   - *Recall@budget* — fraction of must-have items that made the pack.
@@ -172,6 +196,12 @@ The product is only as good as the pack. Measure it.
   - *Token efficiency* — must-have coverage per 1k tokens.
   - *Task success (downstream)* — give an agent the pack on a fixed task set;
     LLM-judge whether it completed correctly. The metric that actually matters.
+  - *Expand-precision* — when the agent calls `expand`, was the returned item
+    actually load-bearing for success? Guards against a silent failure: declining
+    `expand` calls only count as *good* when **task-success holds** — otherwise
+    they may mean starved agents proceeding confidently, not smarter packs. The
+    pack's "map" must therefore name what it's withholding and the trigger to
+    fetch it, so expanding is a designed affordance, not a hope.
   - *Latency & cost per pack.*
 - **Regression harness:** every index change runs the suite; CI fails on
   regression. This is the discipline that makes the moat compound.
@@ -281,18 +311,30 @@ works — and tests — without any network/LLM/embedding calls.)*
 
 ---
 
-## 10. Open questions for Demetri (decide before Phase 1)
+## 10. Decisions
 
-1. **Business shape:** open-source tool, hosted SaaS, or open-core? (Changes how
-   much of Phase 4 matters and when.)
-2. **ICP confirmation:** start with solo coding-agent users (recommended) or go
-   straight for teams?
-3. **Embeddings budget:** comfortable depending on a paid embeddings API
-   (Voyage) early, or keep it fully local until hosted?
-4. **Auto-extraction priority:** is the authoring tax a real blocker for *you*
-   right now? If yes, pull Phase 3 earlier.
-5. **Relationship to the old RRSRCH site / ATLAS:** retire it, or harvest the
-   entity-graph work as the relatedness signal in §5?
+**Settled:**
+2. **ICP → solo coding-agent users.** Reachable, self-serve, daily pain. Teams
+   reuse the same engine + isolation later; don't split focus.
+3. **Embeddings → local-default, paid-pluggable.** Phase 1 ships on BM25 +
+   structural with **zero** embeddings. Phase 2 adds local `sqlite-vec` as
+   default behind a provider interface; Voyage is a one-line swap and is used in
+   *eval* to find the quality ceiling — but a key is never required to try it.
+5. **ATLAS → harvest the mechanism, retire the content.** Keep the
+   graph-relatedness edge-boost (§5) as a first-class scorer; retire the old site
+   and the model/GPU ranking content and three.js code. Reuse the *idea*, not the
+   artifact.
+
+**Open (gating Phase 0 — see chat):**
+1. **Business shape** — open-core (rec) vs pure OSS vs hosted SaaS. A
+   values/ambition call; changes whether/when Phase 4 is "the business."
+4. **Authoring tax** — does starting from a blank library block *you* personally
+   right now? If yes, pull Phase 3 forward; if no, hand-authoring the seed library
+   *is* the golden-set work (rec: keep Phase 3 where it is).
+6. **Name/repo collision** — `backpack/` is a different artifact from the
+   news site now on rrsrch.com. Does `backpack/` become *the* RRSRCH repo (and
+   rrsrch.com eventually front this product), or stay separate sharing the name?
+   Five-minute call now, painful rename later — settle before "repo structure."
 
 ---
 
