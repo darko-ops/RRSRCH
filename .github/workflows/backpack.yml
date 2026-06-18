@@ -1,0 +1,25 @@
+name: backpack
+
+# Scoped to the RRSRCH tool only — never runs for the news site.
+on:
+  push:
+    paths:
+      - 'backpack/**'
+      - '.github/workflows/backpack.yml'
+  pull_request:
+    paths:
+      - 'backpack/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backpack
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # Zero runtime dependencies — `npm test` runs lint:lib + always-cap + eval.
+      - run: npm test

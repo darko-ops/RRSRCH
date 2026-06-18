@@ -1,0 +1,9 @@
+{
+  "id": "02-webhook-security",
+  "task": "Verify and handle incoming Stripe webhook events securely",
+  "project": "Bouncr",
+  "budget": 2500,
+  "must_have": ["webhook-signature", "secret-key-warning"],
+  "nice_to_have": ["files-map", "price-privacy-warning"],
+  "must_not_include": ["old-charges-api", "obius-revenuecat"]
+}

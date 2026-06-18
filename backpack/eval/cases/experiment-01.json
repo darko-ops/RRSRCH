@@ -1,0 +1,11 @@
+{
+  "id": "experiment-01",
+  "task": "Implement merchant Stripe Connect onboarding",
+  "project": "Bouncr",
+  "budget": 2500,
+  "arms": ["dump", "naive", "pack"],
+  "must_have": ["connect-standard", "secret-key-warning", "price-privacy-warning"],
+  "nice_to_have": ["per-deal-prices", "webhook-signature", "files-map"],
+  "must_not_include": ["old-charges-api", "obius-revenuecat"],
+  "_note": "Gating experiment. pack must exclude the stale decoy (old-charges-api) and the other-project decoy (obius-revenuecat) that naive drags in, while reserving both always items dump only gets by carrying everything."
+}

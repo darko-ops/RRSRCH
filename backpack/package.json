@@ -1,1 +1,15 @@
-{ "name":"rrsrch-backpack","version":"0.0.1","type":"module","bin":{"rrsrch":"./cli.js"} }
+{
+  "name": "rrsrch-backpack",
+  "version": "0.0.1",
+  "description": "RRSRCH — token-efficient memory for AI agents. The backpack: store the full library, hand each task the minimum useful context pack plus a map to get more.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "bin": { "rrsrch": "./cli.js" },
+  "scripts": {
+    "lint:lib": "node schema/validate.mjs",
+    "test:always-cap": "node schema/validate.mjs schema/fixtures/over-always && echo 'ERROR: over-always fixture should have FAILED' && exit 1 || echo 'ok: always-cap lint correctly rejected the fixture'",
+    "eval": "node eval/run.mjs",
+    "test": "npm run lint:lib && npm run test:always-cap && npm run eval"
+  },
+  "engines": { "node": ">=18" }
+}

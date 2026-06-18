@@ -1,0 +1,9 @@
+{
+  "id": "05-db-isolation",
+  "task": "Add Bouncr merchant onboarding without reusing other product database or Stripe configs",
+  "project": "Bouncr",
+  "budget": 2500,
+  "must_have": ["db-isolation", "secret-key-warning"],
+  "nice_to_have": ["connect-standard", "price-privacy-warning"],
+  "must_not_include": ["obius-revenuecat", "old-charges-api"]
+}

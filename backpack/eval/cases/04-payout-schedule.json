@@ -1,0 +1,9 @@
+{
+  "id": "04-payout-schedule",
+  "task": "Decide how merchant payout schedule is set during Connect onboarding",
+  "project": "Bouncr",
+  "budget": 2500,
+  "must_have": ["connect-standard"],
+  "nice_to_have": ["payout-schedule-question", "files-map", "secret-key-warning", "price-privacy-warning"],
+  "must_not_include": ["old-charges-api", "obius-revenuecat"]
+}

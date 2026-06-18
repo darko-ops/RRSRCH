@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://rrsrch.dev/schema/item.schema.json",
+  "title": "RRSRCH LibraryItem",
+  "description": "Frozen contract for a library item (ROADMAP §4). Source of truth: validate.mjs derives required fields, enums, and bounds from this file. NOTE (v0 reconciliation): v0 seed files carry `updated` (a date) as the freshness signal; ROADMAP §4 names `createdAt`/`updatedAt`. To keep the seed library valid while freezing the §4 superset, `updated` is required and the §4 timestamps + evolution fields (confidence, brief, supersedes, related, provenance, embedding) are OPTIONAL — later phases populate them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "project", "type", "title", "topic", "tags", "importance", "updated"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Unique within a project. Kebab-case."
+    },
+    "project": { "type": "string", "minLength": 1 },
+    "type": {
+      "type": "string",
+      "enum": ["decision", "constraint", "warning", "source", "reference", "file", "question", "finding"],
+      "description": "finding = agent write-back (remember(), Phase 1)."
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "topic": { "type": "string" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "importance": { "type": "integer", "minimum": 1, "maximum": 5 },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "0..1 — how sure we are this is true/current. Optional in v0."
+    },
+    "stale": { "type": "boolean", "description": "Archive-only; never auto-packed." },
+    "always": { "type": "boolean", "description": "do-not-break; reserved into every pack for its project (subject to the always-cap)." },
+    "files": { "type": "array", "items": { "type": "string" } },
+    "source": { "type": "string" },
+    "brief": { "type": "string", "description": "Precomputed compressed form (the Brief layer). Optional in v0." },
+    "supersedes": { "type": "array", "items": { "type": "string" }, "description": "ids this replaces; must resolve." },
+    "related": { "type": "array", "items": { "type": "string" }, "description": "graph edges; must resolve." },
+    "provenance": {
+      "type": "string",
+      "enum": ["manual", "extracted", "agent"],
+      "description": "Optional in v0; defaults to manual."
+    },
+    "updated": { "type": "string", "description": "v0 freshness signal (ISO date). Required." },
+    "createdAt": { "type": "string", "description": "§4 forward-compat; optional in v0." },
+    "updatedAt": { "type": "string", "description": "§4 forward-compat; optional in v0." },
+    "embedding": { "type": "array", "items": { "type": "number" }, "description": "Populated by the index (Phase 2)." }
+  }
+}

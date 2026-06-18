@@ -1,0 +1,9 @@
+{
+  "id": "03-per-deal-checkout",
+  "task": "Create the Stripe checkout Price when a deal is accepted",
+  "project": "Bouncr",
+  "budget": 2500,
+  "must_have": ["per-deal-prices", "price-privacy-warning"],
+  "nice_to_have": ["connect-standard", "secret-key-warning"],
+  "must_not_include": ["old-charges-api", "obius-revenuecat"]
+}

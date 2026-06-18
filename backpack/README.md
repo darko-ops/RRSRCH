@@ -7,6 +7,25 @@ decisions for the task ahead — plus a map to get more when it needs it.
 > Agents fail two ways: too little context (dumb assumptions) or too much
 > (drown, waste tokens, miss what matters). RRSRCH gives the right amount.
 
+## Try it in 60 seconds
+
+Zero dependencies — just Node ≥18.
+
+```bash
+git clone https://github.com/darko-ops/RRSRCH.git
+cd RRSRCH/backpack
+
+# build a context pack for a real task, under a token budget
+node cli.js pack "Implement merchant Stripe Connect onboarding" --project Bouncr --budget 2500
+
+# check the library is healthy, then run the eval harness against the v0 engine
+npm run lint:lib
+npm run eval
+```
+
+`npm run eval` prints per-case / per-arm metrics and exits non-zero if the
+engine ever drops a do-not-break item or leaks a forbidden one.
+
 ## Why a backpack, not a brain dump
 
 Most "agent memory" products throw the whole library into vector search and
@@ -65,10 +84,47 @@ files: [/lib/stripe.ts]
 ---
 ```
 
+## Eval & schema (the discipline)
+
+Retrieval quality is the moat, so it's measured — no retrieval change ships
+without moving a metric on the golden set.
+
+```bash
+npm run lint:lib        # validate the library against schema/item.schema.json
+npm run test:always-cap # prove the always-cap lint rejects over-flagging
+npm run eval            # golden-set metrics vs the v0 engine (the baseline to beat)
+npm test                # all of the above; CI gate
+```
+
+- **`schema/item.schema.json`** is the frozen contract (ROADMAP §4); the
+  validator derives required fields, enums, and bounds from it, then enforces
+  structural rules: ids unique per project, `supersedes`/`related` edges resolve,
+  and the **always-cap** — the summed tokens of `always` (do-not-break) items per
+  project may not exceed the Brief-tier ceiling. Over-flagging is a *build
+  failure*, not a silent overflow, so the safety guarantee can't quietly become
+  the flood it exists to prevent.
+- **`eval/`** holds the golden cases and a three-arm **Experiment #1**
+  (`dump` vs similarity-only `naive` vs structured `pack`). Only the `pack` arm
+  is gated, on the two guarantees — mandatory-coverage and no must-not leakage.
+  `recall@budget`, `noise`, and `token-efficiency` are reported baseline numbers
+  to beat in Phase 2; `task-success` + `expand-precision` arrive with the Phase 1
+  agent loop.
+
+See [`ROADMAP.md`](./ROADMAP.md) and [`PHASE0.md`](./PHASE0.md).
+
 ## Status
 
-v0 prototype. The selection engine (`lib/engine.js`) is deliberately
-deterministic and inspectable — you can see *why* each item made the pack. The
-retrieval quality of that index is the moat; everything else (embeddings, scale,
-an MCP server so Claude Code / Cursor / Codex can call `pack` directly) is
-downstream of getting it right.
+**Phase 0 complete** — data model frozen as a JSON contract, library linter with
+the always-cap, and an eval harness that runs against the v0 engine with recorded
+baseline numbers (`eval/baseline.txt`). Next: Phase 1 — TypeScript engine, MCP
+server (`pack`/`expand`/`sources`/`related`), and `remember()` write-back.
+
+The selection engine (`lib/engine.js`) is deliberately deterministic and
+inspectable — you can see *why* each item made the pack. Everything else
+(embeddings, rerank, scale, MCP so Claude Code / Cursor / Codex call `pack`
+directly) is downstream of getting that index right, measured against the eval.
+
+## License
+
+[Apache-2.0](./LICENSE) — open-core. The engine, MCP server, and eval harness
+are permissively licensed; hosted/team features come later and stay separable.
