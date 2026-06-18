@@ -223,8 +223,18 @@ Each phase: **deliverables · success criteria (exit gate) · primary risk.**
 ### Phase 1 — Local MCP MVP (the dogfood release)
 - **Deliverables:**
   - TypeScript rewrite of the engine against the typed schema.
-  - Filesystem library loader (markdown), watch/reload.
+  - Filesystem library loader (markdown), watch/reload. **Normalize at load:**
+    fill schema-optional fields with defaults so the engine never sees an absent
+    field — `createdAt/updatedAt` derived from `updated`, `confidence` defaulted,
+    edges → `[]`, and **`provenance: 'manual'` stamped on every existing item**
+    before any `agent`/`extracted` item enters (the "never auto-trust extracted"
+    promise can't be enforced if half the library is provenance-`undefined`).
   - Hybrid retrieval v1 (BM25 + structural; embeddings optional via API).
+  - **Adversarial test project + task-success judge** — the seed library is too
+    small for `pack == dump`, so Experiment #1's kill-switch can't fire on it.
+    Build a deliberately bloated project (8k+ of mostly-irrelevant items) and wire
+    the LLM task-success judge so `pack` vs `dump` is finally a *quality* verdict,
+    not just id-overlap. This is the gate that validates (or kills) the thesis.
   - `pack / expand / sources / related` as an **MCP server** + CLI.
   - **`remember()` write-back** (pulled forward from Phase 3): an agent can save a
     `finding` into the library mid-session. Plain append + dedup only — no
