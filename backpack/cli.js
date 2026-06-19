@@ -6,14 +6,20 @@
 //   node cli.js sources "<query>" --project Bouncr
 //   node cli.js related "<query>" --project Bouncr
 //   node cli.js remember "<finding body>" --project Bouncr --title "..." [--topic ..] [--importance 4]
+//   node cli.js extract "<repoPath>" --project Bouncr     # scan a repo into the review queue
+//   node cli.js review  --project Bouncr                  # list queued candidates
+//   node cli.js accept  "<id>" --project Bouncr           # move a candidate into the library
+//   node cli.js reject  "<id>" --project Bouncr           # discard a candidate
 //
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { loadLibrary, pack, expand, sources, related, remember } from './lib/engine.js';
 import { defaultProvider } from './lib/embed.js';
+import { extractFromRepo, stageCandidates, listReview, acceptCandidate, rejectCandidate } from './lib/ingest.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const LIBRARY_ROOT = resolve(process.env.RRSRCH_LIBRARY || join(here, 'library'));
+const REVIEW_ROOT = resolve(process.env.RRSRCH_REVIEW || join(here, 'review'));
 const LIBRARY = loadLibrary(LIBRARY_ROOT);
 // Opt-in keyless semantic recall. Off by default keeps packs deterministic.
 const EMBED = process.env.RRSRCH_EMBED ? defaultProvider.embed : null;
@@ -59,6 +65,32 @@ switch (cmd) {
     console.log(r.created ? `saved: ${r.path}` : `already known: ${r.item.id} (nothing written)`);
     break;
   }
+  case 'extract': {
+    const { candidates, truncated } = extractFromRepo(resolve(query), project);
+    const { staged, skipped } = stageCandidates({ reviewRoot: REVIEW_ROOT, libraryRoot: LIBRARY_ROOT, project, candidates });
+    console.log(`extracted ${candidates.length} candidate(s) from ${query} → staged ${staged}, skipped ${skipped} dup(s).`);
+    if (truncated) console.log(`(capped at the extractor limit — more candidates exist; re-run after accepting/rejecting.)`);
+    console.log(`review them: node cli.js review --project ${project}`);
+    break;
+  }
+  case 'review': {
+    const items = listReview(REVIEW_ROOT, project);
+    if (!items.length) { console.log(`review queue empty for ${project}.`); break; }
+    console.log(`${items.length} queued candidate(s) for ${project} (provenance: extracted, confidence ${items[0].confidence ?? 0.3}):`);
+    for (const i of items) console.log(`• ${i.id}  [${i.type}] ${i.title}\n    ${i.body.split('\n')[0]}`);
+    console.log(`accept: node cli.js accept "<id>" --project ${project}   ·   reject: node cli.js reject "<id>" --project ${project}`);
+    break;
+  }
+  case 'accept': {
+    const r = acceptCandidate({ reviewRoot: REVIEW_ROOT, libraryRoot: LIBRARY_ROOT, project, id: query });
+    console.log(`accepted ${query} → ${r.path}`);
+    break;
+  }
+  case 'reject': {
+    rejectCandidate({ reviewRoot: REVIEW_ROOT, project, id: query });
+    console.log(`rejected ${query} (removed from review queue)`);
+    break;
+  }
   default:
-    console.log('usage: cli.js <pack|expand|sources|related|remember> "<text>" --project <P> [--budget N] [--title ..] [--topic ..] [--tags a,b] [--importance N]');
+    console.log('usage: cli.js <pack|expand|sources|related|remember|extract|review|accept|reject> "<text>" --project <P> [--budget N] [--title ..] [--topic ..] [--tags a,b] [--importance N]');
 }

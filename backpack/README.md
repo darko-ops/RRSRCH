@@ -105,6 +105,26 @@ Or run it directly: `npm run mcp` (uses the bundled demo library unless
 | `related`  | get the neighborhood around a topic                            |
 | `remember` | save a durable finding back into the library                    |
 
+## Empty → useful in minutes (ingestion)
+
+The adoption tax is hand-writing a library. So point rrsrch at a repo and it
+**extracts a starter library for you** — deterministically, no LLM, no key:
+markdown docs and ADRs become `decision`/`reference` items; `TODO`/`FIXME`/
+`WARNING`/`NOTE`/`@deprecated` comments become `question`/`warning` items tagged
+with their file.
+
+Extraction is **never auto-trusted.** Every candidate is `provenance: extracted`,
+low `confidence`, importance capped (never `always`, never high), and lands in a
+**review queue** — `review/<project>/`, *not* `library/` — so the pack engine
+literally cannot serve it until you accept it.
+
+```bash
+node cli.js extract /path/to/your/repo --project Acme   # scan → review queue (dedups)
+node cli.js review  --project Acme                       # see what was found
+node cli.js accept  "<id>" --project Acme                # promote into the library
+node cli.js reject  "<id>" --project Acme                # discard
+```
+
 ## The library
 
 Knowledge lives as markdown files under `library/<project>/`, each with
@@ -204,8 +224,15 @@ Enable it with `RRSRCH_EMBED=1`. It's off by default to keep packs deterministic
 on this well-tagged library the deterministic path already captures recall, so
 embeddings are insurance for paraphrase-heavy / sparsely-tagged content. The
 provider interface leaves clean seams for a local neural model (Transformers.js
-MiniLM) and `sqlite-vec` as the vector store at scale. **Still ahead:** the
-LLM-judged kill-switch verdict on task-success (awaits an API-key run).
+MiniLM) and `sqlite-vec` as the vector store at scale.
+
+**Phase 3 in progress — ingestion (deterministic slice shipped).** `extract` scans
+a repo (markdown/ADRs + code-comment markers) into a quarantined **review queue**;
+`review`/`accept`/`reject` curate it into the library. Extracted items are
+`provenance: extracted`, low-confidence, importance-capped, and invisible to packs
+until accepted — so garbage-in can't reach a pack (`test/ingest.test.mjs`). **Still
+ahead:** transcript extraction + LLM enrichment of candidates, and the LLM-judged
+kill-switch verdict on task-success (both await an API-key run).
 
 The selection engine (`lib/engine.js`) is deliberately deterministic and
 inspectable — you can see *why* each item made the pack. Everything else

@@ -310,7 +310,7 @@ export const related = ({ library, project, query }) =>
 // zero — ROADMAP §10.4). The result is a normal library file the same engine
 // packs, lints, and evals; write-back gets no special trust.
 // ---------------------------------------------------------------------------
-const slugify = (s) =>
+export const slugify = (s) =>
   (s || '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -318,12 +318,13 @@ const slugify = (s) =>
     .slice(0, 60) || 'finding';
 
 // Normalize body for dedup: an agent re-learning the same fact must NOT spawn a
-// near-identical file every session.
-const normalizeBody = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+// near-identical file every session. Reused by ingestion to dedup extracted
+// candidates against the existing library.
+export const normalizeBody = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
 // Tiny frontmatter serializer — emits exactly the subset the parser/validator
 // understand (scalars, inline string arrays, booleans). Order is cosmetic.
-function serialize(meta, body) {
+export function serialize(meta, body) {
   // Optional fields are omitted when empty; required schema fields (topic, tags)
   // are ALWAYS emitted — even empty — so write-back can never produce a file the
   // linter rejects.
@@ -340,6 +341,7 @@ function serialize(meta, body) {
     `topic: ${meta.topic || ''}`,
     `tags: [${(meta.tags || []).join(', ')}]`,
     `importance: ${meta.importance}`,
+    opt('confidence', meta.confidence),
     opt('files', meta.files),
     opt('source', meta.source),
     opt('related', meta.related),

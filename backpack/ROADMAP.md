@@ -272,16 +272,21 @@ Each phase: **deliverables · success criteria (exit gate) · primary risk.**
 
 ### Phase 3 — Ingestion & authoring (kill the adoption tax)
 - **Deliverables:**
-  - Auto-extract candidate items from a repo (README, ADRs, docs, code comments).
-  - Extract from agent transcripts/sessions.
-  - Dedup + conflict/supersession detection + staleness flagging.
-  - (`remember()` write-back already shipped in Phase 1 — here it gains
-    extraction/enrichment, not basic capture.)
-  - Lightweight human review queue for extracted items.
+  - ✅ Auto-extract candidate items from a repo (README, ADRs, docs, code
+    comments) — deterministic, keyless (`lib/ingest.js`).
+  - ✅ Lightweight human review queue — `review/<project>/` (quarantined from
+    packs); `extract`/`review`/`accept`/`reject` CLI. Dedup vs library + queue.
+  - ⏳ Extract from agent transcripts/sessions.
+  - ⏳ Conflict/supersession detection + staleness flagging (dedup ships; the
+    rest is the fuzzy part, deferred with optional LLM enrichment).
+  - (`remember()` write-back already shipped in Phase 1.)
 - **Exit gate:** a user goes from empty → useful library on a new project in
-  minutes without hand-writing notes.
-- **Risk:** garbage-in (bad extractions poison packs). Gate with confidence
-  scores + review queue; never auto-trust extracted items at high importance.
+  minutes without hand-writing notes. *(Met for repos: `extract` → `review` →
+  `accept`. Transcript ingestion still ahead.)*
+- **Risk:** garbage-in (bad extractions poison packs). **Held by construction:**
+  extracted items are `provenance: extracted`, low-confidence, importance-capped
+  (never `always`/high), and live in the review queue — the pack engine reads only
+  `library/`, so an unreviewed candidate cannot reach a pack.
 
 ### Phase 4 — Hosted, team & multi-tenant
 - **Deliverables:**
