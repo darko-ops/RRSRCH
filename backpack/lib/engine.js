@@ -5,6 +5,7 @@
 
 import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, extname } from 'node:path';
+import { cosine } from './embed.js';
 
 // ---------------------------------------------------------------------------
 // Token accounting. A char/4 heuristic keeps v0 dependency-free; swap in a real
@@ -118,6 +119,12 @@ function score(item, taskTerms) {
 // ---------------------------------------------------------------------------
 const RELATED_BONUS = 0.4;     // additive, as a fraction of the top base score
 const ANCHOR_FRACTION = 0.5;   // a "strong match" is ≥ this fraction of top score
+const VEC_K = 8;                  // max vector-recalled candidates to admit
+const VEC_MIN = 0.2;             // min cosine for a vector candidate (curb noise)
+const VEC_RECALL_WEIGHT = 0.3;  // vector-recalled items rank below strong lexical hits
+
+// Text an item is embedded/scored over.
+const itemSearchText = (i) => [i.title, i.topic, (i.tags || []).join(' '), i.body].join(' ');
 
 // Project-local set of ids that some other item declares it supersedes.
 const supersededSet = (pool) => {
@@ -147,19 +154,47 @@ function compressedForm(item) {
   return st && st.length < body.length ? st : null;
 }
 
+// Vector recall-expansion. Rather than re-rank with RRF (which disturbs the
+// proven lexical+structural ranking and, under a tight budget, can crowd out a
+// graph-boosted must-have), we keep every lexical score as-is and only ADD items
+// that lexical entirely missed (score 0) but the vector retriever finds (cosine ≥
+// VEC_MIN). Each recalled item is scored BELOW strong lexical hits (so it can't
+// displace them) but above zero (so it can be packed) — higher cosine ranks
+// higher. This makes embeddings a pure recall gain: it recovers morphological /
+// subword misses without regressing anything the lexical path already got right.
+function addVectorRecall(pool, lexById, task, embed) {
+  const tvec = embed(task);
+  const scale = Math.max(0, ...lexById.values()) || 1; // anchor recalled scores to the lexical range
+  const merged = new Map(lexById);
+  const recalled = pool
+    .filter((i) => (lexById.get(i.id) || 0) === 0) // only what lexical missed
+    .map((i) => ({ id: i.id, sim: cosine(tvec, embed(itemSearchText(i))) }))
+    .filter((e) => e.sim >= VEC_MIN)
+    .sort((a, b) => b.sim - a.sim)
+    .slice(0, VEC_K);
+  for (const { id, sim } of recalled) merged.set(id, scale * VEC_RECALL_WEIGHT * sim);
+  return merged;
+}
+
 // ---------------------------------------------------------------------------
 // pack() — the killer function. Given a task, a project, and a token budget,
 // return the minimum useful bundle: warnings that must always travel, then the
 // highest-value items greedily packed (compressing to fit) until budget is spent.
 // ---------------------------------------------------------------------------
-export function pack({ library, task, project, token_budget = 2500, goal }) {
+export function pack({ library, task, project, token_budget = 2500, goal, embed = null }) {
   const taskTerms = tokenize(task).filter((t) => !STOP.has(t));
   const pool = library.filter((i) => i.project === project);
 
+  // Base relevance. By default this is the deterministic lexical/structural score
+  // (no network, no model — the frozen fast-path). When an `embed` provider is
+  // supplied, we ALSO retrieve by vector similarity and fuse the two candidate
+  // lists with Reciprocal Rank Fusion (RRF) — so a must-have that exact-token
+  // matching misses (morphological variants, shared subwords) is still found.
+  const lexById = new Map(pool.map((i) => [i.id, score(i, taskTerms)]));
+  const baseById = embed ? addVectorRecall(pool, lexById, task, embed) : lexById;
   // Base lexical/structural score, then a graph-relatedness boost: an item that
   // is `related` to a strong match gets lifted — so a load-bearing fact that is
   // lexically weak but topically adjacent can still earn a place (recall).
-  const baseById = new Map(pool.map((i) => [i.id, score(i, taskTerms)]));
   const maxBase = Math.max(0, ...baseById.values());
   const anchorCut = maxBase * ANCHOR_FRACTION;
   const adj = buildAdjacency(pool);

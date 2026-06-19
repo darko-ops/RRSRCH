@@ -193,10 +193,19 @@ budget-that-bites case, pack matches the full dump's recall at **~1/10 the token
 and beats naive truncation on every metric — *and* keeps the do-not-break
 guarantee naive drops (see [`eval/phase2.txt`](./eval/phase2.txt); the original 10
 cases stay byte-identical to [`eval/baseline.txt`](./eval/baseline.txt), so there's
-no regression). Each mechanism has an isolated unit test. **Next in Phase 2:** a
-pluggable embedding layer (RRF fusion of lexical ⊕ vector) with a deterministic
-keyless fallback — the semantic upgrade for paraphrased queries. The LLM-judged
-kill-switch verdict on task-success still awaits an API-key run.
+no regression). Each mechanism has an isolated unit test.
+
+It also ships an **opt-in, keyless semantic layer** (`lib/embed.js`): a
+deterministic char-n-gram **vector recall-expansion** that recovers must-haves
+exact-token matching misses (morphological variants like "webhook" ↔ "webhooks",
+shared subwords) — *without* re-ranking the proven lexical+structural+graph
+winners, so it's a pure recall gain with no regression (`test/embed.test.mjs`).
+Enable it with `RRSRCH_EMBED=1`. It's off by default to keep packs deterministic;
+on this well-tagged library the deterministic path already captures recall, so
+embeddings are insurance for paraphrase-heavy / sparsely-tagged content. The
+provider interface leaves clean seams for a local neural model (Transformers.js
+MiniLM) and `sqlite-vec` as the vector store at scale. **Still ahead:** the
+LLM-judged kill-switch verdict on task-success (awaits an API-key run).
 
 The selection engine (`lib/engine.js`) is deliberately deterministic and
 inspectable — you can see *why* each item made the pack. Everything else

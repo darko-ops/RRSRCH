@@ -10,10 +10,13 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { loadLibrary, pack, expand, sources, related, remember } from './lib/engine.js';
+import { defaultProvider } from './lib/embed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const LIBRARY_ROOT = resolve(process.env.RRSRCH_LIBRARY || join(here, 'library'));
 const LIBRARY = loadLibrary(LIBRARY_ROOT);
+// Opt-in keyless semantic recall. Off by default keeps packs deterministic.
+const EMBED = process.env.RRSRCH_EMBED ? defaultProvider.embed : null;
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -30,7 +33,7 @@ const showList = (items) =>
 
 switch (cmd) {
   case 'pack':
-    console.log(pack({ library: LIBRARY, task: query, project, token_budget: budget }).text);
+    console.log(pack({ library: LIBRARY, task: query, project, token_budget: budget, embed: EMBED }).text);
     break;
   case 'expand':
     showList(expand({ library: LIBRARY, project, query }));

@@ -15,10 +15,14 @@ import { z } from 'zod';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { loadLibrary, pack, expand, sources, related, remember } from '../lib/engine.js';
+import { defaultProvider } from '../lib/embed.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const LIBRARY_ROOT = resolve(process.env.RRSRCH_LIBRARY || join(here, '..', 'library'));
 const DEFAULT_PROJECT = process.env.RRSRCH_PROJECT || undefined;
+// Opt-in keyless semantic recall (RRSRCH_EMBED=1). Off by default keeps packs
+// deterministic; on, it recovers must-haves exact-token matching would miss.
+const EMBED = process.env.RRSRCH_EMBED ? defaultProvider.embed : null;
 
 // Reload per call so edits + remember() writes are always visible. Cheap at v0
 // scale (markdown read); swap for a watcher/SQLite when the library is large.
@@ -62,6 +66,7 @@ server.registerTool(
       task,
       project: resolveProject(project),
       token_budget: budget ?? 2500,
+      embed: EMBED,
     });
     return text(result.text);
   }
@@ -127,4 +132,4 @@ server.registerTool(
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
-console.error(`rrsrch MCP server up · library: ${LIBRARY_ROOT}${DEFAULT_PROJECT ? ` · project: ${DEFAULT_PROJECT}` : ''}`);
+console.error(`rrsrch MCP server up · library: ${LIBRARY_ROOT}${DEFAULT_PROJECT ? ` · project: ${DEFAULT_PROJECT}` : ''}${EMBED ? ' · embeddings: on' : ''}`);

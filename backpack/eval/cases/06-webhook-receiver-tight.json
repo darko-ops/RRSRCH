@@ -3,7 +3,7 @@
   "task": "Build the Helios endpoint that receives inbound payment-provider webhooks.",
   "project": "Helios",
   "budget": 320,
-  "arms": ["dump", "naive", "pack"],
+  "arms": ["dump", "naive", "pack", "embed"],
   "must_have": ["helios-webhook-verify", "helios-webhook-async"],
   "nice_to_have": ["helios-idempotency-required", "helios-webhook-retry-table", "helios-no-pii-in-logs"],
   "must_not_include": ["helios-old-webhook-inline", "vela-webhook-svix"],

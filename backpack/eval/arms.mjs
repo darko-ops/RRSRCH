@@ -7,6 +7,7 @@
 // Each arm returns { name, ids: string[], tokens }.
 
 import { pack, estimateTokens } from '../lib/engine.js';
+import { defaultProvider } from '../lib/embed.js';
 
 // Same cheap tokenizer/stoplist the engine uses, kept local so `naive` is a
 // faithful "dump into similarity search" baseline with NO structural signals.
@@ -68,4 +69,12 @@ export function naiveArm(library, c) {
   return { name: 'naive', ids: chosen.map((i) => i.id), tokens: used, text: assemble(c.project, chosen) };
 }
 
-export const ARMS = { pack: packArm, naive: naiveArm, dump: dumpArm };
+// embed — the pack engine with the keyless vector recall-expansion enabled. Same
+// guarantees as pack; on a well-tagged library it tends to parity, with upside on
+// paraphrase / morphological-miss queries (proven in test/embed.test.mjs).
+export function embedArm(library, c) {
+  const r = pack({ library, task: c.task, project: c.project, token_budget: c.budget, embed: defaultProvider.embed });
+  return { name: 'embed', ids: r.items.map((i) => i.id), tokens: r.used, text: r.text };
+}
+
+export const ARMS = { pack: packArm, naive: naiveArm, dump: dumpArm, embed: embedArm };

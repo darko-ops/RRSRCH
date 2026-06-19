@@ -253,8 +253,11 @@ Each phase: **deliverables · success criteria (exit gate) · primary risk.**
     smallest-form-first for coverage, upgrade-to-full for detail).
   - ✅ Graph-relatedness boost using `related` edges (neighbors of strong matches
     are lifted) + supersession-aware exclusion via `supersedes` edges.
-  - ⏳ Embeddings (local `sqlite-vec` or Voyage AI API) + RRF fusion, behind a
-    provider interface with a deterministic keyless fallback.
+  - ✅ Embeddings behind a provider interface — keyless deterministic default
+    (char-n-gram hashing) doing **vector recall-expansion** (adds must-haves
+    lexical missed without re-ranking the winners; opt-in via `RRSRCH_EMBED`).
+    Seams left for a local neural model (Transformers.js MiniLM) + `sqlite-vec`
+    store at scale; Voyage/OpenAI are one-provider swaps.
   - ⏳ LLM/cross-encoder rerank of top-K (Claude, prompt-cached).
 - **Exit gate (revised):** the Phase-1 eval had **no recall@budget headroom** (the
   2.5k budget never bit), so a new budget-that-bites case (`06-...-tight`) was
