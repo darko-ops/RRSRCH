@@ -1,0 +1,11 @@
+{
+  "id": "06-webhook-receiver-tight",
+  "task": "Build the Helios endpoint that receives inbound payment-provider webhooks.",
+  "project": "Helios",
+  "budget": 320,
+  "arms": ["dump", "naive", "pack"],
+  "must_have": ["helios-webhook-verify", "helios-webhook-async"],
+  "nice_to_have": ["helios-idempotency-required", "helios-webhook-retry-table", "helios-no-pii-in-logs"],
+  "must_not_include": ["helios-old-webhook-inline", "vela-webhook-svix"],
+  "_note": "Phase 2 headroom case: at a budget that genuinely bites (320), naive truncation drops whole items, while pack compresses must-haves to their brief and reserves the always items — keeping coverage at fewer tokens with no leak. This is where compression earns its place; the 2500-budget cases never trigger it."
+}

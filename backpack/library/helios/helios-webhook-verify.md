@@ -5,6 +5,8 @@ type: constraint
 title: Verify webhook HMAC + reject >5min skew
 topic: webhook signature hmac verify per-endpoint secret timestamp skew reject replay
 tags: [webhook, security, hmac]
+brief: Verify every inbound webhook before processing — HMAC the raw body with the per-endpoint secret, constant-time compare to the header, reject bad signatures (401) or timestamp skew over 5 minutes (replay).
+related: [helios-webhook-async]
 importance: 5
 updated: 2026-06-18
 ---

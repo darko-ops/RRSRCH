@@ -73,4 +73,4 @@ if (gateFailures) {
   process.exit(1);
 }
 console.log(`✓ EVAL PASSED — pack arm holds both guarantees (mandatory-coverage, no must-not leakage) across ${cases.length} cases.`);
-console.log('  recall@budget / noise / token-efficiency are baseline numbers to beat in Phase 2.');
+console.log('  eval/baseline.txt = frozen Phase-1 numbers; eval/phase2.txt = current. recall@budget / noise / token-efficiency are the quality metrics.');

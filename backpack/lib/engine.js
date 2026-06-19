@@ -12,6 +12,10 @@ import { join, extname } from 'node:path';
 // ---------------------------------------------------------------------------
 export const estimateTokens = (text) => Math.ceil((text || '').length / 4);
 
+// Coerce a frontmatter value into a string array (inline arrays parse to arrays,
+// a lone scalar to a singleton, missing to []).
+const asArray = (v) => (Array.isArray(v) ? v : v ? [v] : []);
+
 // ---------------------------------------------------------------------------
 // Frontmatter. A deliberately tiny YAML subset: `key: value` scalars and inline
 // `key: [a, b, c]` arrays. Enough to describe a library item, nothing more.
@@ -61,8 +65,13 @@ export function loadLibrary(root) {
           importance: Number(meta.importance ?? 3), // 1..5
           stale: meta.stale === true,
           always: meta.always === true, // "do-not-break" — always carried for its project
-          files: Array.isArray(meta.files) ? meta.files : meta.files ? [meta.files] : [],
+          files: asArray(meta.files),
           source: meta.source || '',
+          // Phase 2 fields: knowledge-graph edges + precomputed compression.
+          supersedes: asArray(meta.supersedes), // ids this item replaces
+          related: asArray(meta.related),       // graph neighbors
+          brief: meta.brief || '',              // precomputed compressed form
+          confidence: meta.confidence != null ? Number(meta.confidence) : undefined,
           updated: meta.updated || '',
           body,
           path: p,
@@ -102,40 +111,115 @@ function score(item, taskTerms) {
 }
 
 // ---------------------------------------------------------------------------
+// Phase 2 — retrieval-quality machinery, all deterministic and keyless.
+//   · supersession  : a replaced item is Archive-only, like stale
+//   · graph boost   : items `related` to a strong match get lifted (recall)
+//   · compression   : use `brief`/sentence-trim to fit more coverage per token
+// ---------------------------------------------------------------------------
+const RELATED_BONUS = 0.4;     // additive, as a fraction of the top base score
+const ANCHOR_FRACTION = 0.5;   // a "strong match" is ≥ this fraction of top score
+
+// Project-local set of ids that some other item declares it supersedes.
+const supersededSet = (pool) => {
+  const s = new Set();
+  for (const i of pool) for (const id of i.supersedes || []) s.add(id);
+  return s;
+};
+
+// Symmetric adjacency from `related` edges (only edges that resolve in-pool).
+function buildAdjacency(pool) {
+  const ids = new Set(pool.map((i) => i.id));
+  const adj = new Map();
+  const link = (a, b) => { if (!adj.has(a)) adj.set(a, new Set()); adj.get(a).add(b); };
+  for (const i of pool) for (const r of i.related || []) if (ids.has(r)) { link(i.id, r); link(r, i.id); }
+  return adj;
+}
+
+const firstSentences = (text, n = 2) =>
+  ((text || '').split(/(?<=[.!?])\s+/).slice(0, n).join(' ')).trim();
+
+// Smallest faithful short form: prefer an authored `brief`, else trim to the
+// first two sentences. Returns null if nothing is genuinely shorter than body.
+function compressedForm(item) {
+  const body = item.body || '';
+  if (item.brief && item.brief.length < body.length) return item.brief;
+  const st = firstSentences(body, 2);
+  return st && st.length < body.length ? st : null;
+}
+
+// ---------------------------------------------------------------------------
 // pack() — the killer function. Given a task, a project, and a token budget,
 // return the minimum useful bundle: warnings that must always travel, then the
-// highest-value items greedily packed until the budget is spent.
+// highest-value items greedily packed (compressing to fit) until budget is spent.
 // ---------------------------------------------------------------------------
 export function pack({ library, task, project, token_budget = 2500, goal }) {
   const taskTerms = tokenize(task).filter((t) => !STOP.has(t));
   const pool = library.filter((i) => i.project === project);
 
-  const scored = pool
-    .map((i) => ({ item: i, s: score(i, taskTerms) }))
-    .sort((a, b) => b.s - a.s);
-
-  const chosen = [];
-  let used = 0;
-  const take = (entry) => {
-    const cost = estimateTokens(entry.item.body) + 12; // +heading overhead
-    if (used + cost > token_budget) return false;
-    chosen.push(entry.item);
-    used += cost;
-    return true;
+  // Base lexical/structural score, then a graph-relatedness boost: an item that
+  // is `related` to a strong match gets lifted — so a load-bearing fact that is
+  // lexically weak but topically adjacent can still earn a place (recall).
+  const baseById = new Map(pool.map((i) => [i.id, score(i, taskTerms)]));
+  const maxBase = Math.max(0, ...baseById.values());
+  const anchorCut = maxBase * ANCHOR_FRACTION;
+  const adj = buildAdjacency(pool);
+  const boosted = (i) => {
+    let s = baseById.get(i.id);
+    const isAnchor = s >= anchorCut && s > 0;
+    if (!isAnchor && maxBase > 0) {
+      for (const nb of adj.get(i.id) || []) {
+        const ns = baseById.get(nb) || 0;
+        if (ns >= anchorCut && ns > 0) { s += RELATED_BONUS * maxBase; break; }
+      }
+    }
+    return s;
   };
 
-  // 1) Always carry the "do-not-break" items for this project.
-  for (const e of scored) if (e.item.always) take(e);
-  // 2) Then fill remaining budget by relevance. Skip zero-signal noise and
-  //    stale items — stale lives in the Archive layer, reachable only via
-  //    expand(), never auto-carried into a pack.
-  for (const e of scored) {
+  const scored = pool
+    .map((i) => ({ item: i, s: boosted(i) }))
+    .sort((a, b) => b.s - a.s);
+
+  const superseded = supersededSet(pool);
+  const fullCost = (i) => estimateTokens(i.body) + 12; // +heading overhead
+  const briefOf = (i) => (i.always ? null : compressedForm(i)); // do-not-break = verbatim
+  const briefCost = (i) => { const b = briefOf(i); return b ? estimateTokens(b) + 12 : null; };
+
+  // Eligible = always items (kept regardless of score) plus relevant items that
+  // are not zero-signal, stale, or SUPERSEDED (archive — expand() only).
+  const eligible = scored.filter(
+    (e) => e.item.always || (e.s > 0 && !e.item.stale && !superseded.has(e.item.id))
+  );
+
+  const chosen = []; // { item, body, compressed, cost }
+  let used = 0;
+  const add = (item, body, compressed, cost) => { chosen.push({ item, body, compressed, cost }); used += cost; };
+
+  // 1) Always carry the "do-not-break" items, verbatim and first (the always-cap
+  //    lint guarantees they fit well under any real budget).
+  for (const e of eligible) if (e.item.always) {
+    const c = fullCost(e.item);
+    if (used + c <= token_budget) add(e.item, e.item.body, false, c);
+  }
+  // 2) Coverage pass: add each remaining item in its SMALLEST faithful form
+  //    (compressed when a brief exists), maximizing how much the pack covers.
+  for (const e of eligible) {
     if (e.item.always) continue;
-    if (e.s <= 0 || e.item.stale) continue;
-    take(e);
+    const bc = briefCost(e.item);
+    const compress = bc != null;
+    const cost = compress ? bc : fullCost(e.item);
+    if (used + cost <= token_budget) add(e.item, compress ? briefOf(e.item) : e.item.body, compress, cost);
+  }
+  // 3) Detail pass: spend leftover budget upgrading compressed items back to full,
+  //    in score order — best fidelity we can afford without dropping coverage. At
+  //    a roomy budget everything upgrades, so the pack is identical to full-text.
+  for (const c of chosen) {
+    if (!c.compressed) continue;
+    const delta = fullCost(c.item) - c.cost;
+    if (used + delta <= token_budget) { c.body = c.item.body; c.compressed = false; c.cost += delta; used += delta; }
   }
 
-  return assemble({ task, project, goal, items: chosen, used, budget: token_budget });
+  const items = chosen.map((c) => (c.compressed ? { ...c.item, body: c.body, compressed: true } : c.item));
+  return assemble({ task, project, goal, items, used, budget: token_budget });
 }
 
 // Bucket selected items into the canonical Context Pack shape.
@@ -156,7 +240,9 @@ function assemble({ task, project, goal, items, used, budget }) {
     section('Warnings', by('warning').map((i) => i.body)) +
     section('Open Questions', by('question').map((i) => i.body)) +
     section('Sources', sources) +
-    `\n\n[pack: ${used}/${budget} tokens · ${items.length} items · expand("topic") for more]`;
+    `\n\n[pack: ${used}/${budget} tokens · ${items.length} items` +
+    `${items.filter((i) => i.compressed).length ? ` · ${items.filter((i) => i.compressed).length} compressed` : ''}` +
+    ` · expand("topic") for more]`;
 
   return { text, used, budget, items };
 }

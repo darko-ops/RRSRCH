@@ -249,14 +249,23 @@ Each phase: **deliverables · success criteria (exit gate) · primary risk.**
 
 ### Phase 2 — Retrieval quality (deepen the moat)
 - **Deliverables:**
-  - Embeddings (local `sqlite-vec` or Voyage AI API) + RRF fusion.
-  - LLM/cross-encoder rerank of top-K (Claude, prompt-cached).
-  - Per-item `brief` generation + on-the-fly compression to fit budget.
-  - Graph-relatedness boost using `related`/`supersedes` edges.
-- **Exit gate:** measurable lift over Phase 1 on recall@budget *and* token
-  efficiency, with task-success up and no mandatory-coverage regressions.
+  - ✅ Per-item `brief` + on-the-fly compression to fit budget (two-pass packer:
+    smallest-form-first for coverage, upgrade-to-full for detail).
+  - ✅ Graph-relatedness boost using `related` edges (neighbors of strong matches
+    are lifted) + supersession-aware exclusion via `supersedes` edges.
+  - ⏳ Embeddings (local `sqlite-vec` or Voyage AI API) + RRF fusion, behind a
+    provider interface with a deterministic keyless fallback.
+  - ⏳ LLM/cross-encoder rerank of top-K (Claude, prompt-cached).
+- **Exit gate (revised):** the Phase-1 eval had **no recall@budget headroom** (the
+  2.5k budget never bit), so a new budget-that-bites case (`06-...-tight`) was
+  added first. Lift is now measurable there: pack holds mandatory-coverage 100%
+  (naive 0%), recall 100% (naive 50%), noise 0%, token-efficiency 6.64 vs 3.34, at
+  ~1/10 of dump's tokens — no regression on the original 10 (byte-identical to
+  `baseline.txt`). Remaining: semantic lift on paraphrased queries (embeddings) +
+  task-success once the judge runs.
 - **Risk:** cost/latency creep. Cache aggressively; keep a deterministic
-  fast-path so packs never *require* an LLM call.
+  fast-path so packs never *require* an LLM call. *(Held: the whole deterministic
+  slice above ships with zero network/LLM/embedding calls.)*
 
 ### Phase 3 — Ingestion & authoring (kill the adoption tax)
 - **Deliverables:**

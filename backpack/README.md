@@ -181,10 +181,22 @@ baseline. **Phase 1 MVP shipped** — the **MCP server**
 (`pack`/`expand`/`sources`/`related`) and **`remember()` write-back** are live and
 covered by an end-to-end client→server test suite (`npm run test:unit`). The
 deterministic eval gates every change on the two safety guarantees
-(mandatory-coverage, no must-not leakage). The kill-switch experiment (bloated
-Helios fixture + solver/judge harness) is built and the deterministic divergence
-is visible; the LLM-judged verdict on task-success still awaits an API-key run.
-Next: hybrid retrieval + embeddings (Phase 2), measured against the eval.
+(mandatory-coverage, no must-not leakage).
+
+**Phase 2 in progress — retrieval quality (deterministic slice shipped).** The
+engine now does **supersession-aware packing** (a replaced item is Archive-only),
+a **graph-relatedness boost** (an item `related` to a strong match is lifted, so a
+lexically-weak but load-bearing fact still earns a place), and **budget-aware
+compression** via a two-pass packer (fill in the smallest faithful form to
+maximize coverage, then upgrade to full text with leftover budget). On the new
+budget-that-bites case, pack matches the full dump's recall at **~1/10 the tokens**
+and beats naive truncation on every metric — *and* keeps the do-not-break
+guarantee naive drops (see [`eval/phase2.txt`](./eval/phase2.txt); the original 10
+cases stay byte-identical to [`eval/baseline.txt`](./eval/baseline.txt), so there's
+no regression). Each mechanism has an isolated unit test. **Next in Phase 2:** a
+pluggable embedding layer (RRF fusion of lexical ⊕ vector) with a deterministic
+keyless fallback — the semantic upgrade for paraphrased queries. The LLM-judged
+kill-switch verdict on task-success still awaits an API-key run.
 
 The selection engine (`lib/engine.js`) is deliberately deterministic and
 inspectable — you can see *why* each item made the pack. Everything else

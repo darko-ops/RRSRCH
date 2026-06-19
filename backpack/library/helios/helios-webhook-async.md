@@ -5,6 +5,7 @@ type: decision
 title: Acknowledge webhooks 200 immediately, process async
 topic: webhook async queue acknowledge 200 immediately processing inline block
 tags: [webhook, async, queue]
+brief: Webhook handler does the minimum synchronously — verify, persist the raw event, return 200 — then runs all downstream work async off a queue keyed by event id. Never process inline or block the 200.
 importance: 4
 supersedes: [helios-old-webhook-inline]
 updated: 2026-06-18
