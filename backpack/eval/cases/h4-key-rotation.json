@@ -1,0 +1,16 @@
+{
+  "id": "h4-key-rotation",
+  "task": "Add customer API-key rotation to Helios.",
+  "project": "Helios",
+  "budget": 2500,
+  "arms": ["dump", "naive", "pack"],
+  "must_have": ["helios-key-dual-window", "helios-key-hash"],
+  "nice_to_have": ["helios-key-scope", "helios-no-pii-in-logs"],
+  "must_not_include": ["helios-old-basic-auth", "vela-clerk-auth"],
+  "rubric": [
+    { "id": "R1", "criterion": "Rotation keeps the previous key valid for a ~24h overlap window (two active keys) so clients roll over without downtime." },
+    { "id": "R2", "criterion": "Keys are stored only as SHA-256 hashes with a short display prefix; the raw key is shown once and never stored or logged." },
+    { "id": "R3", "criterion": "Keys remain scoped to a single tenant." },
+    { "id": "R4", "criterion": "No raw key or secret value is written to logs." }
+  ]
+}

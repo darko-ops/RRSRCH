@@ -1,0 +1,16 @@
+{
+  "id": "h3-dunning",
+  "task": "Implement Helios failed-payment retry and dunning for past-due subscriptions.",
+  "project": "Helios",
+  "budget": 2500,
+  "arms": ["dump", "naive", "pack"],
+  "must_have": ["helios-dunning-schedule", "helios-grace-period"],
+  "nice_to_have": ["helios-idempotency-required", "helios-notif-templates", "helios-no-pii-in-logs"],
+  "must_not_include": ["helios-old-charges-retry", "vela-revenuecat"],
+  "rubric": [
+    { "id": "R1", "criterion": "Retries failed payments on days 1, 3, 5, 7 (max ~4 attempts), then sends the dunning email and marks the subscription past_due." },
+    { "id": "R2", "criterion": "Applies a ~7-day grace period before cutting access and never hard-deletes tenant data on suspension (only flips an access flag)." },
+    { "id": "R3", "criterion": "Treats billing/charge operations idempotently." },
+    { "id": "R4", "criterion": "No raw PII or secret values are written to logs." }
+  ]
+}

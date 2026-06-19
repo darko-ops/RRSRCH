@@ -68,6 +68,43 @@ node cli.js sources "why did we choose Connect Standard?" --project Bouncr
 node cli.js related "merchant onboarding risks"     --project Bouncr
 ```
 
+### Write-back: `remember()`
+
+When an agent learns something durable mid-task, it saves it back so the next
+task inherits it. Plain capture only — **no extraction, no inference** (garbage-in
+risk stays near zero); the result is an ordinary library file the same engine
+packs, lints, and evals. Identical findings are deduped, not duplicated.
+
+```bash
+node cli.js remember "Inbound webhooks must verify the X-Sig-V2 header" \
+  --project Bouncr --title "Webhook v2 signature" --tags webhook,security --importance 4
+```
+
+## Use it from your agent (MCP)
+
+RRSRCH is an **MCP server** — the product is something another agent calls
+mid-task, not an app a human babysits. Point it at *your* repo's library with
+`RRSRCH_LIBRARY`; set a default project with `RRSRCH_PROJECT`.
+
+```bash
+# add it to Claude Code (stdio)
+claude mcp add rrsrch \
+  --env RRSRCH_LIBRARY=/path/to/your/library \
+  --env RRSRCH_PROJECT=Bouncr \
+  -- node /absolute/path/to/RRSRCH/backpack/mcp/server.js
+```
+
+Or run it directly: `npm run mcp` (uses the bundled demo library unless
+`RRSRCH_LIBRARY` is set). The server exposes five tools:
+
+| Tool       | What the agent does                                             |
+|------------|----------------------------------------------------------------|
+| `pack`     | get the minimum useful context for a task, under a token budget |
+| `expand`   | pull more items on a topic (progressive disclosure)             |
+| `sources`  | get the source-backed items behind a topic                     |
+| `related`  | get the neighborhood around a topic                            |
+| `remember` | save a durable finding back into the library                    |
+
 ## The library
 
 Knowledge lives as markdown files under `library/<project>/`, each with
@@ -112,12 +149,42 @@ npm test                # all of the above; CI gate
 
 See [`ROADMAP.md`](./ROADMAP.md) and [`PHASE0.md`](./PHASE0.md).
 
+## The kill-switch experiment (Phase 1, gate)
+
+The seed Bouncr library is too small to test the core thesis — at that size the
+`pack` arm equals the `dump` arm, so "less is more" can't even be measured. The
+**Helios** project is a deliberately bloated, adversarial fixture (~40 items: real
+project conventions as load-bearing facts, lexically-similar distractors, stale +
+cross-project decoys) where the budget genuinely bites.
+
+```bash
+npm run eval          # deterministic: already shows pack ≠ dump on Helios cases
+ANTHROPIC_API_KEY=... npm run experiment   # the judged verdict (task-success)
+```
+
+`npm run experiment` runs each Helios task through all three arms, hands each
+pack to a solver agent, and has an LLM judge (Sonnet 4.6, `temperature: 0`,
+structured output) score the result against a fixed rubric — blind to which arm
+produced it. The two numbers that decide Phase 1:
+
+- **pack > naive on task-success** → the moat is *structure*, not truncation.
+- **pack ≥ dump at far fewer tokens** → "less is more" is a *quality* wedge, not a discount.
+
+If `pack` does not beat `naive`, the thesis fails and the MCP rewrite waits. This
+is a genuine kill-switch, not a formality. (Needs an Anthropic API key; the rest
+of the backpack runs with zero network and zero keys.)
+
 ## Status
 
-**Phase 0 complete** — data model frozen as a JSON contract, library linter with
-the always-cap, and an eval harness that runs against the v0 engine with recorded
-baseline numbers (`eval/baseline.txt`). Next: Phase 1 — TypeScript engine, MCP
-server (`pack`/`expand`/`sources`/`related`), and `remember()` write-back.
+**Phase 0 complete** — frozen schema, always-cap linter, deterministic eval +
+baseline. **Phase 1 MVP shipped** — the **MCP server**
+(`pack`/`expand`/`sources`/`related`) and **`remember()` write-back** are live and
+covered by an end-to-end client→server test suite (`npm run test:unit`). The
+deterministic eval gates every change on the two safety guarantees
+(mandatory-coverage, no must-not leakage). The kill-switch experiment (bloated
+Helios fixture + solver/judge harness) is built and the deterministic divergence
+is visible; the LLM-judged verdict on task-success still awaits an API-key run.
+Next: hybrid retrieval + embeddings (Phase 2), measured against the eval.
 
 The selection engine (`lib/engine.js`) is deliberately deterministic and
 inspectable — you can see *why* each item made the pack. Everything else

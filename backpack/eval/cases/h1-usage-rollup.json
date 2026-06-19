@@ -1,0 +1,16 @@
+{
+  "id": "h1-usage-rollup",
+  "task": "Implement the nightly job that rolls up raw Helios usage events into billable aggregates.",
+  "project": "Helios",
+  "budget": 2500,
+  "arms": ["dump", "naive", "pack"],
+  "must_have": ["helios-rollup-watermark", "helios-late-events"],
+  "nice_to_have": ["helios-usage-schema", "helios-timezone-utc", "helios-idempotency-required", "helios-no-pii-in-logs"],
+  "must_not_include": ["helios-old-hourly-rollup", "vela-stripe-tax"],
+  "rubric": [
+    { "id": "R1", "criterion": "The rollup is idempotent and re-runnable using a per-tenant monotonic watermark, not a sum-from-scratch each run." },
+    { "id": "R2", "criterion": "Late usage events (arriving up to ~72h late) are handled by reopening/re-aggregating the affected period rather than being dropped." },
+    { "id": "R3", "criterion": "Aggregation is done in UTC." },
+    { "id": "R4", "criterion": "No raw PII or secret values are written to logs." }
+  ]
+}

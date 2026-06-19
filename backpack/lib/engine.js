@@ -3,7 +3,7 @@
 // Context Packs. The whole product philosophy lives here — give the agent the
 // SMALLEST useful bundle for the task, plus pointers to get more on demand.
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, extname } from 'node:path';
 
 // ---------------------------------------------------------------------------
@@ -181,3 +181,105 @@ export const sources = ({ library, project, query }) =>
 
 export const related = ({ library, project, query }) =>
   expand({ library, project, query, limit: 8 });
+
+// ---------------------------------------------------------------------------
+// remember() — agent write-back. An agent that learned something durable during
+// a session saves it as a `finding` so the next task inherits it. Deliberately
+// dumb: plain capture + dedup, NO extraction or inference (garbage-in risk near
+// zero — ROADMAP §10.4). The result is a normal library file the same engine
+// packs, lints, and evals; write-back gets no special trust.
+// ---------------------------------------------------------------------------
+const slugify = (s) =>
+  (s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60) || 'finding';
+
+// Normalize body for dedup: an agent re-learning the same fact must NOT spawn a
+// near-identical file every session.
+const normalizeBody = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+// Tiny frontmatter serializer — emits exactly the subset the parser/validator
+// understand (scalars, inline string arrays, booleans). Order is cosmetic.
+function serialize(meta, body) {
+  // Optional fields are omitted when empty; required schema fields (topic, tags)
+  // are ALWAYS emitted — even empty — so write-back can never produce a file the
+  // linter rejects.
+  const opt = (k, v) => {
+    if (v === undefined || v === null || v === '') return null;
+    if (Array.isArray(v)) return v.length ? `${k}: [${v.join(', ')}]` : null;
+    return `${k}: ${v}`;
+  };
+  const fm = [
+    `id: ${meta.id}`,
+    `project: ${meta.project}`,
+    `type: ${meta.type}`,
+    `title: ${meta.title}`,
+    `topic: ${meta.topic || ''}`,
+    `tags: [${(meta.tags || []).join(', ')}]`,
+    `importance: ${meta.importance}`,
+    opt('files', meta.files),
+    opt('source', meta.source),
+    opt('related', meta.related),
+    `provenance: ${meta.provenance}`,
+    `updated: ${meta.updated}`,
+  ].filter(Boolean);
+  return `---\n${fm.join('\n')}\n---\n${body.trim()}\n`;
+}
+
+export function remember({
+  libraryRoot,
+  project,
+  title,
+  body,
+  type = 'finding',
+  topic = '',
+  tags = [],
+  files = [],
+  source = '',
+  importance = 3,
+  related = [],
+  now = new Date().toISOString().slice(0, 10),
+}) {
+  if (!project) throw new Error('remember: project is required');
+  if (!title || !title.trim()) throw new Error('remember: title is required');
+  if (!body || !body.trim()) throw new Error('remember: body is required');
+
+  // Dedup against what's already on disk for this project.
+  const existing = loadLibrary(libraryRoot).filter((i) => i.project === project);
+  const want = normalizeBody(body);
+  const dup = existing.find((i) => normalizeBody(i.body) === want);
+  if (dup) return { item: dup, path: dup.path, created: false };
+
+  // Unique kebab-case id within the project.
+  const taken = new Set(existing.map((i) => i.id));
+  let id = slugify(title);
+  if (taken.has(id)) {
+    let n = 2;
+    while (taken.has(`${id}-${n}`)) n += 1;
+    id = `${id}-${n}`;
+  }
+
+  const meta = {
+    id,
+    project,
+    type,
+    title: title.trim(),
+    topic: topic.trim(),
+    tags: (Array.isArray(tags) ? tags : [tags]).filter(Boolean),
+    importance: Math.max(1, Math.min(5, Number(importance) || 3)),
+    files: (Array.isArray(files) ? files : [files]).filter(Boolean),
+    source: source.trim(),
+    related: (Array.isArray(related) ? related : [related]).filter(Boolean),
+    provenance: 'agent',
+    updated: now,
+  };
+
+  const dir = join(libraryRoot, project.toLowerCase());
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  const path = join(dir, `${id}.md`);
+  writeFileSync(path, serialize(meta, body), 'utf8');
+
+  return { item: { ...meta, body: body.trim(), path }, path, created: true };
+}

@@ -1,0 +1,16 @@
+{
+  "id": "h5-tenant-export",
+  "task": "Build per-tenant data export for Helios (GDPR data-access requests).",
+  "project": "Helios",
+  "budget": 2500,
+  "arms": ["dump", "naive", "pack"],
+  "must_have": ["helios-tenant-isolation", "helios-export-async-signed"],
+  "nice_to_have": ["helios-export-format", "helios-no-pii-in-logs"],
+  "must_not_include": ["helios-old-sync-export", "vela-bigquery-export"],
+  "rubric": [
+    { "id": "R1", "criterion": "Every query and the export are filtered by tenant_id with no cross-tenant data leakage (row-level isolation)." },
+    { "id": "R2", "criterion": "The export runs asynchronously and is delivered via a signed URL that expires (~1h), not streamed synchronously in the request." },
+    { "id": "R3", "criterion": "Export output is JSONL." },
+    { "id": "R4", "criterion": "No raw PII or secret values are written to logs." }
+  ]
+}

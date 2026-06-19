@@ -1,0 +1,16 @@
+{
+  "id": "h2-webhook-receiver",
+  "task": "Build the Helios endpoint that receives inbound payment-provider webhooks.",
+  "project": "Helios",
+  "budget": 2500,
+  "arms": ["dump", "naive", "pack"],
+  "must_have": ["helios-webhook-verify", "helios-webhook-async"],
+  "nice_to_have": ["helios-idempotency-required", "helios-webhook-retry-table", "helios-no-pii-in-logs"],
+  "must_not_include": ["helios-old-webhook-inline", "vela-webhook-svix"],
+  "rubric": [
+    { "id": "R1", "criterion": "Verifies the webhook using the per-endpoint HMAC secret and rejects invalid signatures or timestamp skew over ~5 minutes." },
+    { "id": "R2", "criterion": "Acknowledges with HTTP 200 immediately and processes the event asynchronously (via a queue) rather than processing inline / blocking the response." },
+    { "id": "R3", "criterion": "Treats downstream billing writes idempotently (e.g. via an Idempotency-Key)." },
+    { "id": "R4", "criterion": "No raw PII or secret values are written to logs." }
+  ]
+}

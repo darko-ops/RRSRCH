@@ -16,11 +16,18 @@ const tokenize = (s) => (s || '').toLowerCase().match(/[a-z0-9_]+/g) || [];
 
 const cost = (item) => estimateTokens(item.body) + 12; // match the packer's per-item overhead
 
+// Plain concatenation of selected item texts — how the baseline arms "dump into
+// the prompt". The `pack` arm uses the engine's structured assembly instead;
+// that structure is part of what the experiment tests.
+const assemble = (project, items) =>
+  `Context for project ${project}:\n\n` +
+  items.map((i) => `- [${i.type}] ${i.title}\n  ${i.body}`).join('\n\n');
+
 // pack — the real engine: project-scoped, always-reserved, structurally scored,
 // stale excluded to Archive.
 export function packArm(library, c) {
   const r = pack({ library, task: c.task, project: c.project, token_budget: c.budget });
-  return { name: 'pack', ids: r.items.map((i) => i.id), tokens: r.used };
+  return { name: 'pack', ids: r.items.map((i) => i.id), tokens: r.used, text: r.text };
 }
 
 // dump — "give it everything (scoped)". All non-stale items for the project, up
@@ -33,7 +40,7 @@ export function dumpArm(library, c, ceiling = 8000) {
     if (used + k > ceiling) break;
     chosen.push(item); used += k;
   }
-  return { name: 'dump', ids: chosen.map((i) => i.id), tokens: used };
+  return { name: 'dump', ids: chosen.map((i) => i.id), tokens: used, text: assemble(c.project, chosen) };
 }
 
 // naive — "dump into vector search, similarity only". Pure lexical overlap across
@@ -58,7 +65,7 @@ export function naiveArm(library, c) {
     if (used + k > c.budget) continue; // truncate to budget, keep scanning smaller items
     chosen.push(item); used += k;
   }
-  return { name: 'naive', ids: chosen.map((i) => i.id), tokens: used };
+  return { name: 'naive', ids: chosen.map((i) => i.id), tokens: used, text: assemble(c.project, chosen) };
 }
 
 export const ARMS = { pack: packArm, naive: naiveArm, dump: dumpArm };
