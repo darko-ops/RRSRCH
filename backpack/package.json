@@ -6,7 +6,8 @@
   "license": "Apache-2.0",
   "bin": {
     "rrsrch": "./cli.js",
-    "rrsrch-mcp": "./mcp/server.js"
+    "rrsrch-mcp": "./mcp/server.js",
+    "rrsrch-http": "./http/server.js"
   },
   "scripts": {
     "lint:lib": "node schema/validate.mjs",
@@ -15,6 +16,7 @@
     "experiment": "node eval/run-experiment.mjs",
     "test:unit": "node --test test/",
     "mcp": "node mcp/server.js",
+    "http": "node http/server.js",
     "test": "npm run lint:lib && npm run test:always-cap && npm run eval && npm run test:unit"
   },
   "engines": {

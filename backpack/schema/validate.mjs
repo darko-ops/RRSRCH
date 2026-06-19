@@ -15,6 +15,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, extname, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { estimateTokens } from '../lib/engine.js';
+import { hasSecret } from '../lib/redact.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCHEMA = JSON.parse(readFileSync(join(HERE, 'item.schema.json'), 'utf8'));
@@ -156,7 +157,19 @@ if (errors.length) {
   process.exit(1);
 }
 
+// Stored-secret WARNING (non-fatal): packs redact secret values on the way out,
+// but a raw secret should never have been committed to the library in the first
+// place. Flag it so the author can remove it; don't fail the build on a heuristic.
+const secretWarnings = [];
+for (const { meta, body, path } of items) {
+  if (hasSecret(body) || hasSecret(meta?.title || '')) secretWarnings.push(`${meta?.id || path}: looks like it contains a raw secret value — remove it (packs redact, but don't store secrets)`);
+}
+
 const projects = [...idsByProject.keys()];
 console.log(`✓ library OK — ${items.length} items across ${projects.length} project(s): ${projects.join(', ')}`);
+if (secretWarnings.length) {
+  console.log(`  ⚠ ${secretWarnings.length} stored-secret warning(s):`);
+  for (const w of secretWarnings) console.log('    - ' + w);
+}
 console.log(`  stale (archive-only): ${staleCount}`);
 for (const [project, toks] of alwaysTokens) console.log(`  always-cap ${project}: ${toks}/${BRIEF_CEILING} tok`);

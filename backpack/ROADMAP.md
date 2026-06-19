@@ -289,18 +289,32 @@ Each phase: **deliverables · success criteria (exit gate) · primary risk.**
   `library/`, so an unreviewed candidate cannot reach a pack.
 
 ### Phase 4 — Hosted, team & multi-tenant
+> **Sequencing note (held):** full SaaS is premature until solo users love
+> Phases 1–3 (the risk below). So Phase 4 ships in two parts: the pieces that are
+> right *regardless of users* (a safety guarantee + a measurement loop + the
+> hosting seam) now; the business/infra layer (auth, tenancy, Postgres, web UI)
+> only once there's adoption to justify it.
+
 - **Deliverables:**
-  - SQLite → Postgres + pgvector; migrations.
-  - HTTP API + auth; project/tenant isolation; access policy.
-  - **Secrets redaction** (never pack secret values; the floor_price/target_price
-    guarantee productized) — a headline feature, not an afterthought.
-  - Web UI: browse/edit library, inspect what's packed + trace, usage analytics.
-  - Telemetry feedback loop: `expand` calls = "pack was missing something" →
-    tuning signal.
+  - ✅ **Secrets redaction** (never pack secret values; the floor_price/target_price
+    guarantee productized) — deterministic, always-on, in the OPEN core
+    (`lib/redact.js`); applied to every pack/expand output; linter warns on stored
+    secrets. The headline feature.
+  - ✅ **HTTP API** (`http/server.js`, zero-dep) — the hosting seam: same engine
+    over JSON (`pack`/`expand`/`sources`/`related`/`remember` + `/health`).
+  - ✅ **Telemetry feedback loop** (`lib/telemetry.js`, opt-in) — `expand` calls =
+    "pack was missing something"; JSONL event stream so expansions-over-time is the
+    exit-gate evidence.
+  - ⏳ SQLite → Postgres + pgvector; migrations. *(Deferred — FS store + the
+    loader is the seam; no Postgres stood up until there are users.)*
+  - ⏳ Auth; project/tenant isolation; access policy. *(Deferred — project is
+    already a hard scope; tenancy/auth is the business layer.)*
+  - ⏳ Web UI: browse/edit library, inspect what's packed + trace. *(Deferred.)*
 - **Exit gate:** a team shares a library across members & agents with isolation
-  and audit; expansions trend down over time (packs getting smarter).
+  and audit; expansions trend down over time (packs getting smarter). *(The
+  measurement to prove it now exists; the team/isolation half awaits adoption.)*
 - **Risk:** premature SaaS complexity. Don't start until Phases 1–3 are loved by
-  solo users.
+  solo users. *(Honored — the SaaS infra above is explicitly deferred.)*
 
 ### Phase 5 — Scale & ecosystem
 - **Deliverables:** multi-agent context routing; cross-project knowledge;

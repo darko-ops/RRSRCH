@@ -6,6 +6,7 @@
 import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { cosine } from './embed.js';
+import { redact, redactItem } from './redact.js';
 
 // ---------------------------------------------------------------------------
 // Token accounting. A char/4 heuristic keeps v0 dependency-free; swap in a real
@@ -279,7 +280,10 @@ function assemble({ task, project, goal, items, used, budget }) {
     `${items.filter((i) => i.compressed).length ? ` · ${items.filter((i) => i.compressed).length} compressed` : ''}` +
     ` · expand("topic") for more]`;
 
-  return { text, used, budget, items };
+  // Redaction is a HARD guarantee on the way out: no secret value reaches the
+  // agent, whatever a library item happens to contain. ids/accounting are
+  // unchanged — only secret values in the human-facing text/bodies are masked.
+  return { text: redact(text), used, budget, items: items.map(redactItem) };
 }
 
 // ---------------------------------------------------------------------------
@@ -294,7 +298,7 @@ export function expand({ library, project, query, limit = 5 }) {
     .filter((e) => e.s > 0)
     .sort((a, b) => b.s - a.s)
     .slice(0, limit)
-    .map((e) => e.item);
+    .map((e) => redactItem(e.item)); // progressive disclosure is redacted too
 }
 
 export const sources = ({ library, project, query }) =>

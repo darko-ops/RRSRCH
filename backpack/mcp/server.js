@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { loadLibrary, pack, expand, sources, related, remember } from '../lib/engine.js';
 import { defaultProvider } from '../lib/embed.js';
+import { record } from '../lib/telemetry.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const LIBRARY_ROOT = resolve(process.env.RRSRCH_LIBRARY || join(here, '..', 'library'));
@@ -68,6 +69,7 @@ server.registerTool(
       token_budget: budget ?? 2500,
       embed: EMBED,
     });
+    record({ kind: 'pack', project: resolveProject(project), task, tokens: result.used, items: result.items.length, budget: budget ?? 2500 });
     return text(result.text);
   }
 );
@@ -83,8 +85,12 @@ const discloseTool = (name, fn, desc) =>
         project: projectArg,
       },
     },
-    async ({ query, project }) =>
-      text(asLines(fn({ library: load(), project: resolveProject(project), query })))
+    async ({ query, project }) => {
+      const items = fn({ library: load(), project: resolveProject(project), query });
+      // expand = the pack was missing something — the tuning signal (ROADMAP §7).
+      if (name === 'expand') record({ kind: 'expand', project: resolveProject(project), query, returned: items.length });
+      return text(asLines(items));
+    }
   );
 
 discloseTool('expand', expand, 'Progressive disclosure: pull more library items matching a query (beyond what the pack carried).');

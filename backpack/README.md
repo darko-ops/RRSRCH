@@ -125,6 +125,37 @@ node cli.js accept  "<id>" --project Acme                # promote into the libr
 node cli.js reject  "<id>" --project Acme                # discard
 ```
 
+## Secrets never travel (redaction guarantee)
+
+A context pack must never carry a secret *value* into an agent's prompt. So every
+pack/expand/sources/related output is run through a deterministic redactor
+(`lib/redact.js`): provider keys (`sk_live_…`, `sk-ant-…`, `ghp_…`, AWS/Google),
+PEM private keys, JWTs, credentials in URLs, and `secret=…` assignments are
+replaced with a typed placeholder like `‹redacted:stripe-key›` — the agent learns
+a secret *exists* and its kind, never its value. This is a **guarantee, not
+best-effort** (same discipline as the always-cap), it's always on, and it lives in
+the open core because it protects every user. The library linter also *warns* if a
+raw secret was committed to a note in the first place.
+
+## Run it as an HTTP service
+
+The same engine, over plain JSON — the hosting seam (zero dependencies):
+
+```bash
+RRSRCH_LIBRARY=/path/to/library RRSRCH_PROJECT=Acme npm run http   # :8787
+curl -s localhost:8787/pack -d '{"task":"implement webhooks","budget":2500}'
+```
+
+Routes mirror the tools: `POST /pack · /expand · /sources · /related · /remember`,
+plus `GET /health`. Set `RRSRCH_TELEMETRY=/path/events.jsonl` to record a
+`pack`/`expand` event stream — `expand` calls are the "pack missed something"
+signal, so expansions trending down over time is the evidence packs are improving.
+
+> **Deliberately deferred** (premature until solo users love it): auth,
+> multi-tenant isolation, the Postgres + pgvector store, and a web UI. The HTTP
+> API and a filesystem store are the seam; the rest is the business layer and
+> stays separable.
+
 ## The library
 
 Knowledge lives as markdown files under `library/<project>/`, each with
@@ -230,9 +261,15 @@ MiniLM) and `sqlite-vec` as the vector store at scale.
 a repo (markdown/ADRs + code-comment markers) into a quarantined **review queue**;
 `review`/`accept`/`reject` curate it into the library. Extracted items are
 `provenance: extracted`, low-confidence, importance-capped, and invisible to packs
-until accepted — so garbage-in can't reach a pack (`test/ingest.test.mjs`). **Still
-ahead:** transcript extraction + LLM enrichment of candidates, and the LLM-judged
-kill-switch verdict on task-success (both await an API-key run).
+until accepted — so garbage-in can't reach a pack (`test/ingest.test.mjs`).
+
+**Phase 4 in progress — the right-now slice shipped.** The **secret-redaction
+guarantee** (headline feature, open core), a zero-dep **HTTP API** (hosting seam),
+and opt-in **telemetry** (the exit-gate signal) are live and tested. The heavy SaaS
+infra (auth, multi-tenant isolation, Postgres+pgvector, web UI) is **deliberately
+deferred** per the roadmap's own rule — premature until solo users love Phases 1–3
+— and kept behind clean seams. **Still ahead (key-gated):** transcript ingestion +
+LLM enrichment, LLM rerank, and the LLM-judged kill-switch task-success verdict.
 
 The selection engine (`lib/engine.js`) is deliberately deterministic and
 inspectable — you can see *why* each item made the pack. Everything else
