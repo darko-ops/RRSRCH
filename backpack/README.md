@@ -247,7 +247,7 @@ but the Phase-1 kill-switch (above) **failed to show a quality edge** at N=5: a
 structured `pack` did not beat naive truncation on judged task-success. The
 efficiency + safety guarantees hold; the "structure is a *quality* moat" thesis was
 not demonstrated, so the context-pack direction is parked rather than torn down.
-Everything below is preserved as a recorded result.
+Everything below is preserved as a recorded result. See [`POSTMORTEM.md`](./POSTMORTEM.md).
 
 **Phase 0 complete** — frozen schema, always-cap linter, deterministic eval +
 baseline. **Phase 1 MVP shipped** — the **MCP server**
