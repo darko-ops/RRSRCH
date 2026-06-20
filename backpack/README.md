@@ -209,23 +209,45 @@ project conventions as load-bearing facts, lexically-similar distractors, stale 
 cross-project decoys) where the budget genuinely bites.
 
 ```bash
-npm run eval          # deterministic: already shows pack ≠ dump on Helios cases
-ANTHROPIC_API_KEY=... npm run experiment   # the judged verdict (task-success)
+npm run eval          # deterministic id-overlap metrics (no key)
+npm run experiment    # the judged verdict (task-success); auto-loads ./.env or ../.env
 ```
 
-`npm run experiment` runs each Helios task through all three arms, hands each
-pack to a solver agent, and has an LLM judge (Sonnet 4.6, `temperature: 0`,
-structured output) score the result against a fixed rubric — blind to which arm
-produced it. The two numbers that decide Phase 1:
+`npm run experiment` runs each Helios task through all three arms, hands each pack
+to a solver agent, and has an LLM judge (`temperature: 0`, structured output) score
+the result against a fixed rubric — blind to which arm produced it. It was the gate
+for the quality thesis:
 
 - **pack > naive on task-success** → the moat is *structure*, not truncation.
 - **pack ≥ dump at far fewer tokens** → "less is more" is a *quality* wedge, not a discount.
 
-If `pack` does not beat `naive`, the thesis fails and the MCP rewrite waits. This
-is a genuine kill-switch, not a formality. (Needs an Anthropic API key; the rest
-of the backpack runs with zero network and zero keys.)
+### Result — recorded ([`eval/experiment-openai.txt`](./eval/experiment-openai.txt))
+
+Run on N=5 judged Helios cases (solver `gpt-4o-mini`, judge `gpt-4o`, temp 0):
+
+| arm   | task-success | mean tokens |
+|-------|--------------|-------------|
+| dump  | 88%          | 3192        |
+| naive | 88%          | 2241        |
+| pack  | 85%          | 1798        |
+
+**The experiment failed to show a quality edge.** pack came in −2.5 pts vs naive —
+within N=5 + LLM-judge-variance noise, so *failed to demonstrate*, not *disproven*.
+pack matched dump's task-success at ~56% of the tokens. So what the numbers support
+is an **efficiency + safety** wedge (equal task-success at far fewer tokens, plus
+the do-not-break / no-leakage / redaction guarantees) — **not** the quality wedge
+the thesis predicted. By the project's own rule this trips the kill-switch on
+quality, and the agent-memory / context-pack direction is **parked** on that basis.
+The code and eval stay intact and reproducible — re-run `npm run experiment`.
 
 ## Status
+
+**Direction parked (2026-06-19).** Phases 0–4 are built, tested, and reproducible,
+but the Phase-1 kill-switch (above) **failed to show a quality edge** at N=5: a
+structured `pack` did not beat naive truncation on judged task-success. The
+efficiency + safety guarantees hold; the "structure is a *quality* moat" thesis was
+not demonstrated, so the context-pack direction is parked rather than torn down.
+Everything below is preserved as a recorded result.
 
 **Phase 0 complete** — frozen schema, always-cap linter, deterministic eval +
 baseline. **Phase 1 MVP shipped** — the **MCP server**
@@ -268,8 +290,11 @@ guarantee** (headline feature, open core), a zero-dep **HTTP API** (hosting seam
 and opt-in **telemetry** (the exit-gate signal) are live and tested. The heavy SaaS
 infra (auth, multi-tenant isolation, Postgres+pgvector, web UI) is **deliberately
 deferred** per the roadmap's own rule — premature until solo users love Phases 1–3
-— and kept behind clean seams. **Still ahead (key-gated):** transcript ingestion +
-LLM enrichment, LLM rerank, and the LLM-judged kill-switch task-success verdict.
+— and kept behind clean seams.
+
+**The kill-switch has now run** (see the result table above): it failed to show a
+quality edge, so the remaining roadmap work (transcript ingestion, LLM enrichment,
+LLM rerank, hosted SaaS) is parked rather than pursued.
 
 The selection engine (`lib/engine.js`) is deliberately deterministic and
 inspectable — you can see *why* each item made the pack. Everything else

@@ -28,12 +28,20 @@ install tools themselves, and they're reachable. Teams/hosted come later.
 **Distribution:** MCP server first. The product is something *another agent
 calls mid-task*, not an app a human babysits.
 
-**The wedge is quality, not cost.** With 200k windows + prompt caching, "fewer
-tokens" is a *cost* argument, and cost-optimizers are commoditizable. Our actual
-claim is stronger: **more context degrades the agent** (distraction,
-lost-in-the-middle), so a 2.5k structured Pack *beats* an 8k dump on
-**task-success** — not just on price. If that's true we have a quality product;
-if it only wins on tokens we have a discount. Proving this is experiment #1 (§6).
+**The wedge was meant to be quality, not cost.** With 200k windows + prompt
+caching, "fewer tokens" is a *cost* argument, and cost-optimizers are
+commoditizable. The stronger claim was: **more context degrades the agent**
+(distraction, lost-in-the-middle), so a 2.5k structured Pack *beats* an 8k dump on
+**task-success** — not just on price. Experiment #1 (§6) was the gate for that claim.
+
+> **Result (2026-06-19, recorded — `eval/experiment-openai.txt`):** at N=5 the
+> experiment **failed to show a quality edge** — pack 85% vs naive 88% vs dump 88%
+> task-success, pack at ~56% of dump's tokens. This is *failed to demonstrate*, not
+> *disproven* (N=5, LLM-judge variance), but it is the kill-switch tripping on the
+> quality thesis. What the data supports is an **efficiency + safety** wedge (equal
+> task-success at far fewer tokens, plus the do-not-break / no-leakage / redaction
+> guarantees) — a feature, not a moat. The direction is **parked** on this basis;
+> the roadmap below is preserved as the original plan, not an active commitment.
 
 **Why we can win:** the moat isn't storage (commodity) — it's the **index +
 budget-aware packing + safety guarantees**, validated by an eval harness most

@@ -36,21 +36,21 @@ const POINTS = { met: 1, partial: 0.5, missing: 0 };
 
 export async function judge(client, task, solution, rubric) {
   const rubricText = rubric.map((r) => `(${r.id}) ${r.criterion}`).join('\n');
-  const msg = await client.messages.create({
+  const res = await client.chat.completions.create({
     model: JUDGE_MODEL,
     max_tokens: 1500,
     temperature: 0,
-    thinking: { type: 'disabled' },
-    system: SYSTEM,
-    messages: [{
-      role: 'user',
-      content: `TASK: ${task}\n\nSOLUTION:\n${solution}\n\nRUBRIC (return a verdict for EVERY id):\n${rubricText}`,
-    }],
-    output_config: { format: { type: 'json_schema', schema: SCHEMA } },
+    messages: [
+      { role: 'system', content: SYSTEM },
+      {
+        role: 'user',
+        content: `TASK: ${task}\n\nSOLUTION:\n${solution}\n\nRUBRIC (return a verdict for EVERY id):\n${rubricText}`,
+      },
+    ],
+    response_format: { type: 'json_schema', json_schema: { name: 'rubric_verdict', strict: true, schema: SCHEMA } },
   });
 
-  const text = msg.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
-  const parsed = JSON.parse(text);
+  const parsed = JSON.parse(res.choices[0]?.message?.content || '{"criteria":[]}');
   const byId = new Map(parsed.criteria.map((c) => [c.id, c]));
   let score = 0;
   for (const r of rubric) score += POINTS[byId.get(r.id)?.verdict ?? 'missing'] ?? 0;

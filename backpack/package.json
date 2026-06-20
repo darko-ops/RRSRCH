@@ -13,7 +13,7 @@
     "lint:lib": "node schema/validate.mjs",
     "test:always-cap": "node schema/validate.mjs schema/fixtures/over-always && echo 'ERROR: over-always fixture should have FAILED' && exit 1 || echo 'ok: always-cap lint correctly rejected the fixture'",
     "eval": "node eval/run.mjs",
-    "experiment": "node eval/run-experiment.mjs",
+    "experiment": "node --env-file-if-exists=.env --env-file-if-exists=../.env eval/run-experiment.mjs",
     "test:unit": "node --test test/",
     "mcp": "node mcp/server.js",
     "http": "node http/server.js",
@@ -23,7 +23,8 @@
     "node": ">=18"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.105.0"
+    "@anthropic-ai/sdk": "^0.105.0",
+    "openai": "^6.44.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

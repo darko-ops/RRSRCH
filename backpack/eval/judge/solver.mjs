@@ -15,16 +15,17 @@ specific Helios decisions/constraints you will follow, and the safeguards you wi
 (name the rules you're applying); do not pad.`;
 
 export async function solve(client, task, packText) {
-  const msg = await client.messages.create({
+  const res = await client.chat.completions.create({
     model: SOLVER_MODEL,
     max_tokens: 1500,
     temperature: 0,
-    thinking: { type: 'disabled' },
-    system: SYSTEM,
-    messages: [{
-      role: 'user',
-      content: `TASK: ${task}\n\n=== CONTEXT PACK ===\n${packText}\n=== END CONTEXT PACK ===\n\nWrite the implementation plan now.`,
-    }],
+    messages: [
+      { role: 'system', content: SYSTEM },
+      {
+        role: 'user',
+        content: `TASK: ${task}\n\n=== CONTEXT PACK ===\n${packText}\n=== END CONTEXT PACK ===\n\nWrite the implementation plan now.`,
+      },
+    ],
   });
-  return msg.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
+  return (res.choices[0]?.message?.content || '').trim();
 }

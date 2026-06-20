@@ -13,7 +13,8 @@
 //   pack >= dump at far fewer tokens → "less is more" holds (quality wedge, not a discount)
 // If pack does NOT beat naive, the thesis fails — do not build the MCP server yet.
 //
-// Requires ANTHROPIC_API_KEY. Deterministic-ish: Sonnet 4.6, temperature 0.
+// Requires OPENAI_API_KEY (auto-loaded from ./.env or ../.env by `npm run
+// experiment`). Deterministic-ish: temperature 0 (not bit-for-bit identical).
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';

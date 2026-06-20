@@ -1,0 +1,36 @@
+RRSRCH kill-switch — judged task-success (recorded 2026-06-19, run 1)
+solver=gpt-4o-mini  judge=gpt-4o  temperature=0  N=5 judged Helios cases
+(Harness ported from Anthropic→OpenAI to run on the available key. This is a
+DIRECTIONAL result: N=5 + LLM-judge variance; the ROADMAP says trust these only
+as direction until the set grows and recall@budget is shown to track task-success.)
+============================================================
+
+● h1-usage-rollup   dump 100%@3192  naive 100%@2499  pack 63%@2064
+● h2-webhook-receiver dump 100%@3192  naive 75%@2207  pack 100%@1473
+● h3-dunning        dump 63%@3192   naive 63%@1810   pack 88%@1481
+● h4-key-rotation   dump 75%@3192   naive 100%@2195  pack 100%@1660
+● h5-tenant-export  dump 100%@3192  naive 100%@2494  pack 75%@2312
+
+VERDICT — mean task-success (and mean tokens):
+  dump   88%  @ 3192 tok
+  naive  88%  @ 2241 tok
+  pack   85%  @ 1798 tok
+
+  pack vs naive: -2.5 pts  → NO quality lift (structure-is-the-moat NOT shown)
+  pack vs dump:  -2.5 pts  → dump ties at ~1.8x the tokens (wedge is efficiency, not quality)
+
+KILL-SWITCH TRIPPED on the quality thesis.
+
+HONEST READING:
+- The "structured pack beats a dump on task-success" (quality) claim is NOT
+  supported at this N/model. pack ≈ naive ≈ dump on success.
+- The efficiency + safety wedge HOLDS: pack matches dump's success at ~56% of the
+  tokens, with the do-not-break / no-leakage / redaction guarantees on top.
+- pack WON the scope-sensitive cases (h2 webhook, h3 dunning) and LOST the broad
+  cases (h1 rollup, h5 export) by dropping rubric-relevant BREADTH that naive's
+  wider truncation kept — despite pack having 100% recall@budget on the labelled
+  must_have set. So recall@budget did NOT predict task-success here: the rubric
+  needs more than the must-haves. This is the concrete thing to fix next.
+- Caveats: N=5 (noisy), gpt-4o-mini is a strong solver that can absorb a messy
+  dump, and this is OpenAI not the Claude the design assumed. Re-run with a larger
+  set and/or Claude before treating -2.5 pts as conclusive.
