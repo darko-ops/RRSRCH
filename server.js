@@ -163,8 +163,17 @@ app.get('/api/stock/:symbol', async (req, res) => {
 // API endpoint to fetch stock quotes from Finnhub
 app.get('/api/stocks', async (req, res) => {
   try {
-    // AI-specific stocks: GPU makers, cloud AI providers, AI chip companies
-    const stockSymbols = ['NVDA', 'AMD', 'MSFT', 'GOOGL', 'META', 'AVGO', 'TSLA', 'ORCL', 'PLTR', 'C3.AI'];
+    // All stocks from all presets (AI & Chips, Robotics, Defense, Energy & Power)
+    const stockSymbols = [
+      // AI & Chips
+      'NVDA', 'AMD', 'AVGO', 'TSM', 'INTC', 'QCOM', 'MU', 'SNOW', 'SMCI', 'GOOGL', 'PLTR', 'CLS',
+      // Robotics
+      'SYM', 'KYCCF', 'ISRG', 'ZBRA', 'PATH', 'EMR', 'TRMB', 'OMCL', 'LECO', 'ABB',
+      // Defense
+      'LMT', 'RTX', 'NOC', 'GD', 'HWM', 'AXON', 'HII', 'KTOS', 'AVAV',
+      // Energy & Power
+      'NEE', 'GEV', '300274.SZ', 'FSLR', 'BE', 'ADANIGREEN.NS', 'BEP', 'VWS.CO', '916.HK', 'EDPR.LS', 'CVX', 'XOM', 'BP', 'SLRP', 'SLDP'
+    ];
     const API_KEY = process.env.FINNHUB_API_KEY;
 
     if (!API_KEY) {

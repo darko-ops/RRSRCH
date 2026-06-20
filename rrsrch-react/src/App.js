@@ -438,57 +438,7 @@ function ArticleView({ post, onBack, relatedPosts, onSelectPost }) {
         );
       }
 
-      // Check for Source: URL pattern - match and replace entire line
-      if (line.match(/Source:/i) && line.match(/https?:\/\//)) {
-        // First try to match markdown link syntax: [text](url)
-        const markdownMatch = line.match(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/);
-        if (markdownMatch) {
-          const cleanUrl = markdownMatch[2].trim();
-          return (
-            <div key={lineIndex} style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #333' }}>
-              <span style={{ color: '#666' }}>Source: </span>
-              <a
-                href={cleanUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  color: '#00ff88',
-                  textDecoration: 'none',
-                  borderBottom: '1px solid #00ff88'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-              >
-                Here
-              </a>
-            </div>
-          );
-        }
-        // Fallback to plain URL matching
-        const urlMatch = line.match(/(https?:\/\/[^\s)]+)/);
-        if (urlMatch) {
-          const cleanUrl = urlMatch[1].replace(/[.,;:)}\]]+$/, ''); // Remove trailing punctuation
-          return (
-            <div key={lineIndex} style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #333' }}>
-              <span style={{ color: '#666' }}>Source: </span>
-              <a
-                href={cleanUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  color: '#00ff88',
-                  textDecoration: 'none',
-                  borderBottom: '1px solid #00ff88'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-              >
-                Here
-              </a>
-            </div>
-          );
-        }
-      }
+ 
 
       // Handle bold text and inline URLs within regular lines
       const parts = line.split(/(\*\*.*?\*\*|https?:\/\/[^\s]+)/g);
@@ -579,97 +529,70 @@ function ArticleView({ post, onBack, relatedPosts, onSelectPost }) {
           <h3 style={{
             fontSize: '14px',
             color: '#444',
-            marginBottom: '30px',
+            marginBottom: '20px',
             letterSpacing: '1px',
-            textTransform: 'uppercase'
+            textTransform: 'uppercase',
+            fontWeight: 600
           }}>
             Related Transmissions
           </h3>
-          {relatedPosts.map((related) => (
-            <div
-              key={related.id}
-              onClick={() => onSelectPost && onSelectPost(related)}
-              style={{
-                marginBottom: '20px',
-                paddingBottom: '20px',
-                borderBottom: '1px solid #111',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = '0.7';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = '1';
-              }}
-            >
-              <div style={{ fontSize: '16px', color: '#fff', marginBottom: '8px' }}>{related.title}</div>
-              <div style={{ fontSize: '13px', color: '#666' }}>{related.excerpt.substring(0, 100)}...</div>
-            </div>
-          ))}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+            gap: '20px'
+          }}>
+            {relatedPosts.map((related) => (
+              <div
+                key={related.id}
+                onClick={() => onSelectPost && onSelectPost(related)}
+                style={{
+                  background: 'rgba(0,0,0,0.3)',
+                  border: '1px solid #222',
+                  borderRadius: '8px',
+                  padding: '15px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = '#444';
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = '#222';
+                  e.currentTarget.style.background = 'rgba(0,0,0,0.3)';
+                }}
+              >
+                <div style={{
+                  fontSize: '11px',
+                  color: '#666',
+                  marginBottom: '8px',
+                  fontFamily: theme.fonts.mono
+                }}>
+                  {new Date(related.date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')}
+                </div>
+                <h4 style={{
+                  fontSize: '15px',
+                  color: '#fff',
+                  margin: '0',
+                  fontWeight: 600,
+                  lineHeight: '1.4'
+                }}>
+                  {related.title}
+                </h4>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function LiveTable({ selectedTopic, selectedPreset }) {
+function LiveTable({ selectedTopic }) {
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const isFirstFetch = useRef(true);
-
-  // Preset symbol mappings
-  const presetSymbols = {
-    'AI & Chips': [
-      'NVDA',   // Nvidia
-      'AMD',    // Advanced Micro Devices
-      'AVGO',   // Broadcom
-      'TSM',    // Taiwan Semiconductor Manufacturing Company
-      'INTC',   // Intel
-      'QCOM',   // Qualcomm
-      'MU',     // Micron Technology
-      'SNOW',   // Snowflake
-      'SMCI',   // Super Micro Computer
-      'GOOGL',  // Alphabet (Google)
-      'PLTR',   // Palantir Technologies
-      'CLS'     // Celestica
-    ],
-    'Robotics': [
-      'SYM',    // Symbotic
-      'KYCCF',  // Keyence
-      'ISRG',   // Intuitive Surgical
-      'ZBRA',   // Zebra Technologies
-      'PATH',   // UiPath
-      'EMR',    // Emerson Electric
-      'TRMB',   // Trimble
-      'OMCL',   // Omnicell
-      'LECO',   // Lincoln Electric Holdings
-      'ABB'     // ABB
-    ],
-    'Defense': [
-      'LMT',    // Lockheed Martin
-      'RTX',    // Raytheon
-      'NOC',    // Northrop Grumman
-      'GD',     // General Dynamics
-      'HWM',    // Howmet Aerospace
-      'AXON',   // Axon Enterprise
-      'HII',    // Huntington Ingalls Industries
-      'KTOS',   // Kratos Defense & Security
-      'AVAV'    // AeroVironment
-    ],
-    'Energy & Power': [
-      'NEE',    // NextEra Energy
-      'GEV',    // GE Vernova
-      'FSLR',   // First Solar
-      'BE',     // Bloom Energy
-      'BEP',    // Brookfield Renewable Partners
-      'CVX',    // Chevron
-      'XOM',    // Exxon Mobil
-      'BP',     // BP
-      'SRLP'    // Solid Power
-    ],
-  };
 
   useEffect(() => {
     const fetchAssets = async () => {
@@ -800,12 +723,6 @@ function LiveTable({ selectedTopic, selectedPreset }) {
           }
         }
 
-        // Apply preset filter if selected
-        if (selectedPreset && selectedPreset !== 'All' && presetSymbols[selectedPreset]) {
-          const presetList = presetSymbols[selectedPreset];
-          allAssets = allAssets.filter(asset => presetList.includes(asset.symbol));
-        }
-
         if (allAssets.length > 0) {
           setAssets(allAssets);
           setLastUpdate(new Date());
@@ -823,7 +740,7 @@ function LiveTable({ selectedTopic, selectedPreset }) {
     const interval = setInterval(fetchAssets, 30000); // 30 second auto-refresh (to avoid rate limits)
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTopic, selectedPreset]);
+  }, [selectedTopic]);
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('en-US', {
@@ -1003,6 +920,84 @@ function LiveTable({ selectedTopic, selectedPreset }) {
                 <span>·</span>
                 <span>
                   {positiveCount} Up, {negativeCount} Down
+                </span>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {selectedTopic === 'Stocks' && assets.length > 0 && (
+        <div style={{
+          background: 'rgba(0,0,0,0.3)',
+          border: '1px solid #222',
+          borderRadius: '6px',
+          padding: '12px 16px',
+          marginBottom: '20px',
+          fontSize: '12px',
+          fontFamily: theme.fonts.mono,
+          color: '#aaa',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '20px',
+          flexWrap: 'wrap'
+        }}>
+          <span style={{ color: '#666', fontWeight: 600 }}>Stock Market:</span>
+          {(() => {
+            const positiveCount = assets.filter(a => a.change > 0).length;
+            const negativeCount = assets.filter(a => a.change < 0).length;
+            const sessionSentiment = positiveCount > negativeCount ? 'Bullish' : negativeCount > positiveCount ? 'Bearish' : 'Mixed';
+            const sentimentColor = sessionSentiment === 'Bullish' ? '#00ff88' : sessionSentiment === 'Bearish' ? '#ff4444' : '#ffa500';
+
+            return (
+              <>
+                <span style={{ color: sentimentColor, fontWeight: 600 }}>{sessionSentiment}</span>
+                <span>·</span>
+                <span>
+                  {positiveCount} Up, {negativeCount} Down
+                </span>
+                <span>·</span>
+                <span>
+                  {assets.length} Total Stocks
+                </span>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {selectedTopic === 'ETFs' && assets.length > 0 && (
+        <div style={{
+          background: 'rgba(0,0,0,0.3)',
+          border: '1px solid #222',
+          borderRadius: '6px',
+          padding: '12px 16px',
+          marginBottom: '20px',
+          fontSize: '12px',
+          fontFamily: theme.fonts.mono,
+          color: '#aaa',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '20px',
+          flexWrap: 'wrap'
+        }}>
+          <span style={{ color: '#666', fontWeight: 600 }}>ETF Market:</span>
+          {(() => {
+            const positiveCount = assets.filter(a => a.change > 0).length;
+            const negativeCount = assets.filter(a => a.change < 0).length;
+            const sessionSentiment = positiveCount > negativeCount ? 'Bullish' : negativeCount > positiveCount ? 'Bearish' : 'Mixed';
+            const sentimentColor = sessionSentiment === 'Bullish' ? '#00ff88' : sessionSentiment === 'Bearish' ? '#ff4444' : '#ffa500';
+
+            return (
+              <>
+                <span style={{ color: sentimentColor, fontWeight: 600 }}>{sessionSentiment}</span>
+                <span>·</span>
+                <span>
+                  {positiveCount} Up, {negativeCount} Down
+                </span>
+                <span>·</span>
+                <span>
+                  {assets.length} Total ETFs
                 </span>
               </>
             );
@@ -3813,7 +3808,6 @@ function App() {
   const [selectedPage, setSelectedPage] = useState('NEWS');
   const [selectedTopic, setSelectedTopic] = useState('All');
   const [selectedSubsection, setSelectedSubsection] = useState(null);
-  const [selectedPreset, setSelectedPreset] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredEntity, setHoveredEntity] = useState(null);
   const [selectedEntity, setSelectedEntity] = useState(null);
@@ -3898,16 +3892,11 @@ function App() {
       setSelectedTopic('Software');
     } else if (selectedPage === 'TERMINAL') {
       setSelectedTopic('Markets');
-      setSelectedPreset('All');
     } else if (selectedPage === 'NEWS') {
       setSelectedTopic('All');
     }
   }, [selectedPage]);
 
-  // Reset preset when topic changes
-  useEffect(() => {
-    setSelectedPreset('All');
-  }, [selectedTopic]);
 
   // Check for OAuth callback and restore user session
   useEffect(() => {
@@ -4661,66 +4650,7 @@ function App() {
                 ))}
               </div>
 
-              {/* Preset Filters Row - Only show on TERMINAL page for Stocks */}
-              {selectedPage === 'TERMINAL' && (selectedTopic === 'Stocks' || selectedTopic === 'ETFs') && (
-                <div style={{
-                  display: 'flex',
-                  gap: '8px',
-                  marginBottom: '30px',
-                  overflowX: 'auto',
-                  paddingBottom: '10px'
-                }}>
-                  <span style={{
-                    fontSize: '11px',
-                    color: '#555',
-                    padding: '8px 12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    fontFamily: theme.fonts.mono,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}>
-                    Presets:
-                  </span>
-                  {['All', 'AI & Chips', 'Robotics', 'Defense', 'Energy & Power'].map((preset) => (
-                    <button
-                      key={preset}
-                      onClick={() => setSelectedPreset(preset)}
-                      style={{
-                        background: selectedPreset === preset ? 'rgba(0,255,136,0.1)' : 'transparent',
-                        border: selectedPreset === preset ? '1px solid rgba(0,255,136,0.3)' : '1px solid #222',
-                        borderRadius: '16px',
-                        color: selectedPreset === preset ? '#00ff88' : '#666',
-                        padding: '6px 14px',
-                        cursor: 'pointer',
-                        fontSize: '11px',
-                        fontFamily: theme.fonts.main,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                        whiteSpace: 'nowrap',
-                        transition: 'all 0.2s ease',
-                        fontWeight: selectedPreset === preset ? 600 : 400
-                      }}
-                      onMouseEnter={(e) => {
-                        if (selectedPreset !== preset) {
-                          e.currentTarget.style.borderColor = '#333';
-                          e.currentTarget.style.color = '#aaa';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (selectedPreset !== preset) {
-                          e.currentTarget.style.borderColor = '#222';
-                          e.currentTarget.style.color = '#666';
-                        }
-                      }}
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Two Column Layout: Content + Sidebar */}
+              {/* Two Column Layout: Content + Sidebar */}}
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
@@ -4730,7 +4660,7 @@ function App() {
                 <div>
                   {selectedPage === 'TERMINAL' ? (
                   <>
-                    <LiveTable selectedTopic={selectedTopic} selectedPreset={selectedPreset} />
+                    <LiveTable selectedTopic={selectedTopic} />
 
                     {/* Recommended Articles Section */}
                     <div style={{ marginTop: '60px' }}>
