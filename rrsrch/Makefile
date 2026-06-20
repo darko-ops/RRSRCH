@@ -1,4 +1,5 @@
 .PHONY: up down migrate test eval lint
+PYTHON ?= python3
 
 up:            ## start Postgres+pgvector and the app (migrates on boot)
 	docker compose up -d --build
@@ -10,10 +11,10 @@ migrate:       ## run DB migrations against a running Postgres
 	alembic upgrade head
 
 test:          ## run the unit tests (offline; no Postgres needed)
-	python -m pytest -q
+	$(PYTHON) -m pytest -q
 
 eval:          ## run the matching eval and print the three exit numbers
-	PYTHONPATH=src python eval/run_eval.py
+	PYTHONPATH=src $(PYTHON) -m eval.run_eval
 
 lint:
 	ruff check src tests eval && mypy src
