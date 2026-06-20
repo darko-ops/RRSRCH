@@ -9,6 +9,7 @@ on:
   pull_request:
     paths:
       - 'backpack/**'
+      - '.github/workflows/backpack.yml'
 
 jobs:
   test:
@@ -21,5 +22,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      # Zero runtime dependencies — `npm test` runs lint:lib + always-cap + eval.
+          cache: npm
+          cache-dependency-path: backpack/package-lock.json
+      # The engine/eval are dependency-free, but the MCP server + its smoke test
+      # need @modelcontextprotocol/sdk + zod, so install from the lockfile first.
+      - run: npm ci
+      # npm test = lint:lib + always-cap + eval + the unit/MCP test suite.
       - run: npm test
