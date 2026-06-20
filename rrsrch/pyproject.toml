@@ -1,0 +1,54 @@
+[project]
+name = "rrsrch"
+version = "0.1.0"
+description = "rrsrch — a shared, agent-populated research corpus. Phase 0: single-player memory that proves reuse works and measures the token savings."
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "sqlalchemy[asyncio]>=2.0.30",
+    "asyncpg>=0.29",
+    "alembic>=1.13",
+    "pgvector>=0.3.0",
+    "fastapi>=0.111",
+    "uvicorn>=0.30",
+    "mcp>=1.0.0",
+    "sentence-transformers>=3.0",
+    "numpy>=1.26",
+    "tiktoken>=0.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "hypothesis>=6.100",
+    "ruff>=0.5",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+rrsrch-mcp = "rrsrch.mcp_server:main"
+rrsrch-api = "rrsrch.api:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rrsrch"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["rrsrch"]
+mypy_path = "src"
+ignore_missing_imports = true
