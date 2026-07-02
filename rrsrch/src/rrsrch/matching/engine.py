@@ -40,9 +40,24 @@ async def rank(
     """Scope-gated, fused, ranked candidates (no threshold applied yet)."""
     qemb = (await encode_async(embedder, [query]))[0]  # off-loop: model inference blocks
     pool = await store.candidate_pool(np.asarray(qemb), query, k)
+    # implicit scope of the incoming query: extracted once, deterministic
+    q_tags = scope.effective_tags(query, query_scope)
     matches: list[Match] = []
     for rec in pool:
         if scope.conflicts(query_scope, rec.scope):   # HARD GATE, before similarity
+            continue
+        # implicit-scope HARD GATE (Phase 2): scope living in the prose gates
+        # exactly like declared scope — "in Rust" vs "in CSS" never matches,
+        # no matter the embedding similarity. NULL inferred_scope (pre-0004
+        # rows) is inferred on read until the backfill runs.
+        c_tags = (
+            {d: set(v) for d, v in rec.inferred_scope.items()}
+            if rec.inferred_scope is not None else scope.infer(rec.query)
+        )
+        for dim in scope.DIMENSIONS:
+            if rec.scope and dim in rec.scope:
+                c_tags[dim] = {str(rec.scope[dim]).strip().lower()}
+        if scope.implicit_conflicts(q_tags, c_tags):
             continue
         vec = cosine(qemb, rec.embedding)
         lex = lexical_score(query, rec.query)

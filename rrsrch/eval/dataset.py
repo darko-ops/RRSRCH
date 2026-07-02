@@ -214,3 +214,74 @@ INTENT_PRESERVING = [
      "Run the shell function `deactivate`.",
      "How do I exit a Python virtualenv?"),
 ]
+
+# IMPLICIT-SCOPE-CONFLICT: same task shape, different tech/os/product living in
+# the QUERY PROSE (no declared scope) — embeds close; only the implicit-scope
+# gate can catch these. (id, deposited query, claim, probe query); the probe
+# must NOT be served the deposited claim.
+IMPLICIT_SCOPE_CONFLICT = [
+    # language
+    ("lang-sort", "How do I sort a list in Python?", "Use sorted() or list.sort().",
+     "How do I sort a list in Java?"),
+    ("lang-profile", "How do I profile memory usage in Rust?",  # the flywheel pair
+     "Use heaptrack or dhat with a profiling build.",
+     "How do I profile memory usage in CSS?"),
+    ("lang-json", "How do I parse JSON in Rust?", "Use serde_json::from_str.",
+     "How do I parse JSON in PHP?"),
+    ("lang-loop", "How do I write a for loop in Bash?", "for x in ...; do ...; done",
+     "How do I write a for loop in Haskell?"),
+    ("lang-image", "How do I resize an image in Swift?", "Use UIGraphicsImageRenderer.",
+     "How do I resize an image in Kotlin?"),
+    ("lang-venv", "How do I create a virtual environment in Python?",
+     "python -m venv .venv", "How do I create a virtual environment in Ruby?"),
+    ("lang-csv", "How to read a CSV in Excel", "Data → From Text/CSV.",
+     "How to read a CSV in Perl"),
+    ("lang-cron", "How do I schedule a cron job in Go?",  # context-bigram coverage
+     "Use robfig/cron or a time.Ticker.", "How do I schedule a cron job in R?"),
+    # platform / os
+    ("os-docker", "How to install Docker on Ubuntu 22.04",
+     "apt-get install docker-ce from Docker's repo.",
+     "How to install Docker on Alpine"),
+    ("os-envvar", "How to set environment variables on Windows",
+     "setx NAME value (or System Properties).",
+     "How to set environment variables on macOS"),
+    # technology / product
+    ("tech-db", "How do I connect to Postgres from Node.js?",
+     "Use the pg Pool with a connection string.",
+     "How do I connect to MySQL from Node.js?"),
+    ("tech-framework", "How to deploy a Flask app on Ubuntu",
+     "gunicorn behind nginx via systemd.",
+     "How to deploy a Django app on Ubuntu"),
+    ("tech-version", "How do I check the Redis version?", "redis-server --version.",
+     "How do I check the MySQL version?"),
+    ("tech-lts", "What is the newest Ubuntu LTS release?",  # the cross-dimension pair
+     "Ubuntu 26.04 LTS.", "What is the newest Django LTS release?"),
+]
+
+# IMPLICIT-SCOPE-PRESERVING: same subject named differently (aliases) or named
+# on only one side — the gate must NOT fire. (id, deposited query, claim, probe.)
+IMPLICIT_SCOPE_PRESERVING = [
+    ("keep-s3-alias", "How do I enable S3 bucket versioning?",
+     "PutBucketVersioning with Status=Enabled.",
+     "How do I turn on Amazon S3 versioning?"),
+    ("keep-pg-alias", "What is the latest PostgreSQL major version?",
+     "PostgreSQL 18.", "newest postgres major release"),
+    ("keep-k8s-alias", "How do I list Kubernetes pods?",
+     "kubectl get pods -A.", "how to list pods in k8s"),
+    ("keep-node-alias", "What is the current Node.js LTS version?",
+     "Node.js 24 (LTS line).", "what Node version is in LTS right now"),
+    ("keep-cpython", "What is the Python GIL?",
+     "CPython's mutex allowing one thread to run bytecode at a time.",
+     "purpose of the GIL in CPython"),
+    ("keep-onesided-git", "How do I squash commits with git rebase?",
+     "git rebase -i, mark squash/fixup, force-push with lease.",
+     "squashing several commits into one using rebase"),
+    ("keep-docker-rich", "How to install Docker Engine on Ubuntu 22.04",
+     "apt-get install docker-ce docker-ce-cli containerd.io.",
+     "Installing Docker on Ubuntu"),
+    ("keep-s3-price", "How much does S3 Standard storage cost per gigabyte?",
+     "$0.023 per GB-month.", "S3 Standard per-GB monthly cost"),
+    ("keep-onesided-jwt", "How do I verify a JWT signature?",
+     "Fetch JWKS, select key by kid, verify alg+signature, check claims.",
+     "verifying a JSON Web Token's signature"),
+]

@@ -91,6 +91,9 @@ class DepositRecord:
     retired_at: datetime | None = None
     superseded_by: UUID | None = None
     topic_id: str | None = None
+    # scope extracted from the deposit's QUERY PROSE at deposit time (Phase 2);
+    # declared `scope` stays authoritative, this supplements it for the gate.
+    inferred_scope: dict[str, list[str]] | None = None
 
     @staticmethod
     def new(**kw: Any) -> "DepositRecord":

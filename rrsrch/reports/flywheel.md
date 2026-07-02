@@ -1,6 +1,6 @@
 # rrsrch — flywheel curve on synthetic-but-honest traffic
 
-*Generated 2026-07-02 18:12 UTC by `scripts/flywheel_report.py` from a real run:
+*Generated 2026-07-02 18:38 UTC by `scripts/flywheel_report.py` from a real run:
 postgres + minilm, 400 queries per exponent, seed 42,
 24 intents / 4 domains. The engine (matching, scope gate, intent
 guard, confidence) ran UNMODIFIED and never saw a label.*
@@ -12,7 +12,7 @@ queries →     50   100   150   200   250   300   350   400
 s=0.8        38%   54%   58%   62%   78%   66%   74%   64%
 s=1.0        46%   58%   64%   74%   80%   72%   66%   66%
 s=1.2        54%   68%   68%   74%   74%   74%   68%   72%
-corpus        26    40    48    55    63    68    81    90
+corpus        26    40    51    59    67    72    85    95
 ```
 
 Each line is one traffic assumption (Zipf exponent s over intent popularity).
@@ -26,24 +26,22 @@ much the traffic assumption moves it.
 | metric | s=0.8 | s=1.0 | s=1.2 |
 |---|---|---|---|
 | queries | 400 | 400 | 400 |
-| served | 260 | 268 | 281 |
+| served | 254 | 263 | 276 |
 | true hits | 247 | 263 | 276 |
-| **false hits** | **6** | **5** | **5** |
+| **false hits** | **0** | **0** | **0** |
 | outdated serves | 7 | 0 | 0 |
-| lost hits (recall gap) | 58 | 48 | 40 |
-| correct misses | 82 | 84 | 79 |
-| **precision** | **0.950** | **0.981** | **0.982** |
-| **recall** | **0.810** | **0.846** | **0.873** |
+| lost hits (recall gap) | 59 | 48 | 40 |
+| correct misses | 87 | 89 | 84 |
+| **precision** | **0.972** | **1.000** | **1.000** |
+| **recall** | **0.807** | **0.846** | **0.873** |
 
 ### False-hit breakdown (by cause, all runs)
-| cause | s=0.8 | s=1.0 | s=1.2 |
-|---|---|---|---|
-| wrong_intent | 6 | 5 | 5 |
+(empty)
 
 ### Recall gap: why correct answers weren't served (all runs)
 | cause | s=0.8 | s=1.0 | s=1.2 |
 |---|---|---|---|
-| below_similarity_threshold | 11 | 11 | 5 |
+| below_similarity_threshold | 12 | 11 | 5 |
 | confidence_below_threshold | 47 | 37 | 35 |
 
 `below_similarity_threshold` is the real-world cost of the conservative 0.525
@@ -53,34 +51,17 @@ but counted against recall here, honestly).
 
 ### Observed false-hit examples (real served-wrong-answer events)
 ```
-[s=0.8] q#95 (wrong_intent) asked: 'newest Ubuntu long-term support version'
-        served deposit for: 'Django long-term support release'
-        served claim: 'Django 5.2 LTS.'
-[s=0.8] q#116 (wrong_intent) asked: 'How do I profile memory usage in Rust?'
-        served deposit for: 'How do I profile memory usage in CSS?'
-        served claim: 'One-off answer: profile memory usage in CSS.'
-[s=0.8] q#136 (wrong_intent) asked: 'How do I schedule a cron job in Rust?'
-        served deposit for: 'How do I schedule a cron job in CSS?'
-        served claim: 'One-off answer: schedule a cron job in CSS.'
-[s=0.8] q#143 (wrong_intent) asked: 'How do I read a stack trace in Rust?'
-        served deposit for: 'How do I read a stack trace in CSS?'
-        served claim: 'One-off answer: read a stack trace in CSS.'
-[s=0.8] q#155 (wrong_intent) asked: 'How do I batch-resize images in Rust?'
-        served deposit for: 'How do I batch-resize images in CSS?'
-        served claim: 'One-off answer: batch-resize images in CSS.'
-[s=0.8] q#376 (wrong_intent) asked: 'How do I parse a CSV in Swift?'
-        served deposit for: 'How do I parse a CSV in Excel?'
-        served claim: 'One-off answer: parse a CSV in Excel.'
+(none observed in these runs)
 ```
 
 ## 3. Net token economics (s=1.0 run, from real query_events)
 
 | metric | value |
 |---|---|
-| tokens saved by exploiting | 24,114,113 |
-| tokens spent (all queries + corroboration) | 11,885,887 |
+| tokens saved by exploiting | 23,664,171 |
+| tokens spent (all queries + corroboration) | 12,335,829 |
 | cold-path counterfactual | 36,000,000 |
-| reduction | 67.0% |
+| reduction | 65.7% |
 | corroborations (agreed/disagreed) | 36/6 |
 
 ## 4. Methodology

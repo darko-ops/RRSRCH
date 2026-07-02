@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Callable
 from uuid import UUID
 
 from . import agreement, confidence as conf, exploration, telemetry, topics
+from .matching import scope as scope_mod
 from .config import Settings
 from .embeddings import Embedder, encode_async
 from .matching import engine
@@ -69,6 +70,8 @@ class Corpus:
             sources=[s.model_dump(mode="json") for s in payload.sources],
             scope=payload.scope, volatility=payload.volatility_hint, depositor=payload.depositor,
             created_at=when, topic_id=topic_id,
+            # implicit scope lives in the query prose — extract once, at write time
+            inferred_scope={d: sorted(v) for d, v in scope_mod.infer(payload.query).items()},
         )
         await self.store.add(rec)
         return rec
@@ -229,6 +232,7 @@ class Corpus:
             query=rec.query, embedding=rec.embedding, claim=claim, sources=src_dicts,
             scope=rec.scope, volatility=rec.volatility, depositor=depositor, created_at=now,
             topic_id=rec.topic_id,
+            inferred_scope=rec.inferred_scope,   # same query text → same implicit scope
         )
         await self.store.add(new)
         await self.store.retire(rec.id, new.id, now)

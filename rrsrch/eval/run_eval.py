@@ -36,7 +36,9 @@ from rrsrch.matching import engine
 from rrsrch.schemas import DepositIn
 from rrsrch.telemetry import estimate_tokens
 
-from eval.dataset import INTENT_FLIP, INTENT_PRESERVING, PARAPHRASES, SCOPE_NEARMISS
+from eval.dataset import (IMPLICIT_SCOPE_CONFLICT, IMPLICIT_SCOPE_PRESERVING,
+                          INTENT_FLIP, INTENT_PRESERVING, PARAPHRASES,
+                          SCOPE_NEARMISS)
 
 # Offline default 0.42 (hash embedder operating point, see DECISIONS); MiniLM is
 # tuned via the sweep. Override via env.
@@ -49,6 +51,7 @@ class Probe:
     correct: bool           # is that candidate the intended deposit?
     guard_pass: bool = True # serve-path intent guard verdict on that candidate
     guard_rule: str = "no_signal"
+    pair_in_ranked: bool = True   # did the intended deposit SURVIVE the gates?
 
 
 async def _truncate_postgres(settings: Settings) -> None:
@@ -74,15 +77,17 @@ async def _probe(corpus: Corpus, probe_q: str, scope, correct_id: str | None) ->
               lexical_weight=corpus.settings.lexical_weight)
     ranked = await engine.rank(corpus.store, corpus.embedder, probe_q, scope, **kw)
     if not ranked:
-        return Probe(0.0, False)
+        return Probe(0.0, False, pair_in_ranked=False)
     iv = agreement.intent_verdict(corpus.extractor.extract(probe_q),
                                   corpus.extractor.extract(ranked[0].record.query))
     correct = correct_id is not None and str(ranked[0].record.id) == correct_id
-    return Probe(ranked[0].similarity, correct, iv.match, iv.rule)
+    survived = correct_id is None or any(str(m.record.id) == correct_id for m in ranked)
+    return Probe(ranked[0].similarity, correct, iv.match, iv.rule, survived)
 
 
-async def score(settings: Settings
-                ) -> tuple[list[Probe], list[Probe], list[Probe], list[Probe], int]:
+async def score(settings: Settings) -> tuple[
+        list[Probe], list[Probe], list[Probe], list[Probe],
+        list[Probe], list[Probe], int]:
     """Score all four sets. The intent sets get ISOLATED corpora so their
     deposits cannot perturb the original paraphrase/scope numbers."""
     corpus = await _fresh_corpus(settings)
@@ -114,8 +119,22 @@ async def score(settings: Settings
     keeps = [await _probe(keep_corpus, probe_q, None, keep_of[tid])
              for tid, _q, _claim, probe_q in INTENT_PRESERVING]
 
+    isc_corpus = await _fresh_corpus(settings)
+    for _tid, q, claim, _probe_q in IMPLICIT_SCOPE_CONFLICT:
+        await isc_corpus.deposit(DepositIn(query=q, claim=claim))
+    # serving ANYTHING to a conflicting-implicit-scope probe is a wrong answer
+    isc = [await _probe(isc_corpus, probe_q, None, None)
+           for _tid, _q, _claim, probe_q in IMPLICIT_SCOPE_CONFLICT]
+
+    isp_corpus = await _fresh_corpus(settings)
+    isp_of = {}
+    for tid, q, claim, _probe_q in IMPLICIT_SCOPE_PRESERVING:
+        isp_of[tid] = str((await isp_corpus.deposit(DepositIn(query=q, claim=claim))).id)
+    isp = [await _probe(isp_corpus, probe_q, None, isp_of[tid])
+           for tid, _q, _claim, probe_q in IMPLICIT_SCOPE_PRESERVING]
+
     served_tokens = estimate_tokens(PARAPHRASES[0][2])
-    return para, scope_probes, flips, keeps, served_tokens
+    return para, scope_probes, flips, keeps, isc, isp, served_tokens
 
 
 def evaluate(para: list[Probe], scope_probes: list[Probe], threshold: float
@@ -128,6 +147,17 @@ def evaluate(para: list[Probe], scope_probes: list[Probe], threshold: float
     false_hits = sum(1 for p in scope_probes
                      if p.guard_pass and p.top_similarity >= threshold)
     return hits / len(para), false_hits / len(scope_probes), wrong
+
+
+def evaluate_iscope(isc: list[Probe], isp: list[Probe], threshold: float
+                    ) -> tuple[int, int, int]:
+    """(implicit-scope false hits, preserving hits, preserving pairs the gate
+    wrongly removed from the pool — the over-gating count, embedder-independent)."""
+    false_hits = sum(1 for p in isc if p.guard_pass and p.top_similarity >= threshold)
+    keep_hits = sum(1 for p in isp
+                    if p.correct and p.guard_pass and p.top_similarity >= threshold)
+    over_gated = sum(1 for p in isp if not p.pair_in_ranked)
+    return false_hits, keep_hits, over_gated
 
 
 def evaluate_intent(flips: list[Probe], keeps: list[Probe], threshold: float
@@ -163,7 +193,7 @@ async def main() -> int:
         embedder=embedder,
         cold_path_estimate_tokens=90_000,
     )
-    para, scope_probes, flips, keeps, served_tokens = await score(settings)
+    para, scope_probes, flips, keeps, isc, isp, served_tokens = await score(settings)
 
     sweep = os.environ.get("RRSRCH_EVAL_SWEEP")
     if sweep:
@@ -186,6 +216,7 @@ async def main() -> int:
 
     rate, false_rate, wrong = evaluate(para, scope_probes, threshold)
     ifh, guard_caught, keep_hits, over_rejected = evaluate_intent(flips, keeps, threshold)
+    isc_fh, isp_hits, over_gated = evaluate_iscope(isc, isp, threshold)
     cold = settings.cold_path_estimate_tokens
     cost_ratio = served_tokens / cold
 
@@ -201,19 +232,26 @@ async def main() -> int:
           f"(guard rejected {guard_caught}/{len(flips)} flips)")
     print(f"5. intent-preserving   : {keep_hits}/{len(keeps)} hit  "
           f"(guard wrongly blocked: {over_rejected})")
+    print(f"6. implicit-scope false-hits: {isc_fh}/{len(isc)}")
+    print(f"7. implicit-scope preserving: {isp_hits}/{len(isp)} hit  "
+          f"(gate wrongly removed: {over_gated})")
 
     ok1 = rate >= 0.80
     ok2 = false_rate == 0.0 and wrong == 0
     ok3 = cost_ratio < 0.10
     ok4 = ifh == 0
     ok5 = over_rejected == 0
+    ok6 = isc_fh == 0
+    ok7 = over_gated == 0
     print("\nEXIT CRITERIA")
     print(f"  [{'PASS' if ok1 else 'FAIL'}] paraphrases hit at high rate (>=80%)")
     print(f"  [{'PASS' if ok2 else 'FAIL'}] scope near-misses / wrong topics do NOT serve")
     print(f"  [{'PASS' if ok3 else 'FAIL'}] warm hit < 10% of cold path")
     print(f"  [{'PASS' if ok4 else 'FAIL'}] intent flips do NOT serve (false-hit = 0)")
     print(f"  [{'PASS' if ok5 else 'FAIL'}] guard blocks no intent-preserving paraphrase")
-    passed = ok1 and ok2 and ok3 and ok4 and ok5
+    print(f"  [{'PASS' if ok6 else 'FAIL'}] implicit-scope conflicts do NOT serve")
+    print(f"  [{'PASS' if ok7 else 'FAIL'}] gate removes no implicit-scope-preserving pair")
+    passed = ok1 and ok2 and ok3 and ok4 and ok5 and ok6 and ok7
     print(f"\n{'✓ EVAL PASSED' if passed else '✗ EVAL FAILED'}")
     return 0 if passed else 1
 

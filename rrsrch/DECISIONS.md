@@ -234,6 +234,44 @@ Choices made where the spec left room. Phase 1 additions at the bottom.
   (0.981/0.846) barely moved but is now TRUSTWORTHY: post-change version serves
   are true hits because the corpus was corrected, not because the scorer lied.
 
+## Implicit-scope extraction (Phase 2 thread 1, 2026-07-02)
+- **The hole (found by the flywheel):** scope living in query PROSE — the
+  tech/language/platform a question is about — gated nothing, so "profile
+  memory in Rust" served the CSS answer at 0.87 similarity and "Ubuntu LTS"
+  collided with "Django LTS".
+- **Gazetteer, not NLP:** a curated alias→(dimension, canonical) table over
+  three dimensions (language, technology, platform), matched on token n-grams
+  (≤3). Tight by design — every entry can veto a serve; a false reject only
+  costs a fresh search. An LLM may later PROPOSE tags via the same dict shape;
+  conflict remains code.
+- **Conflict rules** (both require signal on BOTH sides; no-signal falls
+  through to similarity, the intent-guard philosophy):
+  (a) per-dimension SYMMETRIC DIFFERENCE — each side carries a tag the other
+      lacks → reject. Started as plain disjointness; the eval immediately found
+      the flaw: {postgres, node} vs {mysql, node} intersect via the shared
+      connector, masking the subject swap. Extra tags on ONE side only =
+      richer wording, never a conflict.
+  (b) cross-dimension union disjointness — "Ubuntu LTS" (platform) vs
+      "Django LTS" (technology) share no dimension, but zero common subject
+      with both sides tagged is a conflict.
+- **Coverage limits (accepted, documented):** umbrella terms excluded (linux,
+  aws — Ubuntu IS linux; hierarchy would false-conflict), bare common-word
+  names excluded (go, r, lambda — matched only via context bigrams "in go" /
+  "in r" / "aws lambda"). Unknown techs simply produce no signal and fall
+  through — the gazetteer fails open, never wrong.
+- **Alias normalization before comparison** (s3 == Amazon S3, postgres ==
+  PostgreSQL, k8s == kubernetes, cpython → python, node.js/nodejs → node) —
+  without it the gate would reject true paraphrases; the PRESERVING eval set
+  pins this (9/9 on MiniLM, 0 pairs gate-removed on both embedders).
+- **Storage:** deposits.inferred_scope (JSONB, migration 0004), extracted once
+  at deposit() time; declared scope stays authoritative per dimension; NULL
+  rows are inferred on read (scripts/backfill_inferred_scope.py persists them).
+- **Measured:** implicit-scope false hits 0/14; flywheel false hits
+  6/5/5 → 0/0/0 across Zipf s=0.8/1.0/1.2, precision 0.972/1.000/1.000
+  (residual at s=0.8 is outdated serves, not scope), recall delta −0.003/0/0 —
+  one lost hit total. Token reduction dipped 67.0%→65.7%: the false hits had
+  been "saving" tokens by serving wrong answers.
+
 ## Considered, deferred
 - **`never_serve` volatility tier** (always-fresh facts like FX rates, instead of
   paying ceiling-rate exploration forever): legitimate, but it's new product

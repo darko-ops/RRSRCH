@@ -27,7 +27,7 @@ def _to_record(r: Deposit) -> DepositRecord:
         last_corroborated_at=r.last_corroborated_at,
         corroboration_count=r.corroboration_count,
         retired_at=r.retired_at, superseded_by=r.superseded_by,
-        topic_id=r.topic_id,
+        topic_id=r.topic_id, inferred_scope=r.inferred_scope,
     )
 
 
@@ -58,7 +58,7 @@ class PostgresStore:
                 last_corroborated_at=rec.last_corroborated_at,
                 corroboration_count=rec.corroboration_count,
                 retired_at=rec.retired_at, superseded_by=rec.superseded_by,
-                topic_id=rec.topic_id,
+                topic_id=rec.topic_id, inferred_scope=rec.inferred_scope,
             ))
             await s.commit()
         return rec.id

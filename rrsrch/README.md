@@ -72,6 +72,14 @@ Hit rate is the whole value prop, so matching quality is the deliverable.
 - **Scope is a hard gate, applied *before* similarity:** two near-identical queries
   with different scope (S3 price `us-east-1` vs `eu-west-1`, API `v3` vs `v4`) never
   match, no matter how similar. Retired deposits never enter the pool.
+- **Implicit scope gates too (Phase 2):** the tech/language/platform a query is
+  *about* lives in its prose and behaves exactly like declared scope. A tight,
+  alias-normalized gazetteer (`k8s`==kubernetes, `Amazon S3`==s3) extracts tags
+  at deposit time (`inferred_scope`) and search time; a subject swap on a shared
+  dimension — or zero common subject across dimensions — rejects the candidate
+  ("in Rust" never serves the CSS answer). No signal ⇒ no gate; unknown techs
+  fall through to similarity. Flywheel-proven: false hits 5→0 at Zipf(1.0),
+  precision 1.000, recall unchanged.
 - **Intent guard, the LAST check before serving:** same-scope opposite-intent
   queries ("require X?" vs "NOT require X?", enable/disable, install/remove,
   increase/decrease, include/exclude, before/after) embed near-identically —

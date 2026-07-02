@@ -37,6 +37,8 @@ class Deposit(Base):
     retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     superseded_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     topic_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # implicit scope inferred from the query prose (Phase 2); NULL ⇒ infer on read
+    inferred_scope: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class Topic(Base):
