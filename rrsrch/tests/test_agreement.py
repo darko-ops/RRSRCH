@@ -102,6 +102,65 @@ def test_lexical_fallback_when_nothing_extracted():
     assert disagree.agree is False and disagree.rule == "lexical_low"
 
 
+# -------- scoped effective polarity: the double-negation poison bypass --------
+
+def test_attack_sentential_negation_of_negated_truth_disagrees():
+    """THE bypass: the truth is itself negation-phrased, so a boolean 'negated'
+    saturates and the poison superset lexically agrees. Effective polarity
+    separates them: {neg} vs {pos}."""
+    v = verdict("Not true: HIPAA does not require encryption at rest",
+                "HIPAA does not require encryption at rest", EX, S)
+    assert v.agree is False and v.rule == "polarity_mismatch"
+    v2 = verdict("It is false that MFA is not mandatory for contractors",
+                 "MFA is not mandatory for contractors", EX, S)
+    assert v2.agree is False and v2.rule == "polarity_mismatch"
+    v3 = verdict("That is wrong: the pentest is not required annually",
+                 "The pentest is not required annually", EX, S)
+    assert v3.agree is False and v3.rule == "polarity_mismatch"
+
+
+def test_nonmisfire_conjunction_of_independent_negations_agrees():
+    """Scoped, not counted: two negations in DIFFERENT clauses are independent —
+    global parity would call this even (= positive) and misfire."""
+    v = verdict("The scan is not required and the pentest is not mandatory",
+                "The pentest is not mandatory and the scan is not required", EX, S)
+    assert v.agree is True
+    f = EX.extract("The scan is not required and the pentest is not mandatory")
+    assert f.polarity == frozenset({"neg"})   # NOT flipped to positive
+
+
+def test_nonmisfire_single_negation_paraphrase_agrees():
+    v = verdict("Encryption at rest is not required",
+                "Encryption at rest is not mandated", EX, S)
+    assert v.agree is True
+
+
+def test_regression_original_negation_safety_still_holds():
+    v = verdict("The audit is not required for Level 1",
+                "The audit is required for Level 1", EX, S)
+    assert v.agree is False and v.rule == "polarity_mismatch"
+
+
+def test_stretch_net_affirmative_double_negation_matches_affirmative():
+    f = EX.extract("It is not untrue that the audit is required")
+    assert f.polarity == frozenset({"pos"})   # not ⊕ untrue = affirmative
+    # with a decisive comparand the net-affirmative wrapper matches the plain
+    # affirmative (numeric rule); pure-prose rewrites still fall to the
+    # conservative lexical fallback by design.
+    v = verdict("It is not untrue that all 110 controls are required",
+                "All 110 controls are required", EX, S)
+    assert v.agree is True and v.rule == "numeric_match"
+
+
+def test_intent_guard_uses_the_same_effective_polarity():
+    from rrsrch.agreement import intent_verdict
+    q = EX.extract("Is it not true that HIPAA does not require encryption?")
+    c = EX.extract("Does HIPAA not require encryption at rest?")
+    # query is a double-negation (asks the AFFIRMATIVE); candidate is single-neg
+    iv = intent_verdict(q, c)
+    assert iv.match is False and iv.rule == "polarity_flip"
+
+
 def test_verdict_detail_is_auditable():
     v = verdict("$5 fee", "$7 fee", EX, S)
     assert v.detail["new"]["numbers"] == [5.0] and v.detail["old"]["numbers"] == [7.0]

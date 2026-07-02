@@ -23,7 +23,8 @@ from eval.traffic import generate_stream
 ROOT = Path(__file__).resolve().parent.parent
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 400
 SEED = int(sys.argv[2]) if len(sys.argv) > 2 else 42
-AGENTS = {"reliable-1": 0.35, "reliable-2": 0.25, "noisy-1": 0.25, "malicious-1": 0.15}
+AGENTS = {"reliable-1": 0.30, "reliable-2": 0.25, "noisy-1": 0.20,
+          "malicious-1": 0.15, "dblneg-1": 0.10}
 
 
 def trust_chart(curve) -> str:
@@ -44,11 +45,13 @@ async def main() -> None:
 
     ms, ss = summarize(multi), summarize(single)
     ps = poison_stats(multi)
+    ds = poison_stats(multi, prefix="dblneg")
     half = len(multi.records) // 2
+    hostile = ("malicious", "dblneg")
     early = sum(1 for r in multi.records[:half]
-                if r.served_depositor and r.served_depositor.startswith("malicious"))
+                if r.served_depositor and r.served_depositor.startswith(hostile))
     late = sum(1 for r in multi.records[half:]
-               if r.served_depositor and r.served_depositor.startswith("malicious"))
+               if r.served_depositor and r.served_depositor.startswith(hostile))
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     def row(key, fmt="{}"):
@@ -58,9 +61,11 @@ async def main() -> None:
 
 *Generated {now} by `scripts/multiagent_report.py` from a real run:
 {settings.store} + {settings.embedder}, {N} queries, seed {SEED}, ONE corpus,
-four depositors — reliable-1/-2 (60% of traffic, deposit truth), noisy-1 (25%,
+five depositors — reliable-1/-2 (55% of traffic, deposit truth), noisy-1 (20%,
 ~30% of its research misfires), malicious-1 (15%, deposits deterministic
-falsehoods and attempts self-corroboration ×2 on every deposit). The production
+falsehoods and attempts self-corroboration ×2 on every deposit), and dblneg-1
+(10%, the double-negation attacker: sentential negation of negation-phrased
+truths — the class that used to evade the polarity check). The production
 self-verification loop patrols every 10 arrivals (batch 3) with a ground-truth
 provider. The engine sees only depositor ids — trust separates the profiles
 from corroboration OUTCOMES alone.*
@@ -80,16 +85,26 @@ a 30%-wrong agent needs more corroboration events to separate cleanly.
 
 ## 2. Poison containment (measured, not asserted)
 
-| metric | value |
-|---|---|
-| malicious deposits | {ps['malicious_deposits']} |
-| distinct malicious deposits ever served | {ps['distinct_malicious_deposits_served']} |
-| served fraction | {ps['served_fraction']*100:.1f}% |
-| malicious-authored serves (1st half / 2nd half) | {early} / {late} |
-| malicious final trust → confidence base | {ps['final_trust'].get('malicious-1')} → sub-serve |
+| metric | malicious-1 (corrupted facts) | dblneg-1 (double-negation attack) |
+|---|---|---|
+| deposits | {ps['malicious_deposits']} | {ds['malicious_deposits']} |
+| distinct deposits ever served | {ps['distinct_malicious_deposits_served']} | {ds['distinct_malicious_deposits_served']} |
+| served fraction | {ps['served_fraction']*100:.1f}% | {ds['served_fraction']*100:.1f}% |
+| final trust | {ps['final_trust'].get('malicious-1')} | {ds['final_trust'].get('dblneg-1')} |
 
-Self-corroboration attempts ({2 * ps['malicious_deposits']} of them in this run)
-moved nothing: no trust, no independent voucher (pinned by
+The dblneg-1 profile is the attacker class that USED to win: "Not true:
+⟨negation-phrased truth⟩" carried the same document-level negation boolean and
+near-identical text, so honest corroborations agreed with it and vouched it
+(an earlier harness run had one such deposit served 9×). Scoped effective
+polarity (clause-anchored local ⊕ sentential parity) now makes the verdict
+disagree, so the whole containment chain — penalty, crater, pre-mute — engages.
+Malicious-authored serves across both attackers (1st half / 2nd half):
+{early} / {late}. Any first-half serves are the BOOTSTRAP window — the
+irreducible exposure of "unknown depositors serve at the prior", which the
+design deliberately accepts (muting unknowns would break single-player; see
+DECISIONS). Each was corrected by the containment chain and the author entered
+the pre-muted state; second-half serves are the number that must be ~0.
+Self-corroboration attempts moved nothing (pinned by
 tests/test_trust.py::test_self_corroboration_grants_no_trust).
 
 ## 3. Corpus quality with hostile traffic in the mix

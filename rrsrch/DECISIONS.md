@@ -298,13 +298,44 @@ Choices made where the spec left room. Phase 1 additions at the bottom.
   DOWN 0.91→0.75 from pure world-churn. Now a contradiction penalizes only a
   claim still inside its effective half-life ("wrong when asserted"); a claim
   that outlived its half-life aged out — churn, not dishonesty.
-- **Two engine limitations the multi-agent harness exposed (recorded, open):**
-  (1) coordinated IDENTICAL lies cross-vouch — track record cannot distinguish
-  consensus from collusion (Phase 3 attestation territory; the harness salts
-  its liars for realism); (2) double-negation evasion — "Not true: <already-
-  negated truth>" carries matching boolean polarity + superset text, so an
-  honest corroboration agrees with it; marker-count parity would fix this case
-  but misfires on conjunctions of negated facts — deferred with rationale.
+- **Engine limitation the multi-agent harness exposed (recorded, OPEN — the
+  sole Phase-3-gated poison item):** coordinated IDENTICAL lies cross-vouch —
+  track record cannot distinguish consensus from collusion (needs identity /
+  attestation; the harness salts its liars for realism).
+- ~~Double-negation evasion~~ **FIXED** (see "Scoped effective polarity" below).
+
+## Scoped effective polarity (double-negation fix, 2026-07-02)
+- **The bypass:** `negated` was a document-level boolean — presence saturates,
+  so "Not true: X is not required" (which MEANS "required") matched
+  "X is not required", was a lexical superset, got AGREED with, vouched, and
+  served (one such poison deposit served 9× in an early harness run).
+- **Scoped, not counted:** global even/odd marker parity was rejected up front —
+  it misfires on conjunctions of independently-negated facts ("X is not A and
+  Y is not B" has two markers but is not a double negation of one proposition).
+  Instead: split on clause boundaries (and/but/while/;/.) — the independence
+  anchor — and within each clause compute effective polarity = LOCAL negation
+  parity ⊕ SENTENTIAL truth-value-wrapper parity (tight phrase lexicon:
+  "not true", "untrue", "false that", "it is false", "incorrect", "not the
+  case", "mistaken that", …; sentential spans removed before the local scan so
+  "not true" isn't double-counted).
+- **One extractor, both consumers:** `ClaimFields.polarity` is the frozenset of
+  per-clause polarities; `verdict()` (corroboration) and `intent_verdict()`
+  (serve path) both compare the SET. Mixed sets ({pos,neg} vs {neg}) differ →
+  disagree/reject — the conservative direction on genuinely ambiguous scoping
+  (a false disagree re-derives; a false miss re-searches). `negated` survives
+  as a derived legacy property.
+- **Deliberately NOT a parser:** clause-split + phrase lexicon covers the
+  attack class; a dependency parser is the over-correction ditch. Known
+  residue: pure-prose net-affirmative rewrites without decisive comparands
+  still fall to the conservative lexical fallback (disagree — recoverable).
+- **Measured (reports/multi-agent.md, +dblneg-1 attacker at 10% of traffic):**
+  dblneg contained 0/11 deposits ever served, trust cratered to 0.27; both
+  test directions pinned (3 attack shapes disagree; conjunction reorder,
+  single-neg paraphrase, original negation safety, and net-affirmative all
+  behave). Malicious-1's 3 first-half serves are the BOOTSTRAP window
+  (unknown-serves-at-prior, mandated by the single-player design trap), all
+  corrected, 0 in the second half. Single-agent regression: hit rates
+  61.5/65.5/68.8 — unchanged to the decimal.
 - **Measured (reports/multi-agent.md, Postgres+MiniLM, 400q):** trust separates
   (reliable 0.985/0.908, noisy peaks then falls to 0.856, malicious 0.177 →
   base far sub-serve); poison containment 0/19 deposits ever served incl. 38

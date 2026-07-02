@@ -85,6 +85,12 @@ def derive_claim(agent: str, q: Query, truth: str) -> str:
     profile = agent.split("-")[0]
     if profile == "malicious":
         return _corrupt(truth, agent)
+    if profile == "dblneg":
+        # the double-negation attacker: a sentential wrapper over the truth —
+        # when the truth is itself negation-phrased this MEANS the opposite
+        # while carrying the same document-level 'contains a negation' signal
+        # and near-identical text (the exact bypass scoped polarity closes).
+        return f"Not true: {truth}"
     if profile == "noisy" and q.misfire:
         stale = q.intent.answer if (q.intent and q.intent.answer_v2
                                     and truth != q.intent.answer) else None

@@ -47,16 +47,30 @@ class ClaimFields:
     `versions` are dotted release identifiers ("3.14.6", "Kubernetes 1.35") —
     ORDINAL, not measurements: they compare EXACTLY, never within tolerance
     (3.14.5 vs 3.14.6 is a different fact; 1.34 vs 1.35 is 0.75% apart and the
-    numeric tolerance would falsely agree). Kept separate from `numbers`."""
+    numeric tolerance would falsely agree). Kept separate from `numbers`.
+
+    `polarity` is the set of per-clause EFFECTIVE polarities ("pos"/"neg") —
+    scoped, not counted: within a clause, local negations XOR sentential
+    truth-value wrappers ("Not true: …"); across clause boundaries negations
+    are independent and never cancel. A document-level boolean saturates on
+    double negation ("Not true: X is not required" MEANS the opposite of
+    "X is not required" but both contain 'not') — the poison bypass this
+    field closes."""
     numbers: list[float] = field(default_factory=list)
     entities: set[str] = field(default_factory=set)
-    negated: bool = False
     predicates: dict[str, int] = field(default_factory=dict)
     versions: list[str] = field(default_factory=list)
+    polarity: frozenset[str] = frozenset({"pos"})
+
+    @property
+    def negated(self) -> bool:
+        """Legacy view: purely-negative polarity. Verdicts compare the full
+        polarity SET; this exists for audit readability and older call sites."""
+        return self.polarity == frozenset({"neg"})
 
     def to_log(self) -> dict[str, Any]:
         return {"numbers": self.numbers, "entities": sorted(self.entities),
-                "negated": self.negated, "predicates": self.predicates,
+                "polarity": sorted(self.polarity), "predicates": self.predicates,
                 "versions": self.versions}
 
 
@@ -85,10 +99,38 @@ def _is_version(text: str, m: "re.Match[str]") -> bool:
         return False
     tok = prev[-1].rstrip(".")
     return tok.lower() in _VER_MARKERS or tok[:1].isupper()
-# negation markers; hyphenated "non-" forms count (non-compliant, non-refundable)
+# LOCAL negation markers: negate the predicate/clause they sit in
+# ("does not require", "non-compliant") — scoped to their clause.
 _NEG = re.compile(
     r"\b(not|no longer|never|none|cannot|can't|won't|isn't|aren't|wasn't|weren't|"
     r"doesn't|don't|didn't|fails?\s+to|non)[-\s]", re.IGNORECASE)
+# SENTENTIAL (meta) negation: a truth-value wrapper that negates the WHOLE
+# proposition it scopes over. Deliberately a tight phrase lexicon — every entry
+# flips a polarity, and a wrong flip biases toward DISAGREE (recoverable).
+_SENTENTIAL = re.compile(
+    r"\b(not true|untrue|not correct|incorrect|not accurate|not the case|"
+    r"false that|it is false|mistaken that|wrong that|that is wrong)\b",
+    re.IGNORECASE)
+# clause boundaries = the independence anchor: negations in different clauses
+# govern different predicates and never cancel into a false double negation.
+_CLAUSE = re.compile(r"[.;!?]|\band\b|\bbut\b|\bwhile\b|\bwhereas\b", re.IGNORECASE)
+
+
+def _clause_polarity(text: str) -> frozenset[str]:
+    """Per-clause effective polarity: local-negation parity XOR sentential-
+    wrapper parity, computed WITHIN each clause. Scoped, not counted — the
+    conjunction "X is not A and Y is not B" yields {neg} (two independent
+    negatives), while "Not true: X is not A" yields {pos} (a genuine double
+    negation of one proposition)."""
+    out: set[str] = set()
+    for clause in _CLAUSE.split(text or ""):
+        if not clause.strip():
+            continue
+        sentential = len(_SENTENTIAL.findall(clause))
+        remainder = _SENTENTIAL.sub(" ", clause)     # don't double-count "not true"
+        local = len(_NEG.findall(remainder + " "))
+        out.add("neg" if (local + sentential) % 2 else "pos")
+    return frozenset(out) if out else frozenset({"pos"})
 # entities: ALL-CAPS acronyms (NIST, C3PAO) and TitleCase tokens of length >= 3
 _ENT = re.compile(r"\b([A-Z][A-Z0-9-]{1,}|[A-Z][a-z]{2,})\b")
 _ENT_STOP = {"The", "This", "That", "These", "Those", "For", "And", "But", "Its",
@@ -167,8 +209,8 @@ class RegexExtractor:
                    # number regex truncate "3.14.6" into 3.14
                    if not any(a <= m.start() < b for a, b in spans)]
         entities = {m.group(1) for m in _ENT.finditer(text)} - _ENT_STOP
-        negated = bool(_NEG.search(text + " "))
-        return ClaimFields(numbers=numbers, entities=entities, negated=negated,
+        return ClaimFields(numbers=numbers, entities=entities,
+                           polarity=_clause_polarity(text),
                            predicates=_extract_predicates(text), versions=versions)
 
 
@@ -212,7 +254,11 @@ def verdict(new_claim: str, old_claim: str, extractor: Extractor, settings) -> V
     lex = lexical_score(new_claim, old_claim)
     detail = {"new": a.to_log(), "old": b.to_log()}
 
-    if a.negated != b.negated:
+    # EFFECTIVE polarity sets, not a raw boolean: "Not true: X is not required"
+    # is {pos} and no longer matches "X is not required" {neg} — the
+    # double-negation poison bypass. Mixed sets ({pos,neg} vs {neg}) differ →
+    # conservative disagree (a false disagree just re-derives).
+    if a.polarity != b.polarity:
         return Verdict(False, "polarity_mismatch", lex, detail)
 
     # versions are ordinal: exact or different fact — the price tolerance below
@@ -264,7 +310,10 @@ def intent_verdict(query_fields: ClaimFields, candidate_fields: ClaimFields) -> 
     Uses the ONE shared Extractor's fields — there is no second extraction path.
     """
     detail = {"query": query_fields.to_log(), "candidate": candidate_fields.to_log()}
-    if query_fields.negated != candidate_fields.negated:
+    # same EFFECTIVE polarity comparison as the corroboration verdict — one
+    # shared extractor, one polarity model, no divergent logic. A false miss
+    # here just re-searches, so set inequality rejecting is the safe direction.
+    if query_fields.polarity != candidate_fields.polarity:
         return IntentVerdict(False, "polarity_flip", detail)
     shared = sorted(set(query_fields.predicates) & set(candidate_fields.predicates))
     for axis in shared:

@@ -1,10 +1,12 @@
 # rrsrch — multi-agent flywheel (Phase 2 exit proof)
 
-*Generated 2026-07-02 19:19 UTC by `scripts/multiagent_report.py` from a real run:
+*Generated 2026-07-02 21:42 UTC by `scripts/multiagent_report.py` from a real run:
 postgres + minilm, 400 queries, seed 42, ONE corpus,
-four depositors — reliable-1/-2 (60% of traffic, deposit truth), noisy-1 (25%,
+five depositors — reliable-1/-2 (55% of traffic, deposit truth), noisy-1 (20%,
 ~30% of its research misfires), malicious-1 (15%, deposits deterministic
-falsehoods and attempts self-corroboration ×2 on every deposit). The production
+falsehoods and attempts self-corroboration ×2 on every deposit), and dblneg-1
+(10%, the double-negation attacker: sentential negation of negation-phrased
+truths — the class that used to evade the polarity check). The production
 self-verification loop patrols every 10 arrivals (batch 3) with a ground-truth
 provider. The engine sees only depositor ids — trust separates the profiles
 from corroboration OUTCOMES alone.*
@@ -13,13 +15,14 @@ from corroboration OUTCOMES alone.*
 
 ```
 query →       25     75    125    175    225    275    325    375
-malicious-1 0.850  0.472  0.266  0.266  0.250  0.236  0.202  0.177
-noisy-1    0.893  0.950  0.958  0.971  0.975  0.899  0.856  0.856
-reliable-1 0.917  0.942  0.958  0.972  0.977  0.980  0.983  0.984
-reliable-2 0.850  0.893  0.925  0.865  0.903  0.920  0.924  0.905
+dblneg-1   0.708  0.386  0.386  0.386  0.354  0.354  0.283  0.266
+malicious-1 0.708  0.607  0.283  0.266  0.250  0.224  0.212  0.193
+noisy-1    0.850  0.854  0.817  0.880  0.898  0.856  0.807  0.790
+reliable-1 0.893  0.925  0.953  0.964  0.970  0.975  0.979  0.980
+reliable-2 0.893  0.893  0.906  0.865  0.908  0.924  0.924  0.938
 ```
 
-Final: malicious-1=0.1771, noisy-1=0.8598, reliable-1=0.985, reliable-2=0.9083.
+Final: dblneg-1=0.2656, malicious-1=0.1848, noisy-1=0.7905, reliable-1=0.9812, reliable-2=0.9397.
 Reliable agents climb; the malicious agent craters within ~50 queries
 of its first independently-contradicted deposits and its confidence base falls
 far below the serve threshold — every future poison deposit starts PRE-MUTED.
@@ -28,16 +31,26 @@ a 30%-wrong agent needs more corroboration events to separate cleanly.
 
 ## 2. Poison containment (measured, not asserted)
 
-| metric | value |
-|---|---|
-| malicious deposits | 19 |
-| distinct malicious deposits ever served | 0 |
-| served fraction | 0.0% |
-| malicious-authored serves (1st half / 2nd half) | 0 / 0 |
-| malicious final trust → confidence base | 0.1771 → sub-serve |
+| metric | malicious-1 (corrupted facts) | dblneg-1 (double-negation attack) |
+|---|---|---|
+| deposits | 18 | 11 |
+| distinct deposits ever served | 3 | 0 |
+| served fraction | 16.7% | 0.0% |
+| final trust | 0.1848 | 0.2656 |
 
-Self-corroboration attempts (38 of them in this run)
-moved nothing: no trust, no independent voucher (pinned by
+The dblneg-1 profile is the attacker class that USED to win: "Not true:
+⟨negation-phrased truth⟩" carried the same document-level negation boolean and
+near-identical text, so honest corroborations agreed with it and vouched it
+(an earlier harness run had one such deposit served 9×). Scoped effective
+polarity (clause-anchored local ⊕ sentential parity) now makes the verdict
+disagree, so the whole containment chain — penalty, crater, pre-mute — engages.
+Malicious-authored serves across both attackers (1st half / 2nd half):
+3 / 0. Any first-half serves are the BOOTSTRAP window — the
+irreducible exposure of "unknown depositors serve at the prior", which the
+design deliberately accepts (muting unknowns would break single-player; see
+DECISIONS). Each was corrected by the containment chain and the author entered
+the pre-muted state; second-half serves are the number that must be ~0.
+Self-corroboration attempts moved nothing (pinned by
 tests/test_trust.py::test_self_corroboration_grants_no_trust).
 
 ## 3. Corpus quality with hostile traffic in the mix
@@ -45,20 +58,20 @@ tests/test_trust.py::test_self_corroboration_grants_no_trust).
 | metric | multi-agent | single-agent (same seed) |
 |---|---|---|
 | queries | 400 | 400 |
-| true_hits | 258 | 262 |
+| true_hits | 246 | 262 |
 | false_hits | 0 | 0 |
 | outdated_serves | 3 | 0 |
-| lost_hits | 44 | 49 |
-| precision | 0.989 | 1.000 |
-| recall | 0.854 | 0.842 |
-| overall_true_hit_rate | 0.645 | 0.655 |
+| lost_hits | 53 | 49 |
+| precision | 0.988 | 1.000 |
+| recall | 0.823 | 0.842 |
+| overall_true_hit_rate | 0.615 | 0.655 |
 
-**Cross-agent recall delta: +0.012** — the honest
+**Cross-agent recall delta: -0.020** — the honest
 number, whichever way it points. In this run the extra corroboration traffic
 (more agents re-deriving stale answers, plus the patrolling verifier) slightly
-HELPED recall relative to the
+HURT recall relative to the
 single-agent baseline, while true hits paid a small tax
-(-4) for the hostile 40% of traffic — and
+(-16) for the hostile 40% of traffic — and
 the trust machinery kept every one of those wrong deposits out of the serve
 path (false hits: 0).
 
