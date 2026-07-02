@@ -36,7 +36,8 @@ async def test_corroborate_tool_roundtrip(make_corpus):
                            volatility_hint="high")
     agreed = await tool_corroborate(corpus, d["id"], "$0.023",
                                     sources=[{"url": "https://aws.amazon.com/s3/pricing/"}])
-    assert agreed["outcome"] == "agreed" and agreed["confidence"] == 1.0
+    assert agreed["outcome"] == "agreed"
+    assert agreed["confidence"] >= 0.9   # anchor re-earned at the author's trust base
 
     disagreed = await tool_corroborate(corpus, d["id"], "$0.021 after the Jan price cut")
     assert disagreed["outcome"] == "disagreed" and "new_deposit_id" in disagreed

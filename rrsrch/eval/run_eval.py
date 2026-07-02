@@ -60,7 +60,7 @@ async def _truncate_postgres(settings: Settings) -> None:
 
     eng = create_async_engine(settings.database_url)
     async with eng.begin() as conn:
-        await conn.execute(text("TRUNCATE deposits, query_events, topic_state"))
+        await conn.execute(text("TRUNCATE deposits, query_events, topic_state, depositor_trust"))
     await eng.dispose()
 
 

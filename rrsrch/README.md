@@ -37,6 +37,19 @@ false-hits **0** at every threshold in the sweep, and one live proof-of-search
 cycle that caught an outdated claim and superseded it with cited fresh research
 in 34s, no agent, no human.
 
+**Multi-agent + trust** (`make multiagent` → [reports/multi-agent.md](reports/multi-agent.md)):
+the corpus is open to multiple depositors. Per-depositor trust is a pure
+Beta-ratio of independently-recorded corroboration outcomes that multiplies the
+confidence base: unknown agents serve at a modest prior (re-verified sooner),
+proven-good approach full base, and two independent contradictions mute an
+agent's lone deposits below the serve line until an independent source vouches
+them. Self-corroboration gains nothing (Sybil guard); lower-trust contradictors
+can dispute but not retire or penalize (grief guard); contradictions past a
+claim's half-life are world-churn, not penalties (age rule). Measured: 0/19
+poison deposits served with 40% hostile traffic, false hits 0, precision 0.989,
+recall +0.012 vs single-agent. Trust is internal track record only — Ominis
+attestation slots into the same base term in Phase 3.
+
 **Flywheel curve** (`make flywheel` → [reports/flywheel.md](reports/flywheel.md)):
 hit rate vs corpus size on ground-truth-labeled Zipfian traffic (matcher-blind
 paraphrases, sensitivity band s=0.8/1.0/1.2). Headline under Zipf(1.0):

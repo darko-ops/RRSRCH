@@ -16,7 +16,7 @@ from sqlalchemy import Select, func, select, update
 from ..config import Settings
 from ..schemas import DepositRecord, RecallItem, TopicState
 from .db import get_sessionmaker
-from .models import Deposit, QueryEvent, Topic
+from .models import Deposit, DepositorTrust, QueryEvent, Topic
 
 
 def _to_record(r: Deposit) -> DepositRecord:
@@ -28,6 +28,7 @@ def _to_record(r: Deposit) -> DepositRecord:
         corroboration_count=r.corroboration_count,
         retired_at=r.retired_at, superseded_by=r.superseded_by,
         topic_id=r.topic_id, inferred_scope=r.inferred_scope,
+        independent_corroboration_count=r.independent_corroboration_count,
     )
 
 
@@ -59,6 +60,7 @@ class PostgresStore:
                 corroboration_count=rec.corroboration_count,
                 retired_at=rec.retired_at, superseded_by=rec.superseded_by,
                 topic_id=rec.topic_id, inferred_scope=rec.inferred_scope,
+                independent_corroboration_count=rec.independent_corroboration_count,
             ))
             await s.commit()
         return rec.id
@@ -95,7 +97,8 @@ class PostgresStore:
         return list(seen.values())
 
     async def mark_corroborated(
-        self, deposit_id: UUID, now: datetime, extra_sources: list[dict[str, Any]]
+        self, deposit_id: UUID, now: datetime, extra_sources: list[dict[str, Any]],
+        independent: bool = False,
     ) -> None:
         async with self._sm() as s:
             row = await s.get(Deposit, deposit_id)
@@ -103,7 +106,27 @@ class PostgresStore:
                 raise KeyError(str(deposit_id))
             row.last_corroborated_at = now
             row.corroboration_count = (row.corroboration_count or 0) + 1
+            if independent:
+                row.independent_corroboration_count = (
+                    row.independent_corroboration_count or 0) + 1
             row.sources = [*row.sources, *extra_sources]
+            await s.commit()
+
+    async def depositor_counts(self, depositor: str) -> tuple[int, int]:
+        async with self._sm() as s:
+            row = await s.get(DepositorTrust, depositor)
+            return (row.agreed_count, row.contradicted_count) if row else (0, 0)
+
+    async def bump_depositor(self, depositor: str, *, agreed: int = 0,
+                             contradicted: int = 0, score: float = 0.0) -> None:
+        async with self._sm() as s:
+            row = await s.get(DepositorTrust, depositor)
+            if row is None:
+                row = DepositorTrust(depositor=depositor)
+                s.add(row)
+            row.agreed_count = (row.agreed_count or 0) + agreed
+            row.contradicted_count = (row.contradicted_count or 0) + contradicted
+            row.score = score   # derived value, persisted for observability
             await s.commit()
 
     async def retire(self, deposit_id: UUID, superseded_by: UUID, now: datetime) -> None:

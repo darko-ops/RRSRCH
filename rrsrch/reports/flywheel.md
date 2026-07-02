@@ -1,6 +1,6 @@
 # rrsrch — flywheel curve on synthetic-but-honest traffic
 
-*Generated 2026-07-02 18:38 UTC by `scripts/flywheel_report.py` from a real run:
+*Generated 2026-07-02 19:15 UTC by `scripts/flywheel_report.py` from a real run:
 postgres + minilm, 400 queries per exponent, seed 42,
 24 intents / 4 domains. The engine (matching, scope gate, intent
 guard, confidence) ran UNMODIFIED and never saw a label.*
@@ -9,15 +9,15 @@ guard, confidence) ran UNMODIFIED and never saw a label.*
 
 ```
 queries →     50   100   150   200   250   300   350   400
-s=0.8        38%   54%   58%   62%   78%   66%   74%   64%
-s=1.0        46%   58%   64%   74%   80%   72%   66%   66%
-s=1.2        54%   68%   68%   74%   74%   74%   68%   72%
+s=0.8        38%   52%   56%   64%   78%   66%   72%   66%
+s=1.0        46%   58%   64%   74%   78%   74%   66%   64%
+s=1.2        54%   68%   68%   74%   72%   74%   68%   72%
 corpus        26    40    51    59    67    72    85    95
 ```
 
 Each line is one traffic assumption (Zipf exponent s over intent popularity).
 The curve starts near 0 on a cold corpus and bends upward as deposits
-accumulate — the flywheel. **Headline: 65.8%
+accumulate — the flywheel. **Headline: 65.5%
 overall true-hit rate under Zipf(s=1.0)**, with the s=0.8/1.2 band showing how
 much the traffic assumption moves it.
 
@@ -26,14 +26,14 @@ much the traffic assumption moves it.
 | metric | s=0.8 | s=1.0 | s=1.2 |
 |---|---|---|---|
 | queries | 400 | 400 | 400 |
-| served | 254 | 263 | 276 |
-| true hits | 247 | 263 | 276 |
+| served | 253 | 262 | 275 |
+| true hits | 246 | 262 | 275 |
 | **false hits** | **0** | **0** | **0** |
 | outdated serves | 7 | 0 | 0 |
-| lost hits (recall gap) | 59 | 48 | 40 |
+| lost hits (recall gap) | 60 | 49 | 41 |
 | correct misses | 87 | 89 | 84 |
 | **precision** | **0.972** | **1.000** | **1.000** |
-| **recall** | **0.807** | **0.846** | **0.873** |
+| **recall** | **0.804** | **0.842** | **0.870** |
 
 ### False-hit breakdown (by cause, all runs)
 (empty)
@@ -42,7 +42,7 @@ much the traffic assumption moves it.
 | cause | s=0.8 | s=1.0 | s=1.2 |
 |---|---|---|---|
 | below_similarity_threshold | 12 | 11 | 5 |
-| confidence_below_threshold | 47 | 37 | 35 |
+| confidence_below_threshold | 48 | 38 | 36 |
 
 `below_similarity_threshold` is the real-world cost of the conservative 0.525
 threshold; `confidence_below_threshold` is the freshness gate doing its job on
@@ -58,11 +58,11 @@ but counted against recall here, honestly).
 
 | metric | value |
 |---|---|
-| tokens saved by exploiting | 23,664,171 |
-| tokens spent (all queries + corroboration) | 12,335,829 |
+| tokens saved by exploiting | 23,574,181 |
+| tokens spent (all queries + corroboration) | 12,425,819 |
 | cold-path counterfactual | 36,000,000 |
-| reduction | 65.7% |
-| corroborations (agreed/disagreed) | 36/6 |
+| reduction | 65.5% |
+| corroborations (agreed/disagreed) | 37/6 |
 
 ## 4. Methodology
 

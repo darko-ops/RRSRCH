@@ -90,7 +90,7 @@ async def make_corpus():
         engine = create_async_engine(settings.database_url, poolclass=NullPool)
         async with engine.begin() as conn:
             from sqlalchemy import text
-            await conn.execute(text("TRUNCATE deposits, query_events, topic_state"))
+            await conn.execute(text("TRUNCATE deposits, query_events, topic_state, depositor_trust"))
         sm = async_sessionmaker(engine, expire_on_commit=False)
 
         def _make_pg(clock: Clock | None = None, rng: Random | None = None,

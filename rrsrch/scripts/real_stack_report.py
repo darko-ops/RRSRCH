@@ -60,7 +60,7 @@ async def intent_rejection_lines() -> str:
     settings = Settings(store="postgres", embedder="minilm")
     eng = create_async_engine(settings.database_url)
     async with eng.begin() as conn:
-        await conn.execute(text("TRUNCATE deposits, query_events, topic_state"))
+        await conn.execute(text("TRUNCATE deposits, query_events, topic_state, depositor_trust"))
 
     store = PostgresStore(settings)
     corpus = Corpus(store, get_embedder(settings), settings)

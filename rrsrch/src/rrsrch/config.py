@@ -58,6 +58,16 @@ class Settings(BaseSettings):
     half_life_agreement_growth: float = 1.15    # agreement slows this topic's decay
     half_life_disagreement_shrink: float = 0.50 # disagreement speeds it up
 
+    # --- depositor trust (track record only — Ominis attestation is Phase 3) ---
+    # Beta prior: unknown depositors land at trust = prior_mean (serviceable).
+    trust_prior_mean: float = 0.85
+    trust_prior_strength: float = 5.0           # how much evidence to move the prior
+    # trust → confidence-base map: unknown serves at a slightly reduced base
+    # (re-verified sooner); below the prior the base drops steeply so ~2
+    # independent contradictions sink a depositor under the serve threshold.
+    trust_base_at_prior: float = 0.96
+    trust_sub_slope: float = 1.4
+
     # --- observed volatility (evidence overrides the hint) ---
     observed_volatility_min_obs: int = 5        # corroborations before override kicks in
     observed_high_cutoff: float = 0.30          # disagreement rate >= → 'high'

@@ -20,6 +20,7 @@ class InMemoryStore:
         self._d: dict[UUID, DepositRecord] = {}
         self._topics: dict[str, TopicState] = {}
         self._events: list[dict[str, Any]] = []
+        self._trust: dict[str, list[int]] = {}   # depositor → [agreed, contradicted]
 
     async def add(self, rec: DepositRecord) -> UUID:
         self._d[rec.id] = rec
@@ -43,12 +44,25 @@ class InMemoryStore:
         return list(seen.values())
 
     async def mark_corroborated(
-        self, deposit_id: UUID, now: datetime, extra_sources: list[dict[str, Any]]
+        self, deposit_id: UUID, now: datetime, extra_sources: list[dict[str, Any]],
+        independent: bool = False,
     ) -> None:
         rec = self._d[deposit_id]
         rec.last_corroborated_at = now
         rec.corroboration_count += 1
+        if independent:
+            rec.independent_corroboration_count += 1
         rec.sources = [*rec.sources, *extra_sources]
+
+    async def depositor_counts(self, depositor: str) -> tuple[int, int]:
+        a, c = self._trust.get(depositor, (0, 0))
+        return a, c
+
+    async def bump_depositor(self, depositor: str, *, agreed: int = 0,
+                             contradicted: int = 0, score: float = 0.0) -> None:
+        cur = self._trust.setdefault(depositor, [0, 0])
+        cur[0] += agreed
+        cur[1] += contradicted
 
     async def retire(self, deposit_id: UUID, superseded_by: UUID, now: datetime) -> None:
         rec = self._d[deposit_id]

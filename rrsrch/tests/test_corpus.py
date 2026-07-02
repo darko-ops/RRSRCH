@@ -51,7 +51,11 @@ async def test_corroborate_agreed_reearns_confidence(make_corpus):
 
     out = await corpus.corroborate(str(rec.id), "$0.023 per GB-month",
                                    sources=[Source(url="https://aws.amazon.com/s3/pricing/")])
-    assert out.outcome == "agreed" and out.confidence == 1.0
+    # self-corroboration by an unknown-but-serviceable author: anchor re-earned,
+    # confidence back to the author's trust base (not full 1.0 — that requires
+    # an independent voucher)
+    assert out.outcome == "agreed"
+    assert out.confidence == corpus.settings.trust_base_at_prior
 
     served = await corpus.search("current S3 Standard price per GB")
     assert served.serve is True and served.outcome == "hit"   # trust re-earned

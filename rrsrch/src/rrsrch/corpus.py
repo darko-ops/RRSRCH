@@ -123,7 +123,7 @@ class Corpus:
 
         rec = top.record
         topic = await self.store.get_topic(rec.topic_id) if rec.topic_id else None
-        confidence = self._confidence(rec, topic, now)
+        confidence = await self._confidence(rec, topic, now)
 
         if not conf.should_serve(confidence, s.confidence_threshold):
             # A stale outcome is NOT a plain miss: the corpus knows this question,
@@ -180,8 +180,10 @@ class Corpus:
         if out.outcome == "disagreed" and out.new_deposit_id:
             fresh = await self.store.get(UUID(out.new_deposit_id))
             if fresh is not None:
-                return fresh, 1.0
-        return rec, 1.0  # agreed → anchor moved to now → confidence re-earned
+                return fresh, await self._confidence(fresh, topic, self.now())
+        refreshed = await self.store.get(rec.id) or rec
+        # agreed → anchor moved to now → confidence re-earned at the trust base
+        return refreshed, await self._confidence(refreshed, topic, self.now())
 
     # ------------------------------------------------------------- corroborate
 
@@ -216,16 +218,51 @@ class Corpus:
         v = agreement.verdict(claim, rec.claim, self.extractor, self.settings)
         topic = await self.store.get_topic(rec.topic_id) if rec.topic_id else None
 
+        # INDEPENDENCE (the Sybil guard): only a DIFFERENT depositor's
+        # corroboration moves the author's trust or vouches the deposit.
+        # rrsrch's own verifier is independent; the original author is not.
+        independent = depositor != rec.depositor
+
         if v.agree:
-            await self.store.mark_corroborated(rec.id, now, src_dicts)
+            author_base = await self._depositor_base(rec.depositor)
+            # Self-agreement may re-earn the anchor ONLY while the author is in
+            # good standing: single-player's own stale→re-derive→corroborate
+            # loop keeps working, but a proven-bad agent self-corroborating
+            # gains NOTHING — no trust, no anchor, no serve (its base is below
+            # the threshold regardless of anchor).
+            if independent or author_base >= self.settings.confidence_threshold:
+                await self.store.mark_corroborated(rec.id, now, src_dicts,
+                                                   independent=independent)
+            if independent:
+                await self._bump_trust(rec.depositor, agreed=1)
             if topic is not None:
                 await self._update_topic(topic, agreed=True)
-            await self._log_corroboration(rec, "agreed", v, topic)
+            served_base = 1.0 if (independent or rec.independent_corroboration_count
+                                  ) else await self._depositor_base(rec.depositor)
+            await self._log_corroboration(rec, "agreed", v, topic,
+                                          independent=independent)
             return CorroborateResult(outcome="agreed", deposit_id=deposit_id,
-                                     confidence=1.0, claim_similarity=round(v.lexical, 4),
+                                     confidence=round(served_base, 4),
+                                     claim_similarity=round(v.lexical, 4),
                                      rule=v.rule)
 
-        # Disagreed: same question, new answer. Reuse the stored query embedding —
+        # Disagreed. WHO is disagreeing matters (the grief guard): only a
+        # corroborator of equal-or-higher trust — or rrsrch's own verifier —
+        # may retire the deposit and penalize its author. A lower-trust
+        # contradictor gets a recorded DISPUTE but cannot supersede a
+        # better-trusted author's claim (else a proven-bad agent could grief
+        # honest authors' trust down and poison the corpus via the
+        # corroboration channel). Deterministic: trust vs trust, no LLM.
+        is_verifier = depositor.startswith("rrsrch-")
+        if independent and not is_verifier:
+            if await self._trust(depositor) < await self._trust(rec.depositor):
+                await self._log_corroboration(rec, "disputed", v, topic,
+                                              independent=independent)
+                return CorroborateResult(outcome="disputed", deposit_id=deposit_id,
+                                         claim_similarity=round(v.lexical, 4),
+                                         rule=v.rule)
+
+        # Same question, new answer. Reuse the stored query embedding —
         # the query text is unchanged, so re-encoding it would be pure waste.
         ttc = self._time_to_correction(rec, topic, now)
         new = DepositRecord.new(
@@ -236,9 +273,23 @@ class Corpus:
         )
         await self.store.add(new)
         await self.store.retire(rec.id, new.id, now)
+        # THE AGE RULE: a claim contradicted while still inside its volatility
+        # class's half-life was wrong when asserted → the author is penalized.
+        # A claim that OUTLIVED its half-life before being contradicted simply
+        # aged out — world churn, not dishonesty — so the correction happens
+        # but the author's record is untouched. Without this, the most prolific
+        # honest depositors ratchet downward every time reality moves.
+        vol = (topic.observed_volatility if topic else None) or rec.volatility
+        eff_hl = conf.half_life_seconds(vol, self._half_lives) * (
+            topic.half_life_factor if topic else 1.0)
+        anchor = rec.last_corroborated_at or rec.created_at
+        young = (now - anchor).total_seconds() < eff_hl
+        if independent and young:
+            await self._bump_trust(rec.depositor, contradicted=1)
         if topic is not None:
             await self._update_topic(topic, agreed=False)
-        await self._log_corroboration(rec, "disagreed", v, topic, ttc=ttc)
+        await self._log_corroboration(rec, "disagreed", v, topic, ttc=ttc,
+                                      independent=independent)
         return CorroborateResult(outcome="disagreed", deposit_id=deposit_id,
                                  new_deposit_id=str(new.id),
                                  claim_similarity=round(v.lexical, 4), rule=v.rule)
@@ -289,7 +340,7 @@ class Corpus:
         if rec.retired_at is None:
             topic = await self.store.get_topic(rec.topic_id) if rec.topic_id else None
             out["claim"] = rec.claim
-            out["confidence"] = round(self._confidence(rec, topic, self.now()), 4)
+            out["confidence"] = round(await self._confidence(rec, topic, self.now()), 4)
             return out
         out["retired_at"] = rec.retired_at.isoformat()
         out["superseded_by"] = str(rec.superseded_by) if rec.superseded_by else None
@@ -308,7 +359,7 @@ class Corpus:
             topic = await self.store.get_topic(head.topic_id) if head.topic_id else None
             out["replacement"] = {
                 "deposit_id": str(head.id), "claim": head.claim,
-                "confidence": round(self._confidence(head, topic, self.now()), 4),
+                "confidence": round(await self._confidence(head, topic, self.now()), 4),
                 "sources": head.sources,
             }
         return out
@@ -320,14 +371,42 @@ class Corpus:
 
     # ------------------------------------------------------------- internals
 
-    def _confidence(self, rec: DepositRecord, topic: TopicState | None,
-                    now: datetime) -> float:
+    async def _trust(self, depositor: str) -> float:
+        """Track-record trust — a pure function of independently recorded
+        corroboration outcomes. Never an LLM."""
+        agreed, contradicted = await self.store.depositor_counts(depositor)
+        return conf.trust_score(agreed, contradicted,
+                                self.settings.trust_prior_mean,
+                                self.settings.trust_prior_strength)
+
+    async def _depositor_base(self, depositor: str) -> float:
+        return conf.trust_base(await self._trust(depositor),
+                               self.settings.trust_prior_mean,
+                               self.settings.trust_base_at_prior,
+                               self.settings.trust_sub_slope)
+
+    async def _bump_trust(self, depositor: str, *, agreed: int = 0,
+                          contradicted: int = 0) -> None:
+        a, c = await self.store.depositor_counts(depositor)
+        score = conf.trust_score(a + agreed, c + contradicted,
+                                 self.settings.trust_prior_mean,
+                                 self.settings.trust_prior_strength)
+        await self.store.bump_depositor(depositor, agreed=agreed,
+                                        contradicted=contradicted, score=score)
+
+    async def _confidence(self, rec: DepositRecord, topic: TopicState | None,
+                          now: datetime) -> float:
         # Observed volatility (evidence) overrides the depositor's hint; the topic's
-        # half_life_factor applies the bandit's settled/volatile adjustment.
+        # half_life_factor applies the bandit's settled/volatile adjustment; the
+        # depositor's CURRENT trust sets the base — an independently vouched
+        # deposit serves at full base regardless of its author's standing.
         vol = (topic.observed_volatility if topic else None) or rec.volatility
         factor = topic.half_life_factor if topic else 1.0
+        base = (1.0 if rec.independent_corroboration_count > 0
+                else await self._depositor_base(rec.depositor))
         return conf.confidence(rec.created_at, rec.last_corroborated_at, now,
-                               vol, self._half_lives, half_life_factor=factor)
+                               vol, self._half_lives, half_life_factor=factor,
+                               base=base)
 
     async def _no_serve(self, query, outcome, reason, cold, *, sim=None, c=None,
                         dep_id=None, volatility=None, topic_id=None,
@@ -351,8 +430,12 @@ class Corpus:
 
     async def _log_corroboration(self, rec: DepositRecord, outcome: str,
                                  v: agreement.Verdict, topic: TopicState | None,
-                                 ttc: float | None = None) -> None:
-        detail: dict[str, Any] = {"rule": v.rule, "fields": v.detail}
+                                 ttc: float | None = None,
+                                 independent: bool = False) -> None:
+        detail: dict[str, Any] = {"rule": v.rule, "fields": v.detail,
+                                  "independent": independent,
+                                  "author": rec.depositor,
+                                  "author_trust": round(await self._trust(rec.depositor), 4)}
         if topic is not None:
             detail["exploration_rate"] = round(topic.exploration_rate, 6)
             detail["half_life_factor"] = round(topic.half_life_factor, 4)

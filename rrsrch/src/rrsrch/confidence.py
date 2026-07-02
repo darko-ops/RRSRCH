@@ -59,27 +59,66 @@ def confidence(
     volatility: str,
     table: dict[str, float] | None = None,
     half_life_factor: float = 1.0,
+    base: float = 1.0,
 ) -> float:
-    """Live confidence: decay from the most recent moment the claim was confirmed.
+    """Live confidence: BASE × decay from the most recent confirmation moment.
 
     Corroboration re-earns confidence by moving the anchor forward — an agreeing
-    corroboration at time T makes confidence 1.0 at T, decaying afresh from there.
+    corroboration at time T makes confidence `base` at T, decaying afresh.
 
     `half_life_factor` is the topic-level bandit adjustment (Phase 1): a settled
-    topic earns a factor > 1 (slower decay); a disagreeing topic earns < 1
-    (faster decay). Deterministic code computes the factor — never an LLM.
+    topic earns a factor > 1 (slower decay); a disagreeing topic earns < 1.
+
+    `base` is the depositor-trust term (Phase 2): 1.0 for a fully trusted or
+    independently vouched source, trust_base(...) otherwise. A proven-bad
+    depositor's base sits BELOW the serve threshold, so its lone deposits never
+    serve at any age. Deterministic code computes both inputs — never an LLM.
     """
     anchor = last_corroborated_at or created_at
     if last_corroborated_at is not None and last_corroborated_at < created_at:
         anchor = created_at  # never trust a corroboration stamped before creation
     age = (now - anchor).total_seconds()
     if age <= 0:
-        return 1.0
-    return 0.5 ** (age / (half_life_seconds(volatility, table) * half_life_factor))
+        return base
+    return base * 0.5 ** (age / (half_life_seconds(volatility, table) * half_life_factor))
 
 
 def should_serve(conf: float, threshold: float = DEFAULT_CONFIDENCE_THRESHOLD) -> bool:
     return conf >= threshold
+
+
+# ------------------------------------------------ trust by track record (Phase 2)
+# Trust is a PURE function of recorded corroboration outcomes — an LLM never
+# computes or influences it. It feeds the confidence BASE term (the same slot
+# Phase 3's Ominis attestation will later occupy); decay, corroboration
+# re-earning, and the bandit are unchanged.
+
+def trust_score(agreed: int, contradicted: int,
+                prior_mean: float, prior_strength: float) -> float:
+    """Beta-style ratio with a modest prior: unknown depositors (0, 0) land AT
+    the prior — serviceable, not sub-serve. Independent agreements pull toward
+    1; independent contradictions pull toward 0. Bounded (0, 1)."""
+    alpha = prior_mean * prior_strength
+    beta = (1.0 - prior_mean) * prior_strength
+    return (agreed + alpha) / (agreed + contradicted + alpha + beta)
+
+
+def trust_base(trust: float, prior_mean: float, base_at_prior: float,
+               sub_slope: float) -> float:
+    """Map trust → the confidence BASE (confidence at the anchor).
+
+    Piecewise linear, asymmetric by design:
+      - at the prior (unknown) → base_at_prior: serves, but decays below the
+        threshold sooner than a proven-good agent's → re-verified sooner;
+      - above the prior → gently approaches 1.0 (proven-good);
+      - below the prior → drops STEEPLY (sub_slope) so a track record of
+        contradictions sinks the base under the serve threshold: proven-bad
+        agents' lone deposits never serve until independently vouched.
+    """
+    if trust >= prior_mean:
+        hi_slope = (1.0 - base_at_prior) / max(1.0 - prior_mean, 1e-9)
+        return min(1.0, base_at_prior + hi_slope * (trust - prior_mean))
+    return max(0.0, base_at_prior - sub_slope * (prior_mean - trust))
 
 
 def half_lives_from_settings(settings) -> dict[str, float]:

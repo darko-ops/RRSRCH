@@ -272,6 +272,47 @@ Choices made where the spec left room. Phase 1 additions at the bottom.
   one lost hit total. Token reduction dipped 67.0%→65.7%: the false hits had
   been "saving" tokens by serving wrong answers.
 
+## Trust-by-track-record (Phase 2 thread 2, 2026-07-02)
+- **The curve:** trust = Beta ratio (agreed+α)/(agreed+contradicted+α+β) with
+  α/β parameterized as prior_mean 0.85 × strength 5. Base map is piecewise
+  linear: unknown → 0.96 (serves, ~11% shorter serve window → re-verified
+  sooner; the single-agent regression cost is −0.3pt hit rate / −0.004 recall,
+  measured), proven-good → 1.0, and TWO independent contradictions sink the
+  base under the 0.70 serve line (one strike ≠ malice). Trust multiplies the
+  confidence BASE — the same slot Phase 3's Ominis attestation will occupy;
+  decay/corroboration/bandit untouched.
+- **Independence (Sybil guard):** trust moves only on corroborations from a
+  DIFFERENT depositor (rrsrch-\* verifiers count; the author never does).
+  Self-agree may re-earn the anchor ONLY while the author's base ≥ serve
+  threshold — preserving single-player's own stale→corroborate loop while
+  denying a muted agent self-refresh. Independent agreement VOUCHES the deposit
+  (independent_corroboration_count > 0 ⇒ base 1.0): a proven-bad author's
+  claim can earn its way over the line on the corroboration's strength.
+- **The grief guard (spec §4's own sentence, encoded):** only an equal-or-
+  higher-trust corroborator or the verifier may retire a deposit and penalize
+  its author; a lower-trust contradictor gets a recorded DISPUTE, no supersede
+  — else a cratered agent could poison the corpus and grief honest authors
+  through the corroboration channel (the first harness run demonstrated both).
+- **The age rule (found by the harness):** the bare "contradicted ⇒ penalize
+  author" rule punishes honesty in volatile domains — reliable trust RATCHETED
+  DOWN 0.91→0.75 from pure world-churn. Now a contradiction penalizes only a
+  claim still inside its effective half-life ("wrong when asserted"); a claim
+  that outlived its half-life aged out — churn, not dishonesty.
+- **Two engine limitations the multi-agent harness exposed (recorded, open):**
+  (1) coordinated IDENTICAL lies cross-vouch — track record cannot distinguish
+  consensus from collusion (Phase 3 attestation territory; the harness salts
+  its liars for realism); (2) double-negation evasion — "Not true: <already-
+  negated truth>" carries matching boolean polarity + superset text, so an
+  honest corroboration agrees with it; marker-count parity would fix this case
+  but misfires on conjunctions of negated facts — deferred with rationale.
+- **Measured (reports/multi-agent.md, Postgres+MiniLM, 400q):** trust separates
+  (reliable 0.985/0.908, noisy peaks then falls to 0.856, malicious 0.177 →
+  base far sub-serve); poison containment 0/19 deposits ever served incl. 38
+  self-corroboration attempts; false hits 0 with 40% hostile traffic; precision
+  0.989; recall +0.012 vs the single-agent baseline (the extra corroboration
+  traffic helped). Verifier cadence is a stated harness knob (every 10, batch
+  3) — half that cadence let 1 poison deposit serve 9 times.
+
 ## Considered, deferred
 - **`never_serve` volatility tier** (always-fresh facts like FX rates, instead of
   paying ceiling-rate exploration forever): legitimate, but it's new product

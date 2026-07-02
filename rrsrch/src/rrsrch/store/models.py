@@ -39,6 +39,23 @@ class Deposit(Base):
     topic_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     # implicit scope inferred from the query prose (Phase 2); NULL ⇒ infer on read
     inferred_scope: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    independent_corroboration_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0")
+
+
+class DepositorTrust(Base):
+    """Per-depositor track record. `score` is derived (counts are the source of
+    truth) and persisted only for observability; trust math lives in
+    confidence.py — pure code, never an LLM."""
+    __tablename__ = "depositor_trust"
+
+    depositor: Mapped[str] = mapped_column(String(256), primary_key=True)
+    agreed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0,
+                                              server_default="0")
+    contradicted_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0,
+                                                    server_default="0")
+    score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0,
+                                         server_default="0")
 
 
 class Topic(Base):

@@ -1,4 +1,4 @@
-.PHONY: up down migrate test test-pg eval demo verify-loop verify-live flywheel steering lint
+.PHONY: up down migrate test test-pg eval demo verify-loop verify-live flywheel multiagent steering lint
 PYTHON ?= python3
 
 up:            ## start Postgres+pgvector and the app (migrates on boot)
@@ -30,6 +30,9 @@ test-pg:       ## the full suite against real Postgres (docker compose up -d db 
 
 flywheel:      ## flywheel curve on labeled Zipf traffic (Postgres+MiniLM, ~5 min)
 	RRSRCH_STORE=postgres RRSRCH_EMBEDDER=minilm PYTHONPATH=src:. $(PYTHON) scripts/flywheel_report.py
+
+multiagent:    ## multi-agent flywheel: trust separation + poison containment (Phase 2 exit)
+	RRSRCH_STORE=postgres RRSRCH_EMBEDDER=minilm PYTHONPATH=src:. $(PYTHON) scripts/multiagent_report.py
 
 steering:      ## show the budget-steering curves (exit criterion 2)
 	$(PYTHON) -m pytest -s -q tests/test_phase1_exit.py::test_exit_2_budget_steers_to_the_volatile_topic

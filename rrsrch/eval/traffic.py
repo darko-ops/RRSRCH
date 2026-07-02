@@ -30,6 +30,8 @@ class Query:
     volatility: str
     intent: Intent | None  # None for one-offs (truth resolved via one_off_answer)
     one_off_answer: str | None = None
+    agent: str = "local"   # who is asking (and deposits/corroborates on a no-serve)
+    misfire: bool = False  # pre-rolled: a NOISY agent's research goes wrong here
 
 
 def zipf_weights(n: int, s: float) -> list[float]:
@@ -39,21 +41,36 @@ def zipf_weights(n: int, s: float) -> list[float]:
 def generate_stream(n: int, *, s: float, seed: int,
                     one_off_rate: float = 0.15,
                     flip_rate: float = 0.07,
-                    scope_variant_rate: float = 0.07) -> list[Query]:
+                    scope_variant_rate: float = 0.07,
+                    agents: dict[str, float] | None = None,
+                    misfire_rate: float = 0.3) -> list[Query]:
     """The arrival stream. All randomness flows from `seed` — a run is exactly
-    reproducible, and nothing here ever consults an embedding score."""
+    reproducible, and nothing here ever consults an embedding score.
+
+    `agents` maps agent-id → arrival weight (multi-agent mode); None keeps the
+    single-agent 'local' stream — the Phase 2 regression guard depends on that
+    default being byte-identical to before. `misfire` is pre-rolled here so the
+    runner stays deterministic; only NOISY profiles consult it."""
     rng = Random(seed)
     weights = zipf_weights(len(INTENTS), s)
+    names = list(agents) if agents else ["local"]
+    agent_w = list(agents.values()) if agents else [1.0]
     stream: list[Query] = []
     one_offs = 0
     for _ in range(n):
         gap = rng.uniform(5.0, 45.0)   # minutes between arrivals
+        # both extra draws happen ONLY in multi-agent mode, so the single-agent
+        # stream is byte-identical to the pre-Phase-2 one (the regression guard
+        # compares like with like — same queries, same order).
+        agent = rng.choices(names, weights=agent_w, k=1)[0] if agents else "local"
+        misfire = (rng.random() < misfire_rate) if agents else False
         if rng.random() < one_off_rate:
             text, answer = one_off(one_offs)
             one_offs += 1
             stream.append(Query(text, None,
                                 Label(f"oneoff-{one_offs}", "", "aff"),
-                                "one_off", gap, "medium", None, answer))
+                                "one_off", gap, "medium", None, answer,
+                                agent, misfire))
             continue
 
         intent = rng.choices(INTENTS, weights=weights, k=1)[0]
@@ -61,19 +78,22 @@ def generate_stream(n: int, *, s: float, seed: int,
         if intent.flip is not None and roll < flip_rate:
             stream.append(Query(intent.flip, intent.scope,
                                 Label(intent.intent_id, intent.scope_key(), "neg"),
-                                "flip", gap, intent.volatility, intent))
+                                "flip", gap, intent.volatility, intent, None,
+                                agent, misfire))
         elif intent.alt_scope is not None and roll < flip_rate + scope_variant_rate:
             text = rng.choice((intent.canonical, *intent.paraphrases))
             stream.append(Query(text, intent.alt_scope,
                                 Label(intent.intent_id,
                                       label_scope_key(intent.alt_scope), "aff"),
-                                "scope_variant", gap, intent.volatility, intent))
+                                "scope_variant", gap, intent.volatility, intent, None,
+                                agent, misfire))
         else:
             text = rng.choice((intent.canonical, *intent.paraphrases))
             kind = "canonical" if text == intent.canonical else "paraphrase"
             stream.append(Query(text, intent.scope,
                                 Label(intent.intent_id, intent.scope_key(), "aff"),
-                                kind, gap, intent.volatility, intent))
+                                kind, gap, intent.volatility, intent, None,
+                                agent, misfire))
     return stream
 
 

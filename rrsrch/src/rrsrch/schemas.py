@@ -50,7 +50,7 @@ class SearchResult(BaseModel):
 
 
 class CorroborateResult(BaseModel):
-    outcome: str                       # 'agreed' | 'disagreed' | 'not_found' | 'retired'
+    outcome: str   # 'agreed' | 'disagreed' | 'disputed' | 'not_found' | 'retired'
     deposit_id: str | None = None      # the deposit corroborated (or looked up)
     new_deposit_id: str | None = None  # on 'disagreed': the replacement
     superseded_by: str | None = None   # on 'retired': where the live claim now lives
@@ -94,6 +94,9 @@ class DepositRecord:
     # scope extracted from the deposit's QUERY PROSE at deposit time (Phase 2);
     # declared `scope` stays authoritative, this supplements it for the gate.
     inferred_scope: dict[str, list[str]] | None = None
+    # agreements from depositors OTHER than the author: once > 0 the deposit is
+    # independently vouched and serves at full base regardless of author trust.
+    independent_corroboration_count: int = 0
 
     @staticmethod
     def new(**kw: Any) -> "DepositRecord":
