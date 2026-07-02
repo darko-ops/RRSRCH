@@ -1,94 +1,219 @@
 #!/usr/bin/env python3
-"""Phase 0 exit criteria. Builds a corpus, deposits the seed set, then measures:
+"""Phase 0 exit criteria, now runnable on the REAL stack. Builds a corpus,
+deposits the seed set, then measures:
 
   1. paraphrase hit rate   — paraphrased queries match the RIGHT deposit (high).
   2. scope false-hit rate  — scope-different near-misses do NOT match (~0).
   3. warm/cold cost ratio  — a served hit costs <10% of the cold path.
 
-Runs offline by default (in-memory store + hash embedder) so it needs no Postgres
-and no model download. With the hash embedder the paraphrase rate is a FLOOR; the
-production sentence-transformers model raises it. The scope and cost results are
-embedder-independent. Tune via env: RRSRCH_EMBEDDER=local, RRSRCH_SIMILARITY_THRESHOLD.
+Env knobs:
+  RRSRCH_STORE=memory|postgres        (postgres: docker compose up -d db + migrate)
+  RRSRCH_EMBEDDER=hash|minilm|local   (hash: offline floor; minilm: the real model)
+  RRSRCH_SIMILARITY_THRESHOLD=<float> (single-threshold mode)
+  RRSRCH_EVAL_SWEEP=lo:hi:step        (sweep mode: prints the hit-rate vs
+                                       false-hit curve and picks the knee — the
+                                       highest threshold maximizing hits with
+                                       false-hits AND wrong-topic hits at zero)
 
-    PYTHONPATH=src python eval/run_eval.py
+Scoring happens ONCE per probe (rank scores are threshold-independent); a sweep
+just re-thresholds the recorded scores, so MiniLM inference isn't repeated.
+
+    PYTHONPATH=src python -m eval.run_eval
 """
 from __future__ import annotations
 
 import asyncio
 import os
 import sys
+from dataclasses import dataclass
 
+from rrsrch import agreement
 from rrsrch.config import Settings
 from rrsrch.corpus import Corpus
 from rrsrch.embeddings import get_embedder
+from rrsrch.factory import build_store
+from rrsrch.matching import engine
 from rrsrch.schemas import DepositIn
-from rrsrch.store.memory import InMemoryStore
 from rrsrch.telemetry import estimate_tokens
 
-from eval.dataset import PARAPHRASES, SCOPE_NEARMISS
+from eval.dataset import INTENT_FLIP, INTENT_PRESERVING, PARAPHRASES, SCOPE_NEARMISS
 
-# Offline operating point for the hash embedder: 0.42 maximizes correct hits while
-# keeping scope false-hits AND cross-topic wrong matches at zero (below ~0.40 a wrong
-# topic starts matching). Production uses MiniLM at ~0.85. Override via env.
-THRESHOLD = float(os.environ.get("RRSRCH_SIMILARITY_THRESHOLD", "0.42"))
+# Offline default 0.42 (hash embedder operating point, see DECISIONS); MiniLM is
+# tuned via the sweep. Override via env.
+DEFAULT_THRESHOLD = {"hash": 0.42}
 
 
-async def main() -> int:
-    settings = Settings(
-        store="memory",
-        embedder=os.environ.get("RRSRCH_EMBEDDER", "hash"),
-        similarity_threshold=THRESHOLD,
-        cold_path_estimate_tokens=90_000,
-    )
-    corpus = Corpus(InMemoryStore(), get_embedder(settings), settings)
+@dataclass
+class Probe:
+    top_similarity: float   # fused score of the best (scope-gated) candidate
+    correct: bool           # is that candidate the intended deposit?
+    guard_pass: bool = True # serve-path intent guard verdict on that candidate
+    guard_rule: str = "no_signal"
 
-    # deposit the seed set, remembering which deposit id belongs to each paraphrase topic.
-    topic_id: dict[str, str] = {}
+
+async def _truncate_postgres(settings: Settings) -> None:
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    eng = create_async_engine(settings.database_url)
+    async with eng.begin() as conn:
+        await conn.execute(text("TRUNCATE deposits, query_events, topic_state"))
+    await eng.dispose()
+
+
+async def _fresh_corpus(settings: Settings) -> Corpus:
+    if settings.store == "postgres":
+        await _truncate_postgres(settings)
+    return Corpus(build_store(settings), get_embedder(settings), settings)
+
+
+async def _probe(corpus: Corpus, probe_q: str, scope, correct_id: str | None) -> Probe:
+    """Rank once + evaluate the serve-path intent guard on the top candidate,
+    using the SAME shared function corpus.search uses (agreement.intent_verdict)."""
+    kw = dict(k=corpus.settings.candidate_k, vector_weight=corpus.settings.vector_weight,
+              lexical_weight=corpus.settings.lexical_weight)
+    ranked = await engine.rank(corpus.store, corpus.embedder, probe_q, scope, **kw)
+    if not ranked:
+        return Probe(0.0, False)
+    iv = agreement.intent_verdict(corpus.extractor.extract(probe_q),
+                                  corpus.extractor.extract(ranked[0].record.query))
+    correct = correct_id is not None and str(ranked[0].record.id) == correct_id
+    return Probe(ranked[0].similarity, correct, iv.match, iv.rule)
+
+
+async def score(settings: Settings
+                ) -> tuple[list[Probe], list[Probe], list[Probe], list[Probe], int]:
+    """Score all four sets. The intent sets get ISOLATED corpora so their
+    deposits cannot perturb the original paraphrase/scope numbers."""
+    corpus = await _fresh_corpus(settings)
+    deposit_of: dict[str, str] = {}
     for tid, q, claim, vol, _para in PARAPHRASES:
         rec = await corpus.deposit(DepositIn(query=q, claim=claim, volatility_hint=vol))
-        topic_id[tid] = str(rec.id)
+        deposit_of[tid] = str(rec.id)
     for q, claim, vol, scope, _pq, _ps in SCOPE_NEARMISS:
         await corpus.deposit(DepositIn(query=q, claim=claim, volatility_hint=vol, scope=scope))
 
-    # 1) paraphrase hit rate (correct = served AND it's the right deposit)
-    correct = wrong = 0
-    for tid, _q, _claim, _vol, para in PARAPHRASES:
-        out = await corpus.search(para)
-        if out.serve and out.deposit_id == topic_id[tid]:
-            correct += 1
-        else:
-            wrong += 1
-            print(f"  [paraphrase miss] {tid!r}: serve={out.serve} sim={out.similarity}")
-    para_rate = correct / len(PARAPHRASES)
+    para = [await _probe(corpus, probe_q, None, deposit_of[tid])
+            for tid, _q, _claim, _vol, probe_q in PARAPHRASES]
+    # ANY candidate surviving the scope gate and clearing the threshold is a
+    # false hit — correctness is irrelevant here, serving at all is the bug.
+    scope_probes = [await _probe(corpus, probe_q, probe_scope, None)
+                    for _q, _claim, _vol, _scope, probe_q, probe_scope in SCOPE_NEARMISS]
 
-    # 2) scope false-hit rate (any serve on a conflicting-scope probe is a false hit)
-    false_hits = 0
-    for _q, _claim, _vol, _scope, pq, ps in SCOPE_NEARMISS:
-        out = await corpus.search(pq, scope=ps)
-        if out.serve:
-            false_hits += 1
-            print(f"  [scope FALSE HIT] {pq!r} {ps} served deposit {out.deposit_id}")
-    false_hit_rate = false_hits / len(SCOPE_NEARMISS)
+    flip_corpus = await _fresh_corpus(settings)
+    for _tid, q, claim, _probe_q in INTENT_FLIP:
+        await flip_corpus.deposit(DepositIn(query=q, claim=claim))
+    # serving ANYTHING to a flipped-intent probe is a wrong answer
+    flips = [await _probe(flip_corpus, probe_q, None, None)
+             for _tid, _q, _claim, probe_q in INTENT_FLIP]
 
-    # 3) warm vs cold cost (a representative served hit)
-    sample = await corpus.search(PARAPHRASES[0][4])
-    served_tokens = estimate_tokens(sample.claim or "")
+    keep_corpus = await _fresh_corpus(settings)
+    keep_of = {}
+    for tid, q, claim, _probe_q in INTENT_PRESERVING:
+        keep_of[tid] = str((await keep_corpus.deposit(DepositIn(query=q, claim=claim))).id)
+    keeps = [await _probe(keep_corpus, probe_q, None, keep_of[tid])
+             for tid, _q, _claim, probe_q in INTENT_PRESERVING]
+
+    served_tokens = estimate_tokens(PARAPHRASES[0][2])
+    return para, scope_probes, flips, keeps, served_tokens
+
+
+def evaluate(para: list[Probe], scope_probes: list[Probe], threshold: float
+             ) -> tuple[float, float, int]:
+    # a hit must clear similarity AND the intent guard — exactly like corpus.search
+    hits = sum(1 for p in para
+               if p.correct and p.guard_pass and p.top_similarity >= threshold)
+    wrong = sum(1 for p in para
+                if not p.correct and p.guard_pass and p.top_similarity >= threshold)
+    false_hits = sum(1 for p in scope_probes
+                     if p.guard_pass and p.top_similarity >= threshold)
+    return hits / len(para), false_hits / len(scope_probes), wrong
+
+
+def evaluate_intent(flips: list[Probe], keeps: list[Probe], threshold: float
+                    ) -> tuple[int, int, int, int]:
+    """(intent false hits, flips the guard rejected, preserving hits,
+    preserving pairs the guard wrongly blocked)."""
+    false_hits = sum(1 for p in flips if p.guard_pass and p.top_similarity >= threshold)
+    guard_caught = sum(1 for p in flips if not p.guard_pass)
+    keep_hits = sum(1 for p in keeps
+                    if p.correct and p.guard_pass and p.top_similarity >= threshold)
+    over_rejected = sum(1 for p in keeps if p.correct and not p.guard_pass)
+    return false_hits, guard_caught, keep_hits, over_rejected
+
+
+def pick_knee(para: list[Probe], scope_probes: list[Probe],
+              lo: float, hi: float, step: float) -> float:
+    """Highest hit rate subject to the HARD CONSTRAINT (false-hits = 0, wrong-topic
+    serves = 0); ties resolve to the HIGHER threshold (more conservative)."""
+    best_t, best_rate = hi, -1.0
+    t = lo
+    while t <= hi + 1e-9:
+        rate, false_rate, wrong = evaluate(para, scope_probes, t)
+        if false_rate == 0.0 and wrong == 0 and rate >= best_rate:
+            best_t, best_rate = t, rate
+        t = round(t + step, 10)
+    return best_t
+
+
+async def main() -> int:
+    embedder = os.environ.get("RRSRCH_EMBEDDER", "hash")
+    settings = Settings(
+        store=os.environ.get("RRSRCH_STORE", "memory"),
+        embedder=embedder,
+        cold_path_estimate_tokens=90_000,
+    )
+    para, scope_probes, flips, keeps, served_tokens = await score(settings)
+
+    sweep = os.environ.get("RRSRCH_EVAL_SWEEP")
+    if sweep:
+        lo, hi, step = (float(x) for x in sweep.split(":"))
+        print(f"threshold sweep {lo}→{hi} (step {step})  "
+              f"embedder={embedder} store={settings.store}")
+        print(f"{'threshold':>9} | {'paraphrase hits':>15} | {'scope false-hits':>16} | wrong-topic")
+        t = lo
+        while t <= hi + 1e-9:
+            rate, false_rate, wrong = evaluate(para, scope_probes, t)
+            print(f"{t:>9.2f} | {rate*100:>14.1f}% | {false_rate*100:>15.1f}% | {wrong:>11}")
+            t = round(t + step, 10)
+        knee = pick_knee(para, scope_probes, lo, hi, step)
+        print(f"\nknee (max hits, false-hits=0, wrong-topic=0, prefer higher): {knee:.2f}")
+        threshold = knee
+    else:
+        threshold = float(os.environ.get(
+            "RRSRCH_SIMILARITY_THRESHOLD",
+            DEFAULT_THRESHOLD.get(embedder, Settings().similarity_threshold)))
+
+    rate, false_rate, wrong = evaluate(para, scope_probes, threshold)
+    ifh, guard_caught, keep_hits, over_rejected = evaluate_intent(flips, keeps, threshold)
     cold = settings.cold_path_estimate_tokens
     cost_ratio = served_tokens / cold
 
     print("\n" + "=" * 60)
-    print(f"embedder={settings.embedder}  similarity_threshold={THRESHOLD}")
+    print(f"embedder={embedder}  store={settings.store}  similarity_threshold={threshold}")
     print("=" * 60)
-    print(f"1. paraphrase hit rate : {para_rate*100:.1f}%  ({correct}/{len(PARAPHRASES)})")
-    print(f"2. scope false-hit rate: {false_hit_rate*100:.1f}%  ({false_hits}/{len(SCOPE_NEARMISS)})")
+    print(f"1. paraphrase hit rate : {rate*100:.1f}%  "
+          f"({int(rate*len(para))}/{len(para)}; wrong-topic serves: {wrong})")
+    print(f"2. scope false-hit rate: {false_rate*100:.1f}%  "
+          f"({int(false_rate*len(scope_probes))}/{len(scope_probes)})")
     print(f"3. warm hit cost       : {served_tokens} tok = {cost_ratio*100:.2f}% of cold ({cold})")
+    print(f"4. intent false-hits   : {ifh}/{len(flips)}  "
+          f"(guard rejected {guard_caught}/{len(flips)} flips)")
+    print(f"5. intent-preserving   : {keep_hits}/{len(keeps)} hit  "
+          f"(guard wrongly blocked: {over_rejected})")
 
-    ok1, ok2, ok3 = para_rate >= 0.80, false_hit_rate == 0.0, cost_ratio < 0.10
+    ok1 = rate >= 0.80
+    ok2 = false_rate == 0.0 and wrong == 0
+    ok3 = cost_ratio < 0.10
+    ok4 = ifh == 0
+    ok5 = over_rejected == 0
     print("\nEXIT CRITERIA")
     print(f"  [{'PASS' if ok1 else 'FAIL'}] paraphrases hit at high rate (>=80%)")
-    print(f"  [{'PASS' if ok2 else 'FAIL'}] scope near-misses do NOT match (false-hit ~0)")
+    print(f"  [{'PASS' if ok2 else 'FAIL'}] scope near-misses / wrong topics do NOT serve")
     print(f"  [{'PASS' if ok3 else 'FAIL'}] warm hit < 10% of cold path")
-    passed = ok1 and ok2 and ok3
+    print(f"  [{'PASS' if ok4 else 'FAIL'}] intent flips do NOT serve (false-hit = 0)")
+    print(f"  [{'PASS' if ok5 else 'FAIL'}] guard blocks no intent-preserving paraphrase")
+    passed = ok1 and ok2 and ok3 and ok4 and ok5
     print(f"\n{'✓ EVAL PASSED' if passed else '✗ EVAL FAILED'}")
     return 0 if passed else 1
 

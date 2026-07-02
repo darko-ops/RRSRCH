@@ -125,3 +125,92 @@ SCOPE_NEARMISS = [
     ("on-call escalation phone number", "+1-555-0100.", "medium",
      {"team": "platform"}, "on-call escalation phone number", {"team": "security"}),
 ]
+
+# INTENT-FLIP: same scope, near-identical wording, OPPOSITE intent — the pairs
+# embedding similarity alone will happily false-hit. Only the serve-path intent
+# guard can catch these. (id, deposited query, claim, probe query); probe MUST
+# NOT be served the deposited claim.
+INTENT_FLIP = [
+    # -- explicit negation --
+    ("neg-cmmc-mfa", "Does CMMC Level 2 require multi-factor authentication?",
+     "Yes — MFA is required under IA.L2-3.5.3.",
+     "Does CMMC Level 2 not require multi-factor authentication?"),
+    ("neg-lambda-free", "Is the AWS Lambda free tier available to new accounts?",
+     "Yes, 1M requests/month.",
+     "Is the AWS Lambda free tier not available to new accounts?"),
+    ("neg-gdpr-us", "Does GDPR apply to US companies serving EU users?",
+     "Yes — extraterritorial scope under Art. 3(2).",
+     "Does GDPR never apply to US companies serving EU users?"),
+    ("neg-py2", "Is Python 2 still supported upstream?",
+     "No — EOL since 2020-01-01.",
+     "Is Python 2 no longer supported upstream?"),
+    # -- antonym verbs --
+    ("verb-s3-versioning", "How do I enable S3 bucket versioning?",
+     "PutBucketVersioning with Status=Enabled.",
+     "How do I disable S3 bucket versioning?"),
+    ("verb-docker-install", "How to install Docker on Ubuntu 22.04",
+     "apt-get install docker-ce from the official repo.",
+     "How to uninstall Docker on Ubuntu 22.04"),
+    ("verb-venv", "How do I activate a Python virtualenv?",
+     "source .venv/bin/activate.",
+     "How do I deactivate a Python virtualenv?"),
+    ("verb-sg-443", "How to allow inbound traffic on port 443 in a security group",
+     "Add an ingress rule for tcp/443.",
+     "How to block inbound traffic on port 443 in a security group"),
+    ("verb-awscli", "How to install the AWS CLI v2 on macOS",
+     "Run the official .pkg installer.",
+     "How to remove the AWS CLI v2 from macOS"),
+    # -- direction --
+    ("dir-ec2-mem", "How do I increase EC2 instance memory?",
+     "Stop the instance and change the instance type.",
+     "How do I decrease EC2 instance memory?"),
+    ("dir-ulimit", "How to raise the ulimit file descriptor cap on Linux",
+     "Edit /etc/security/limits.conf nofile.",
+     "How to lower the ulimit file descriptor cap on Linux"),
+    ("dir-migrations", "Should I run database migrations before deploying the app?",
+     "Yes — expand-migrate-contract; migrate first.",
+     "Should I run database migrations after deploying the app?"),
+    ("dir-shared-buffers", "How do I boost PostgreSQL shared_buffers for performance?",
+     "Set shared_buffers to ~25% of RAM.",
+     "How do I reduce PostgreSQL shared_buffers for performance?"),
+    # -- inclusion --
+    ("inc-node-modules", "Should node_modules be included in the git repository?",
+     "No for apps with lockfiles; vendoring is the exception.",
+     "Should node_modules be excluded from the git repository?"),
+    ("inc-ls-hidden", "How do I include hidden files in ls output?",
+     "Use ls -a.",
+     "How do I exclude hidden files from ls output?"),
+    ("inc-ci-tests", "Does the CI pipeline include integration tests?",
+     "Yes, in the post-merge stage.",
+     "Does the CI pipeline exclude integration tests?"),
+]
+
+# INTENT-PRESERVING PARAPHRASE: same question, different words, NO intent change —
+# the regression guard proving the intent guard doesn't over-reject. (id,
+# deposited query, claim, probe query); probe MUST still be served.
+INTENT_PRESERVING = [
+    ("keep-cmmc-req", "What does CMMC Level 2 require?",
+     "The 110 NIST SP 800-171 controls.",
+     "What are CMMC Level 2's requirements?"),
+    ("keep-s3-versioning", "How do I enable S3 bucket versioning?",
+     "PutBucketVersioning with Status=Enabled.",
+     "How can I turn on versioning for an S3 bucket?"),
+    ("keep-docker", "How to install Docker on Ubuntu 22.04",
+     "apt-get install docker-ce from the official repo.",
+     "Installing Docker on Ubuntu 22.04"),
+    ("keep-ec2-mem", "How do I increase EC2 instance memory?",
+     "Stop the instance and change the instance type.",
+     "How do I raise the memory on an EC2 instance?"),
+    ("keep-node-modules", "Should node_modules be included in the git repository?",
+     "No for apps with lockfiles; vendoring is the exception.",
+     "Should the git repository include node_modules?"),
+    ("keep-sg-443", "How to allow inbound traffic on port 443 in a security group",
+     "Add an ingress rule for tcp/443.",
+     "How to permit incoming traffic on port 443 in a security group"),
+    ("keep-gdpr", "Does GDPR apply to US companies serving EU users?",
+     "Yes — extraterritorial scope under Art. 3(2).",
+     "Are US companies serving EU users subject to GDPR?"),
+    ("keep-venv-exit", "How do I deactivate a Python virtualenv?",
+     "Run the shell function `deactivate`.",
+     "How do I exit a Python virtualenv?"),
+]
