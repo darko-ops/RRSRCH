@@ -29,7 +29,12 @@ def offline_settings(**over) -> Settings:
                 # topic clustering threshold mirrors the search threshold's offline
                 # tuning: hash embedder is weaker than MiniLM (see DECISIONS)
                 topic_similarity_threshold=0.50,
-                confidence_threshold=0.70, cold_path_estimate_tokens=90_000)
+                confidence_threshold=0.70, cold_path_estimate_tokens=90_000,
+                # EXPLICIT opt-in: production defaults to verifier "none" with no
+                # secret (secure by default); the test corpus deliberately runs
+                # the local verifier so attestation paths get real verification.
+                attestation_verifier="local",
+                attestation_secret="rrsrch-offline-test-secret")
     base.update(over)
     return Settings(**base)
 

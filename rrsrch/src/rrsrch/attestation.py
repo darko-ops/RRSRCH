@@ -94,6 +94,13 @@ class NullAttestationVerifier:
 
 def build_attestation_verifier(settings: Settings) -> AttestationVerifier:
     if settings.attestation_verifier == "local":
+        if not settings.attestation_secret:
+            raise RuntimeError(
+                "attestation_verifier='local' requires an explicitly-set "
+                "RRSRCH_ATTESTATION_SECRET. Refusing to run a forgeable verifier "
+                "on a known/empty secret — that would let anyone mint valid "
+                "attestations and re-open Sybil collusion. Set a secret, or use "
+                "attestation_verifier='none' (everyone unattested).")
         return LocalAttestationVerifier(settings.attestation_secret)
     if settings.attestation_verifier == "ominis":
         raise RuntimeError(

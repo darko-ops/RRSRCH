@@ -381,6 +381,33 @@ Choices made where the spec left room. Phase 1 additions at the bottom.
   presented token is stored on the deposit for audit (migration 0006; NULL
   backfill = unattested = correct for all history).
 
+## Secure-by-default attestation (review finding on b1ea823, fixed 2026-07-02)
+- **The hole:** `attestation_verifier` defaulted to "local" with a hardcoded
+  source-visible secret — a deployment left on defaults let an attacker
+  mint_token() a valid attestation BOUND TO THEIR OWN identity, gaining the
+  attested prior AND strong-vouch capability: the Sybil collusion closure
+  undone by configuration. The trust LOGIC was fine; the defaults gave it away.
+- **The fix (no logic change):** default verifier is now "none" (everyone
+  unattested = exact Phase 2); `attestation_secret` defaults to empty; selecting
+  "local" without an explicitly-set secret FAILS LOUDLY (same spirit as the
+  ominis stub — never silently run a forgeable verifier, never fall back to a
+  known secret). Tests/harness opt in EXPLICITLY (conftest + multiagent
+  harness set verifier="local" + their own secrets), so verification coverage
+  is unchanged. Pinned: on production defaults, self-minted tokens grant no
+  level, no prior shift, and no strong vouch — a self-minted sock ring stays
+  weak.
+
+## Part 0 clean_flip guard — known limitation (Finding 2, recorded, accepted)
+The cardinality guard cannot distinguish an honest multi-clause paraphrase from
+a dishonest multi-clause claim: a malicious agent phrasing every lie as
+multi-clause mixed-polarity dodges the TRACK-RECORD penalty (each lie is still
+retired-and-replaced — the corpus stays correct — but the author is never muted
+below serve via this path alone; numeric/version/entity mismatches still
+penalize normally). Narrow, and the asymmetry is deliberate: false-penalizing
+honest agents for wording differences ratchets good depositors down (the exact
+failure the age rule fixed), while the residual attacker still never poisons
+the corpus. Accepted as-is; revisit only with evidence from organic traffic.
+
 ## Considered, deferred
 - **`never_serve` volatility tier** (always-fresh facts like FX rates, instead of
   paying ceiling-rate exploration forever): legitimate, but it's new product

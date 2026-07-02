@@ -69,8 +69,13 @@ class Settings(BaseSettings):
     trust_sub_slope: float = 1.4
 
     # --- attestation (Phase 3: verifiable identity weighting the trust prior) ---
-    attestation_verifier: str = "local"         # local (signed test tokens) | ominis | none
-    attestation_secret: str = "rrsrch-local-test-secret"   # LOCAL verifier only
+    # SECURE BY DEFAULT: "none" ⇒ everyone unattested ⇒ exact Phase 2 behavior.
+    # Attestation activates only by deliberate choice. "local" (HMAC test
+    # tokens) REQUIRES an explicitly-set secret — a deployment left on defaults
+    # must never run a verifier whose secret an attacker can read from source
+    # (that would let them mint self-bound tokens and re-open Sybil collusion).
+    attestation_verifier: str = "none"          # none | local | ominis
+    attestation_secret: str = ""                # REQUIRED for "local"; no default
     # composition: an attested identity's Beta PRIOR shifts toward this ceiling
     # by its attestation level; track record then adjusts it exactly as before.
     attested_prior_ceiling: float = 0.95

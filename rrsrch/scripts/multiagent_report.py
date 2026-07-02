@@ -151,7 +151,12 @@ def trust_chart(curve) -> str:
 
 async def main() -> None:
     settings = Settings(store=os.environ.get("RRSRCH_STORE", "postgres"),
-                        embedder=os.environ.get("RRSRCH_EMBEDDER", "minilm"))
+                        embedder=os.environ.get("RRSRCH_EMBEDDER", "minilm"),
+                        # explicit opt-in: production defaults to "none"/no secret
+                        # (secure by default); the harness runs the local verifier
+                        # so attested profiles get real verification.
+                        attestation_verifier="local",
+                        attestation_secret="rrsrch-flywheel-harness-secret")
     print(f"multi-agent run: {N} queries, seed {SEED}, {settings.store}+{settings.embedder}")
     multi = await run_stream(generate_stream(N, s=1.0, seed=SEED, agents=AGENTS), settings)
     print("single-agent baseline (same seed) for the recall delta...")

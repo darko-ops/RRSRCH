@@ -20,6 +20,54 @@ def tok(identity: str, level: float = 1.0, days: int = 30, secret: str = SECRET)
     return mint_token(identity, level, T0 + timedelta(days=days), secret)
 
 
+# ---------------------------------------------- secure by default (Finding 1)
+
+async def test_default_config_grants_nothing_to_minted_tokens():
+    """PRODUCTION DEFAULTS: verifier 'none', no secret. A self-minted token —
+    even one signed with a secret the attacker chose — grants nothing: no
+    attested level, Phase 2 track-record base, and a sock-ring's self-minted
+    tokens never earn the strong vouch. This is the pin that keeps the Sybil
+    hole closed on a deployment left on defaults."""
+    from rrsrch.config import Settings
+    from rrsrch.corpus import Corpus
+    from rrsrch.embeddings import HashEmbedder
+    from rrsrch.store.memory import InMemoryStore
+
+    defaults = Settings(store="memory", embedder="hash", similarity_threshold=0.55,
+                        topic_similarity_threshold=0.50)
+    assert defaults.attestation_verifier == "none"
+    assert defaults.attestation_secret == ""
+    corpus = Corpus(InMemoryStore(), HashEmbedder(384), defaults)
+
+    attacker_token = mint_token("sock-0", 1.0, T0 + timedelta(days=30),
+                                "any-secret-the-attacker-likes")
+    dep = await corpus.deposit(DepositIn(query="what is the daily API quota?",
+                                         claim="the quota is unlimited requests",
+                                         depositor="sock-0",
+                                         attestation=attacker_token))
+    assert await corpus.store.attested_level("sock-0") is None
+    assert await corpus._trust("sock-0") == pytest.approx(
+        defaults.trust_prior_mean)                       # Phase 2 base, exactly
+    # cross-vouch with self-minted tokens: still WEAK — no strong vouch
+    for i in (1, 2):
+        sock_tok = mint_token(f"sock-{i}", 1.0, T0 + timedelta(days=30),
+                              "any-secret-the-attacker-likes")
+        out = await corpus.corroborate(str(dep.id), "the quota is unlimited requests",
+                                       depositor=f"sock-{i}", attestation=sock_tok)
+        assert out.outcome == "agreed"
+    assert (await corpus.store.get(dep.id)).independent_corroboration_count == 0
+
+
+def test_local_verifier_without_secret_fails_loudly():
+    from rrsrch.attestation import build_attestation_verifier
+    from rrsrch.config import Settings
+
+    with pytest.raises(RuntimeError, match="requires an explicitly-set"):
+        build_attestation_verifier(Settings(attestation_verifier="local"))
+    with pytest.raises(RuntimeError):
+        build_attestation_verifier(Settings(attestation_verifier="ominis"))
+
+
 # ------------------------------------------------ verification security
 
 def test_valid_bound_token_verifies():
