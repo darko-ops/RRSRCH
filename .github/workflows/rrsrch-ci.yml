@@ -1,9 +1,11 @@
 name: rrsrch CI
 
-# Gates the rrsrch Phase 0 corpus on its two checks: the unit suite and the
-# matching eval (whose exit criteria — paraphrase hit rate, ~0 scope false-hits,
-# warm < 10% of cold — are the real bar). `make eval` exits non-zero if they fail,
-# so a regression fails the build.
+# Gates the rrsrch engine on its two offline checks: the unit suite (93 tests —
+# confidence, corroboration, bandit, intent guard, flywheel harness) and the
+# matching eval (paraphrase hit rate, ~0 scope false-hits, 0 intent false-hits,
+# warm < 10% of cold). `make eval` exits non-zero if they fail, so a regression
+# fails the build. Postgres/MiniLM variants run on the deployment box
+# (make test-pg / make flywheel), not here.
 
 on:
   push:
@@ -30,11 +32,12 @@ jobs:
           cache: pip
 
       - name: Install offline deps
-        # Phase-0 `make test` and `make eval` run fully offline (in-memory store +
-        # deterministic hash embedder), so CI installs only that subset — not the
-        # heavy Postgres / Torch / MCP stack, which runs on the deployment box
-        # (see rrsrch/DECISIONS.md). Keeps CI fast and hermetic.
-        run: pip install pytest numpy "pydantic>=2.7" pydantic-settings tiktoken
+        # `make test` and `make eval` run fully offline (in-memory store +
+        # deterministic hash embedder; MiniLM integration tests skip themselves
+        # when sentence-transformers is absent), so CI installs only this
+        # subset — not the heavy Postgres / Torch / MCP stack, which runs on
+        # the deployment box (see rrsrch/DECISIONS.md). Fast and hermetic.
+        run: pip install pytest pytest-asyncio numpy "pydantic>=2.7" pydantic-settings tiktoken
 
       - name: Unit tests (make test)
         run: make test
