@@ -73,11 +73,17 @@ class RunResult:
     counts: dict[str, int] = field(default_factory=dict)
 
 
-def _classify_serve(served: RegEntry, label: Label, truth: str) -> tuple[str, str | None]:
-    if served.label == label:
-        return ("true_hit", None) if served.claim == truth else ("outdated_serve", None)
-    if served.label.intent_id == label.intent_id:
-        cause = "scope" if served.label.scope_key != label.scope_key else "polarity"
+def _classify_serve(served_label: Label, engine_claim: str, label: Label,
+                    truth: str) -> tuple[str, str | None]:
+    """Score against the claim the ENGINE actually stored/served — never the
+    harness's own bookkeeping. (An `agreed` corroboration re-earns confidence
+    but does NOT rewrite the stored claim; scoring the registry's idea of the
+    claim would silently mask exactly the staleness bugs this harness exists
+    to measure.)"""
+    if served_label == label:
+        return ("true_hit", None) if engine_claim == truth else ("outdated_serve", None)
+    if served_label.intent_id == label.intent_id:
+        cause = "scope" if served_label.scope_key != label.scope_key else "polarity"
     else:
         cause = "wrong_intent"
     return "false_hit", cause
@@ -109,10 +115,12 @@ async def run_stream(queries: list[Query], settings: Settings) -> RunResult:
         served_claim = served_query = None
         if res.serve:
             served = registry[res.deposit_id]   # every deposit is harness-made
-            classification, cause = _classify_serve(served, q.label, truth)
-            served_claim = served.claim
             rec_row = await corpus.store.get(UUID(res.deposit_id))
+            # authoritative: what the engine actually holds (and served)
+            served_claim = rec_row.claim if rec_row else served.claim
             served_query = rec_row.query if rec_row else None
+            classification, cause = _classify_serve(served.label, served_claim,
+                                                    q.label, truth)
             # a production caller trusts a serve — no deposit happens
         else:
             classification = "lost_hit" if available else "correct_miss"
@@ -126,8 +134,11 @@ async def run_stream(queries: list[Query], settings: Settings) -> RunResult:
                 if out.outcome == "disagreed" and out.new_deposit_id:
                     registry[res.deposit_id].live = False
                     registry[out.new_deposit_id] = RegEntry(q.label, truth)
-                elif out.outcome == "agreed":
-                    registry[res.deposit_id].claim = truth
+                # NOTE: on 'agreed' the engine keeps the OLD stored claim (it
+                # only re-earns confidence + merges sources) — so the registry
+                # claim must NOT be overwritten with `truth`. Doing so scored
+                # stale serves as true hits and masked the version-tolerance
+                # corroboration hole. The registry mirrors the engine, always.
             else:
                 rec = await corpus.deposit(DepositIn(
                     query=q.text, claim=truth, scope=q.scope,

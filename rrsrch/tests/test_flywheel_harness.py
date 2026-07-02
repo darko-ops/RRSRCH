@@ -9,7 +9,7 @@ from rrsrch.config import Settings
 
 import eval.intents as intents_mod
 import eval.traffic as traffic_mod
-from eval.flywheel import RegEntry, _classify_serve, run_stream, summarize
+from eval.flywheel import _classify_serve, run_stream, summarize
 from eval.intents import INTENTS
 from eval.traffic import Label, generate_stream
 
@@ -73,14 +73,39 @@ def test_stream_has_all_variant_kinds_and_labels():
 
 def test_classify_serve_labels():
     lab = Label("s3-price", '{"region":"us-east-1"}', "aff")
-    assert _classify_serve(RegEntry(lab, "truth"), lab, "truth") == ("true_hit", None)
-    assert _classify_serve(RegEntry(lab, "old"), lab, "truth") == ("outdated_serve", None)
+    assert _classify_serve(lab, "truth", lab, "truth") == ("true_hit", None)
+    assert _classify_serve(lab, "old", lab, "truth") == ("outdated_serve", None)
     other_scope = Label("s3-price", '{"region":"eu-west-1"}', "aff")
-    assert _classify_serve(RegEntry(other_scope, "x"), lab, "truth") == ("false_hit", "scope")
+    assert _classify_serve(other_scope, "x", lab, "truth") == ("false_hit", "scope")
     neg = Label("s3-price", '{"region":"us-east-1"}', "neg")
-    assert _classify_serve(RegEntry(neg, "x"), lab, "truth") == ("false_hit", "polarity")
+    assert _classify_serve(neg, "x", lab, "truth") == ("false_hit", "polarity")
     alien = Label("gil", "", "aff")
-    assert _classify_serve(RegEntry(alien, "x"), lab, "truth") == ("false_hit", "wrong_intent")
+    assert _classify_serve(alien, "x", lab, "truth") == ("false_hit", "wrong_intent")
+
+
+async def test_harness_scores_against_engine_claim_not_registry():
+    """An agreed corroboration re-earns confidence but does NOT rewrite the
+    stored claim — the harness must classify serves by what the engine actually
+    holds. (The bug this pins: registry claim was overwritten with truth on
+    agree, scoring stale serves as true hits.)"""
+    from rrsrch.corpus import Corpus
+    from rrsrch.embeddings import HashEmbedder
+    from rrsrch.schemas import DepositIn
+    from rrsrch.store.memory import InMemoryStore
+
+    settings = Settings(store="memory", embedder="hash", similarity_threshold=0.55,
+                        topic_similarity_threshold=0.50)
+    corpus = Corpus(InMemoryStore(), HashEmbedder(384), settings)
+    rec = await corpus.deposit(DepositIn(query="q", claim="Python 3.14.5."))
+    out = await corpus.corroborate(str(rec.id), "Python 3.14.5.")   # agreed
+    assert out.outcome == "agreed"
+    stored = await corpus.store.get(rec.id)
+    assert stored.claim == "Python 3.14.5."   # engine keeps the stored claim
+    # classification against a moved-on truth must therefore be outdated_serve
+    lab = Label("python-latest", "", "aff")
+    assert _classify_serve(lab, stored.claim, lab,
+                           "Python 3.14.6, released June 10, 2026.") \
+        == ("outdated_serve", None)
 
 
 # ------------------------------------------------------ end-to-end smoke

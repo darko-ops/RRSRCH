@@ -210,6 +210,30 @@ Choices made where the spec left room. Phase 1 additions at the bottom.
   or negation marker ("fastest" vs "slowest") pass through to similarity — the
   lexicon is deliberately tight because every entry can reject a serve.
 
+## Version-aware corroboration (flywheel finding, fixed 2026-07-02)
+- **Finding 1 (the proof-of-search hole):** the number extractor truncated
+  dotted versions ("3.14.5" → 3.14) and the 1% relative tolerance — correct for
+  prices — falsely AGREED version bumps (3.14.5≡3.14.6 after truncation;
+  1.34 vs 1.35 is 0.75% apart). Corroboration then re-earned confidence for the
+  outdated claim, so the verifier could never catch a version change.
+- **Fix:** versions are ORDINAL, not measurements. The shared extractor now
+  pulls dotted release identifiers into `ClaimFields.versions` (≥2 dots always;
+  1 dot when product/marker-prefixed: "Kubernetes 1.35", "TLS 1.2"; never
+  $-prefixed or %-suffixed) and excludes them from `numbers`. Verdict order:
+  polarity → version_mismatch (EXACT compare) → numeric_mismatch (tolerance) →
+  version/numeric match → entities → lexical.
+- **Finding 2 (the harness masked it):** on `agreed` the harness overwrote its
+  registry claim with truth — but the engine keeps the stored claim on agree.
+  Serves of the stale text scored as true hits. Fix: classification now scores
+  against `store.get(deposit_id).claim` — the engine's actual state — and the
+  registry claim is never overwritten on agree.
+- **Re-measured:** flywheel corroborations at s=1.0 went 38 agreed/4 disagreed →
+  36/6 — the two flips are exactly the two mid-stream version changes
+  (python-latest, k8s-latest), now caught and superseded; a focused trace ends
+  with the engine serving the corrected claim. Aggregate precision/recall
+  (0.981/0.846) barely moved but is now TRUSTWORTHY: post-change version serves
+  are true hits because the corpus was corrected, not because the scorer lied.
+
 ## Considered, deferred
 - **`never_serve` volatility tier** (always-fresh facts like FX rates, instead of
   paying ceiling-rate exploration forever): legitimate, but it's new product

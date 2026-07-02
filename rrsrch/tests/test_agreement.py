@@ -31,6 +31,33 @@ def test_extracts_entities():
 
 # --- the deterministic comparison ---
 
+def test_extracts_versions_separately_from_numbers():
+    f = EX.extract("The latest stable Python 3 release is Python 3.14.6.")
+    assert f.versions == ["3.14.6"]
+    assert 3.14 not in f.numbers          # not truncated into a measurement
+    f2 = EX.extract("Kubernetes 1.35.")   # one dot, but product-prefixed
+    assert f2.versions == ["1.35"]
+    f3 = EX.extract("$0.023 per GB-month (first 50 TB tier).")
+    assert f3.versions == [] and 0.023 in f3.numbers   # prices stay numbers
+    assert EX.extract("Ubuntu 26.04 LTS.").versions == ["26.04"]
+
+
+def test_version_mismatch_disagrees_despite_numeric_tolerance():
+    """THE proof-of-search hole: 3.14.5 vs 3.14.6 truncated to identical 3.14,
+    and 1.34 vs 1.35 sits inside the 1% price tolerance. Versions are ordinal —
+    exact or a different fact."""
+    v = verdict("Python 3.14.6, released June 10, 2026.", "Python 3.14.5.", EX, S)
+    assert v.agree is False and v.rule == "version_mismatch"
+    v2 = verdict("Kubernetes 1.35.", "Kubernetes 1.34.", EX, S)
+    assert v2.agree is False and v2.rule == "version_mismatch"
+
+
+def test_version_match_agrees_exactly():
+    v = verdict("The newest stable release is Python 3.14.6.",
+                "Python 3.14.6 is the latest stable version.", EX, S)
+    assert v.agree is True and v.rule == "version_match"
+
+
 def test_numbers_match_within_tolerance_and_subset():
     assert _numbers_match([0.023], [0.023], 0.01)
     assert _numbers_match([100.0], [100.9], 0.01)            # within 1%

@@ -17,10 +17,14 @@ Phase 0's gate (lexical similarity >= 0.90) had two real failure modes:
 
 The fix: extract structured comparands, then decide deterministically:
   1. polarity differs                        → DISAGREE (negation safety)
-  2. both have numbers, any unmatched        → DISAGREE (numbers are load-bearing)
-  3. both have numbers, all matched          → AGREE    (paraphrase safety)
-  4. both have entities, strong overlap      → AGREE (needs moderate lexical too)
-  5. nothing extracted on either side        → Phase 0 lexical fallback
+  2. both have versions, any unmatched       → DISAGREE (versions are ORDINAL:
+                                               exact compare, never tolerance —
+                                               3.14.5 vs 3.14.6 is a new fact)
+  3. both have numbers, any unmatched        → DISAGREE (numbers are load-bearing;
+                                               1% tolerance for measurements)
+  4. versions / numbers all matched          → AGREE    (paraphrase safety)
+  5. both have entities, strong overlap      → AGREE (needs moderate lexical too)
+  6. nothing extracted on either side        → Phase 0 lexical fallback
 """
 from __future__ import annotations
 
@@ -38,15 +42,22 @@ class ClaimFields:
 
     `predicates` maps an antonym AXIS to a direction (+1/-1), e.g.
     "enable X" → {"activation": +1}, "disable X" → {"activation": -1}. A text
-    containing BOTH poles of an axis is ambiguous — the axis is dropped."""
+    containing BOTH poles of an axis is ambiguous — the axis is dropped.
+
+    `versions` are dotted release identifiers ("3.14.6", "Kubernetes 1.35") —
+    ORDINAL, not measurements: they compare EXACTLY, never within tolerance
+    (3.14.5 vs 3.14.6 is a different fact; 1.34 vs 1.35 is 0.75% apart and the
+    numeric tolerance would falsely agree). Kept separate from `numbers`."""
     numbers: list[float] = field(default_factory=list)
     entities: set[str] = field(default_factory=set)
     negated: bool = False
     predicates: dict[str, int] = field(default_factory=dict)
+    versions: list[str] = field(default_factory=list)
 
     def to_log(self) -> dict[str, Any]:
         return {"numbers": self.numbers, "entities": sorted(self.entities),
-                "negated": self.negated, "predicates": self.predicates}
+                "negated": self.negated, "predicates": self.predicates,
+                "versions": self.versions}
 
 
 class Extractor(Protocol):
@@ -54,6 +65,26 @@ class Extractor(Protocol):
 
 
 _NUM = re.compile(r"(?<![\w.])[$€£]?(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?%?")
+# dotted release identifiers: "3.14.6", "1.35", "26.04" — never $-prefixed,
+# never %-suffixed (those are measurements and stay in `numbers`).
+_VER = re.compile(r"(?<![\w.$€£])(\d+(?:\.\d+)+)(?![\d%])")
+# single-dot numerics ("1.35") are versions only in version CONTEXT: preceded by
+# a capitalized product token (Kubernetes 1.35, TLS 1.2) or a marker word.
+# Two-plus dots ("3.14.6") are always versions. Plain decimals ("0.023 per GB")
+# stay numbers so price tolerance keeps working.
+_VER_MARKERS = {"version", "versions", "release", "releases", "lts", "v", "minor",
+                "major", "req"}
+
+
+def _is_version(text: str, m: "re.Match[str]") -> bool:
+    if m.group(1).count(".") >= 2:
+        return True
+    before = text[:m.start()].rstrip()
+    prev = re.findall(r"[A-Za-z][\w.&-]*", before)
+    if not prev:
+        return False
+    tok = prev[-1].rstrip(".")
+    return tok.lower() in _VER_MARKERS or tok[:1].isupper()
 # negation markers; hyphenated "non-" forms count (non-compliant, non-refundable)
 _NEG = re.compile(
     r"\b(not|no longer|never|none|cannot|can't|won't|isn't|aren't|wasn't|weren't|"
@@ -124,12 +155,21 @@ class RegexExtractor:
 
     def extract(self, claim: str) -> ClaimFields:
         text = claim or ""
+        versions: list[str] = []
+        spans: list[tuple[int, int]] = []
+        for m in _VER.finditer(text):
+            if _is_version(text, m):
+                versions.append(m.group(1))
+                spans.append(m.span())
         numbers = [float((m.group(1) + (m.group(2) or "")).replace(",", ""))
-                   for m in _NUM.finditer(text)]
+                   for m in _NUM.finditer(text)
+                   # a version's components are not measurements — don't let the
+                   # number regex truncate "3.14.6" into 3.14
+                   if not any(a <= m.start() < b for a, b in spans)]
         entities = {m.group(1) for m in _ENT.finditer(text)} - _ENT_STOP
         negated = bool(_NEG.search(text + " "))
         return ClaimFields(numbers=numbers, entities=entities, negated=negated,
-                           predicates=_extract_predicates(text))
+                           predicates=_extract_predicates(text), versions=versions)
 
 
 @dataclass
@@ -153,6 +193,17 @@ def _numbers_match(a: list[float], b: list[float], tolerance: float) -> bool:
     return True
 
 
+def _versions_match(a: list[str], b: list[str]) -> bool:
+    """Versions compare EXACTLY — no tolerance, ever. Subset rule as for numbers
+    (a claim may mention an extra version, e.g. '3.14.6 and 3.13.14')."""
+    short, long_ = (a, list(b)) if len(a) <= len(b) else (b, list(a))
+    for v in short:
+        if v not in long_:
+            return False
+        long_.remove(v)
+    return True
+
+
 def verdict(new_claim: str, old_claim: str, extractor: Extractor, settings) -> Verdict:
     """The deterministic corroboration verdict. Order matters: safety rules
     (polarity, numeric mismatch) fire before any agreement rule."""
@@ -164,9 +215,18 @@ def verdict(new_claim: str, old_claim: str, extractor: Extractor, settings) -> V
     if a.negated != b.negated:
         return Verdict(False, "polarity_mismatch", lex, detail)
 
+    # versions are ordinal: exact or different fact — the price tolerance below
+    # must never blur 3.14.5 into 3.14.6 (the proof-of-search hole).
+    if a.versions and b.versions and not _versions_match(a.versions, b.versions):
+        return Verdict(False, "version_mismatch", lex, detail)
+
+    if a.numbers and b.numbers and not _numbers_match(
+            a.numbers, b.numbers, settings.numeric_tolerance):
+        return Verdict(False, "numeric_mismatch", lex, detail)
+
+    if a.versions and b.versions:
+        return Verdict(True, "version_match", lex, detail)
     if a.numbers and b.numbers:
-        if not _numbers_match(a.numbers, b.numbers, settings.numeric_tolerance):
-            return Verdict(False, "numeric_mismatch", lex, detail)
         return Verdict(True, "numeric_match", lex, detail)
 
     if a.entities and b.entities:

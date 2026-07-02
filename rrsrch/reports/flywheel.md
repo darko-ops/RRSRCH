@@ -1,6 +1,6 @@
 # rrsrch — flywheel curve on synthetic-but-honest traffic
 
-*Generated 2026-07-02 17:37 UTC by `scripts/flywheel_report.py` from a real run:
+*Generated 2026-07-02 18:12 UTC by `scripts/flywheel_report.py` from a real run:
 postgres + minilm, 400 queries per exponent, seed 42,
 24 intents / 4 domains. The engine (matching, scope gate, intent
 guard, confidence) ran UNMODIFIED and never saw a label.*
@@ -9,7 +9,7 @@ guard, confidence) ran UNMODIFIED and never saw a label.*
 
 ```
 queries →     50   100   150   200   250   300   350   400
-s=0.8        38%   54%   58%   62%   78%   66%   76%   64%
+s=0.8        38%   54%   58%   62%   78%   66%   74%   64%
 s=1.0        46%   58%   64%   74%   80%   72%   66%   66%
 s=1.2        54%   68%   68%   74%   74%   74%   68%   72%
 corpus        26    40    48    55    63    68    81    90
@@ -26,14 +26,14 @@ much the traffic assumption moves it.
 | metric | s=0.8 | s=1.0 | s=1.2 |
 |---|---|---|---|
 | queries | 400 | 400 | 400 |
-| served | 261 | 268 | 281 |
-| true hits | 248 | 263 | 276 |
+| served | 260 | 268 | 281 |
+| true hits | 247 | 263 | 276 |
 | **false hits** | **6** | **5** | **5** |
 | outdated serves | 7 | 0 | 0 |
-| lost hits (recall gap) | 57 | 48 | 40 |
+| lost hits (recall gap) | 58 | 48 | 40 |
 | correct misses | 82 | 84 | 79 |
 | **precision** | **0.950** | **0.981** | **0.982** |
-| **recall** | **0.813** | **0.846** | **0.873** |
+| **recall** | **0.810** | **0.846** | **0.873** |
 
 ### False-hit breakdown (by cause, all runs)
 | cause | s=0.8 | s=1.0 | s=1.2 |
@@ -44,7 +44,7 @@ much the traffic assumption moves it.
 | cause | s=0.8 | s=1.0 | s=1.2 |
 |---|---|---|---|
 | below_similarity_threshold | 11 | 11 | 5 |
-| confidence_below_threshold | 46 | 37 | 35 |
+| confidence_below_threshold | 47 | 37 | 35 |
 
 `below_similarity_threshold` is the real-world cost of the conservative 0.525
 threshold; `confidence_below_threshold` is the freshness gate doing its job on
@@ -77,11 +77,11 @@ but counted against recall here, honestly).
 
 | metric | value |
 |---|---|
-| tokens saved by exploiting | 24,114,149 |
-| tokens spent (all queries + corroboration) | 11,885,851 |
+| tokens saved by exploiting | 24,114,113 |
+| tokens spent (all queries + corroboration) | 11,885,887 |
 | cold-path counterfactual | 36,000,000 |
 | reduction | 67.0% |
-| corroborations (agreed/disagreed) | 38/4 |
+| corroborations (agreed/disagreed) | 36/6 |
 
 ## 4. Methodology
 
