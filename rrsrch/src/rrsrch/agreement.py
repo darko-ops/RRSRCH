@@ -1,0 +1,215 @@
+"""Agreement — the corroboration verdict, hardened.
+
+=============================================================================
+THE INVIOLABLE RULE: the agreement/disagreement VERDICT is DETERMINISTIC,
+auditable code. An LLM MAY implement the Extractor protocol (proposing
+numbers/dates/entities/polarity from a claim — a fuzzy, recoverable task),
+but the comparison of those fields and the final verdict happen HERE, in
+plain code, and both the fields and the rule that fired are logged so every
+verdict is auditable after the fact.
+=============================================================================
+
+Phase 0's gate (lexical similarity >= 0.90) had two real failure modes:
+  - false DISAGREE on correct paraphrases ("110 controls assessed by a C3PAO"
+    vs "a C3PAO assesses the 110 controls"),
+  - false AGREE across a negation ("X is compliant" vs "X is not compliant"
+    are lexically near-identical).
+
+The fix: extract structured comparands, then decide deterministically:
+  1. polarity differs                        → DISAGREE (negation safety)
+  2. both have numbers, any unmatched        → DISAGREE (numbers are load-bearing)
+  3. both have numbers, all matched          → AGREE    (paraphrase safety)
+  4. both have entities, strong overlap      → AGREE (needs moderate lexical too)
+  5. nothing extracted on either side        → Phase 0 lexical fallback
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from typing import Any, Protocol
+
+from .matching.lexical import lexical_score
+
+
+@dataclass
+class ClaimFields:
+    """Structured comparands proposed by an Extractor (regex here; an LLM may
+    implement the same protocol — it proposes, code decides).
+
+    `predicates` maps an antonym AXIS to a direction (+1/-1), e.g.
+    "enable X" → {"activation": +1}, "disable X" → {"activation": -1}. A text
+    containing BOTH poles of an axis is ambiguous — the axis is dropped."""
+    numbers: list[float] = field(default_factory=list)
+    entities: set[str] = field(default_factory=set)
+    negated: bool = False
+    predicates: dict[str, int] = field(default_factory=dict)
+
+    def to_log(self) -> dict[str, Any]:
+        return {"numbers": self.numbers, "entities": sorted(self.entities),
+                "negated": self.negated, "predicates": self.predicates}
+
+
+class Extractor(Protocol):
+    def extract(self, claim: str) -> ClaimFields: ...
+
+
+_NUM = re.compile(r"(?<![\w.])[$€£]?(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?%?")
+# negation markers; hyphenated "non-" forms count (non-compliant, non-refundable)
+_NEG = re.compile(
+    r"\b(not|no longer|never|none|cannot|can't|won't|isn't|aren't|wasn't|weren't|"
+    r"doesn't|don't|didn't|fails?\s+to|non)[-\s]", re.IGNORECASE)
+# entities: ALL-CAPS acronyms (NIST, C3PAO) and TitleCase tokens of length >= 3
+_ENT = re.compile(r"\b([A-Z][A-Z0-9-]{1,}|[A-Z][a-z]{2,})\b")
+_ENT_STOP = {"The", "This", "That", "These", "Those", "For", "And", "But", "Its",
+             "Are", "Was", "Has", "Have", "Will", "With", "From", "Most", "Some"}
+
+# Antonym predicate axes: base form → (axis, direction). Opposite directions on
+# the SAME axis flip intent ("enable X" vs "disable X"); same direction or a
+# missing side is NOT a flip. Kept deliberately tight — every entry here can
+# reject a serve, and a false reject only costs a fresh search.
+_PREDICATE_AXES: dict[str, tuple[str, int]] = {
+    "require": ("obligation", 1), "mandate": ("obligation", 1), "must": ("obligation", 1),
+    "prohibit": ("obligation", -1), "forbid": ("obligation", -1), "ban": ("obligation", -1),
+    "disallow": ("obligation", -1),
+    "enable": ("activation", 1), "activate": ("activation", 1),
+    "disable": ("activation", -1), "deactivate": ("activation", -1),
+    "install": ("installation", 1),
+    "uninstall": ("installation", -1), "remove": ("installation", -1),
+    "delete": ("installation", -1),
+    "increase": ("direction", 1), "raise": ("direction", 1), "grow": ("direction", 1),
+    "boost": ("direction", 1),
+    "decrease": ("direction", -1), "reduce": ("direction", -1), "lower": ("direction", -1),
+    "shrink": ("direction", -1),
+    "allow": ("permission", 1), "permit": ("permission", 1), "grant": ("permission", 1),
+    "deny": ("permission", -1), "block": ("permission", -1), "revoke": ("permission", -1),
+    "include": ("inclusion", 1),
+    "exclude": ("inclusion", -1), "omit": ("inclusion", -1),
+    "before": ("order", 1), "after": ("order", -1),
+}
+_WORD = re.compile(r"[a-z]+")
+
+
+def _stems(token: str):
+    """Deterministic suffix stripping — 'requires'→'require', 'installing'→
+    'install', 'increased'→'increase', 'banned'→'ban'. NOT a stemmer: it only
+    generates candidates; the tight lexicon does the filtering (so
+    'requirements' matches nothing — no signal, not a wrong signal)."""
+    yield token
+    for suffix in ("s", "d", "es", "ed", "ing"):
+        if token.endswith(suffix) and len(token) - len(suffix) >= 3:
+            stem = token[: -len(suffix)]
+            yield stem
+            if suffix in ("ed", "ing"):
+                if len(stem) >= 4 and stem[-1] == stem[-2]:
+                    yield stem[:-1]          # banned → bann → ban
+                yield stem + "e"             # increasing → increas → increase
+
+
+def _extract_predicates(text: str) -> dict[str, int]:
+    directions: dict[str, set[int]] = {}
+    for tok in _WORD.findall((text or "").lower()):
+        for stem in _stems(tok):
+            if stem in _PREDICATE_AXES:
+                axis, sign = _PREDICATE_AXES[stem]
+                directions.setdefault(axis, set()).add(sign)
+                break
+    # both poles present ⇒ ambiguous ⇒ no signal for that axis
+    return {axis: signs.pop() for axis, signs in directions.items() if len(signs) == 1}
+
+
+class RegexExtractor:
+    """Deterministic, offline extractor. Best-effort precision; determinism is
+    the requirement, the verdict logic is designed to be safe when extraction
+    is imperfect (unextracted claims fall back to the lexical gate)."""
+
+    def extract(self, claim: str) -> ClaimFields:
+        text = claim or ""
+        numbers = [float((m.group(1) + (m.group(2) or "")).replace(",", ""))
+                   for m in _NUM.finditer(text)]
+        entities = {m.group(1) for m in _ENT.finditer(text)} - _ENT_STOP
+        negated = bool(_NEG.search(text + " "))
+        return ClaimFields(numbers=numbers, entities=entities, negated=negated,
+                           predicates=_extract_predicates(text))
+
+
+@dataclass
+class Verdict:
+    agree: bool
+    rule: str                 # which deterministic rule decided
+    lexical: float
+    detail: dict[str, Any]    # both sides' fields — the audit trail
+
+
+def _numbers_match(a: list[float], b: list[float], tolerance: float) -> bool:
+    """Every number in the SHORTER list must have a within-tolerance counterpart
+    in the longer (a claim may add context numbers like a year). Greedy 1:1."""
+    short, long_ = (a, list(b)) if len(a) <= len(b) else (b, list(a))
+    for x in short:
+        hit = next((y for y in long_
+                    if abs(x - y) <= tolerance * max(abs(x), abs(y), 1e-9)), None)
+        if hit is None:
+            return False
+        long_.remove(hit)
+    return True
+
+
+def verdict(new_claim: str, old_claim: str, extractor: Extractor, settings) -> Verdict:
+    """The deterministic corroboration verdict. Order matters: safety rules
+    (polarity, numeric mismatch) fire before any agreement rule."""
+    a = extractor.extract(new_claim)
+    b = extractor.extract(old_claim)
+    lex = lexical_score(new_claim, old_claim)
+    detail = {"new": a.to_log(), "old": b.to_log()}
+
+    if a.negated != b.negated:
+        return Verdict(False, "polarity_mismatch", lex, detail)
+
+    if a.numbers and b.numbers:
+        if not _numbers_match(a.numbers, b.numbers, settings.numeric_tolerance):
+            return Verdict(False, "numeric_mismatch", lex, detail)
+        return Verdict(True, "numeric_match", lex, detail)
+
+    if a.entities and b.entities:
+        overlap = len(a.entities & b.entities) / min(len(a.entities), len(b.entities))
+        if (overlap >= settings.entity_overlap_threshold
+                and lex >= settings.entity_lexical_floor):
+            return Verdict(True, "entity_match", lex, detail)
+
+    # nothing decisive extracted → Phase 0 behavior: conservative lexical gate
+    if lex >= settings.claim_agreement_threshold:
+        return Verdict(True, "lexical_match", lex, detail)
+    return Verdict(False, "lexical_low", lex, detail)
+
+
+# --------------------------------------------------------------- intent guard
+
+@dataclass
+class IntentVerdict:
+    match: bool
+    rule: str                 # 'polarity_flip' | 'predicate_flip:<axis>' |
+    detail: dict[str, Any]    # 'intent_aligned' | 'no_signal'
+
+
+def intent_verdict(query_fields: ClaimFields, candidate_fields: ClaimFields) -> IntentVerdict:
+    """The serve-path intent guard: does the incoming QUERY ask the same-direction
+    question as the candidate deposit's canonical query?
+
+    DETERMINISTIC, and asymmetric by design: a false hit serves a WRONG answer
+    (correctness failure); a false miss just triggers a fresh search (a cost,
+    recoverable). So any polarity flip or opposite-pole predicate on a shared
+    axis rejects — even at embedding similarity 0.97. But ambiguity is NOT
+    mismatch: if neither side yields a clear signal, similarity alone decides
+    (the same fallback philosophy as the corroboration gate).
+
+    Uses the ONE shared Extractor's fields — there is no second extraction path.
+    """
+    detail = {"query": query_fields.to_log(), "candidate": candidate_fields.to_log()}
+    if query_fields.negated != candidate_fields.negated:
+        return IntentVerdict(False, "polarity_flip", detail)
+    shared = sorted(set(query_fields.predicates) & set(candidate_fields.predicates))
+    for axis in shared:
+        if query_fields.predicates[axis] != candidate_fields.predicates[axis]:
+            return IntentVerdict(False, f"predicate_flip:{axis}", detail)
+    if shared or query_fields.negated:   # signals exist on both sides and align
+        return IntentVerdict(True, "intent_aligned", detail)
+    return IntentVerdict(True, "no_signal", detail)

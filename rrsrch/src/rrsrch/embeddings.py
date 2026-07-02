@@ -6,7 +6,9 @@
 """
 from __future__ import annotations
 
+import asyncio
 import re
+from functools import lru_cache
 from typing import Protocol, Sequence
 
 import numpy as np
@@ -15,6 +17,13 @@ import numpy as np
 class Embedder(Protocol):
     dim: int
     def encode(self, texts: Sequence[str]) -> np.ndarray: ...  # (n, dim), L2-normalized
+
+
+async def encode_async(embedder: Embedder, texts: Sequence[str]) -> np.ndarray:
+    """Run encode() off the event loop. Model inference (sentence-transformers)
+    is CPU/GPU-bound and blocks; a to_thread hop keeps search()/deposit() from
+    stalling every other in-flight request."""
+    return await asyncio.to_thread(embedder.encode, texts)
 
 
 def _l2(m: np.ndarray) -> np.ndarray:
@@ -59,11 +68,17 @@ class HashEmbedder:
         return _l2(out)
 
 
+@lru_cache(maxsize=4)
+def _load_sentence_transformer(model: str):
+    """Model load is ~seconds and ~100MB — cache per model name, process-wide."""
+    from sentence_transformers import SentenceTransformer  # lazy optional dep
+
+    return SentenceTransformer(model)
+
+
 class LocalSentenceTransformerEmbedder:
     def __init__(self, model: str = "all-MiniLM-L6-v2", dim: int = 384) -> None:
-        from sentence_transformers import SentenceTransformer  # lazy optional dep
-
-        self._m = SentenceTransformer(model)
+        self._m = _load_sentence_transformer(model)
         self.dim = dim
 
     def encode(self, texts: Sequence[str]) -> np.ndarray:
@@ -78,4 +93,8 @@ def get_embedder(settings) -> Embedder:
         from .embeddings_api import ApiEmbedder  # lazy; only if configured
 
         return ApiEmbedder(settings.embedding_api_url, settings.embedding_dim)
-    return LocalSentenceTransformerEmbedder(settings.embedding_model, settings.embedding_dim)
+    if settings.embedder in ("local", "minilm"):
+        return LocalSentenceTransformerEmbedder(settings.embedding_model,
+                                                settings.embedding_dim)
+    raise ValueError(f"unknown embedder {settings.embedder!r} "
+                     "(expected local|minilm|hash|api)")

@@ -19,11 +19,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.2", "ruff>=0.5", "mypy>=1.10"]
+dev = ["pytest>=8.2", "pytest-asyncio>=0.23", "ruff>=0.5", "mypy>=1.10"]
 
 [project.scripts]
 rrsrch-mcp = "rrsrch.mcp.server:main"
 rrsrch-api = "rrsrch.api:main"
+rrsrch-verify = "rrsrch.verification:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -35,12 +36,13 @@ packages = ["src/rrsrch"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100
 src = ["src", "tests", "eval"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 mypy_path = "src"
 ignore_missing_imports = true

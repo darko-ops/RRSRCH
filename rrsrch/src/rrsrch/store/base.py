@@ -1,15 +1,17 @@
 """Store interface. `candidate_pool` returns the UNION of lexical and vector
-nearest neighbors (no scope filtering, no threshold) — the engine applies the
-scope gate, fuses scores, and thresholds. Keeping retrieval here and ranking in
-the engine makes the in-memory and Postgres stores interchangeable."""
+nearest neighbors among LIVE (non-retired) deposits — no scope filtering, no
+threshold; the engine applies the scope gate, fuses scores, and thresholds.
+Keeping retrieval here and ranking in the engine makes the in-memory and
+Postgres stores interchangeable."""
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Protocol
 from uuid import UUID
 
 import numpy as np
 
-from ..schemas import DepositRecord
+from ..schemas import DepositRecord, RecallItem, TopicState
 
 
 class Store(Protocol):
@@ -18,5 +20,21 @@ class Store(Protocol):
     async def candidate_pool(
         self, query_embedding: np.ndarray, query_text: str, k: int
     ) -> list[DepositRecord]: ...
+    async def mark_corroborated(
+        self, deposit_id: UUID, now: datetime, extra_sources: list[dict[str, Any]]
+    ) -> None: ...
+    async def retire(self, deposit_id: UUID, superseded_by: UUID, now: datetime) -> None: ...
+
+    # --- topics (Phase 1 bandit state) ---
+    async def get_topic(self, topic_id: str) -> TopicState | None: ...
+    async def upsert_topic(self, topic: TopicState) -> None: ...
+    async def topics_for_scope(self, scope_key: str) -> list[TopicState]: ...
+    async def list_topics(self) -> list[TopicState]: ...
+    async def latest_live_deposit(self, topic_id: str) -> DepositRecord | None: ...
+
+    # --- correction propagation ---
+    async def recalls(self, since: datetime) -> list[RecallItem]: ...
+
+    # --- telemetry ---
     async def log_event(self, event: dict[str, Any]) -> None: ...
-    async def events(self) -> list[dict[str, Any]]: ...
+    async def event_stats(self) -> dict[str, Any]: ...

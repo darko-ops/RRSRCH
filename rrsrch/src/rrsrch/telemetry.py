@@ -1,6 +1,7 @@
 """Telemetry — built from day one so the savings claim is data, not estimate.
 Every search logs an event; /metrics aggregates hit rate, tokens with/without, and
-the miss/outcome breakdown."""
+the stale/miss breakdown. Aggregation happens store-side (SQL GROUP BY in Postgres)
+so metrics never pulls every event row into Python."""
 from __future__ import annotations
 
 from typing import Any
@@ -17,26 +18,49 @@ except Exception:  # pragma: no cover
         return max(0, (len(text or "") + 3) // 4)
 
 
-def metrics(events: list[dict[str, Any]], cold_path_estimate: int) -> dict[str, Any]:
-    total = len(events)
-    hits = sum(1 for e in events if e["outcome"] == "hit")
-    saved = sum(e.get("tokens_saved_estimate") or 0 for e in events)
-    spent = sum(e.get("tokens_spent_estimate") or 0 for e in events)
-    reasons: dict[str, int] = {}
-    for e in events:
-        if e["outcome"] != "hit":
-            reasons[e.get("reason") or "miss"] = reasons.get(e.get("reason") or "miss", 0) + 1
+def metrics(stats: dict[str, Any], cold_path_estimate: int,
+            topic_states: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
+    """Derive the savings report from store-side aggregates.
+
+    `stats` = {by_outcome: {outcome: n}, reasons: {reason: n}, tokens_saved,
+               tokens_spent, exploration_tokens_spent, by_topic, mean_ttc}
+    Searches are hit/stale/miss; agreed/disagreed are corroborations and
+    'explore' is verification spend — reported separately, excluded from query
+    counts, but INCLUDED in tokens_with_rrsrch (the savings claim stays honest:
+    exploration is a cost the system pays to keep the cache safe).
+    """
+    by = stats.get("by_outcome", {})
+    hits = by.get("hit", 0)
+    stale = by.get("stale", 0)
+    misses = by.get("miss", 0)
+    total = hits + stale + misses
+    saved = stats.get("tokens_saved", 0)
+    spent = stats.get("tokens_spent", 0)
     without = total * cold_path_estimate
+    by_topic = stats.get("by_topic", {})
+    topics = {tid: {**state, **by_topic.get(tid, {})}
+              for tid, state in (topic_states or {}).items()}
+    for tid, flow in by_topic.items():   # events for topics with no live state row
+        topics.setdefault(tid, dict(flow))
     return {
         "total_queries": total,
         "hits": hits,
-        "misses": total - hits,
+        "stale": stale,
+        "misses": misses,
         "hit_rate": round(hits / total, 4) if total else 0.0,
+        "corroborations": {"agreed": by.get("agreed", 0), "disagreed": by.get("disagreed", 0)},
         "tokens_with_rrsrch": spent,
         "tokens_without_rrsrch": without,
         "total_tokens_saved": saved,
         "avg_tokens_per_query_with": round(spent / total, 1) if total else 0.0,
         "avg_tokens_per_query_without": float(cold_path_estimate) if total else 0.0,
         "reduction_pct": round(100 * (1 - spent / without), 1) if without else 0.0,
-        "miss_breakdown": reasons,
+        "no_serve_breakdown": stats.get("reasons", {}),
+        # --- Phase 1: the budget flow ---
+        "exploration": {
+            "events": by.get("explore", 0),
+            "tokens_spent": stats.get("exploration_tokens_spent", 0),
+        },
+        "mean_time_to_correction_seconds": stats.get("mean_time_to_correction_seconds"),
+        "topics": topics,
     }

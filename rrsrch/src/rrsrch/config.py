@@ -1,5 +1,5 @@
 """Configuration (pydantic-settings, env-prefixed RRSRCH_). Every tuning knob —
-similarity threshold, freshness threshold, decay half-lives, fusion weights — lives
+similarity threshold, confidence threshold, decay half-lives, fusion weights — lives
 here so matching can be tuned without code changes."""
 from __future__ import annotations
 
@@ -20,18 +20,61 @@ class Settings(BaseSettings):
     embedding_api_url: str | None = None  # used when embedder == "api"
 
     # --- matching (the hard part) ---
-    # Fused similarity threshold. Conservative on purpose: a false hit is worse than
-    # a miss. Default tuned for sentence-transformers; lower for the hash fallback.
-    similarity_threshold: float = 0.85
+    # FUSED similarity threshold (0.7·cosine + 0.3·lexical — NOT raw cosine).
+    # 0.525 is the measured knee of the MiniLM sweep on the real stack
+    # (2026-07-02, eval/run_eval.py RRSRCH_EVAL_SWEEP): paraphrase hits 96.7%,
+    # scope false-hits 0, wrong-topic serves 0, safe plateau 0.40–0.53.
+    # Hash embedder operating point is 0.42 (see DECISIONS).
+    similarity_threshold: float = 0.525
     candidate_k: int = 20
     vector_weight: float = 0.7   # fusion: w_vec * cosine + w_lex * lexical
     lexical_weight: float = 0.3
 
-    # --- freshness (simple decay only — Phase 0) ---
-    freshness_threshold: float = 0.5            # serve if decay >= this
+    # --- confidence (deterministic decay + corroboration re-earning) ---
+    confidence_threshold: float = 0.70          # serve if live confidence >= this
     half_life_low_days: float = 180.0           # decays over months
     half_life_medium_days: float = 3.0          # decays over days
     half_life_high_hours: float = 6.0           # decays over hours
+
+    # --- corroboration agreement gate (deterministic; see agreement.py) ---
+    # Lexical fallback when extraction yields nothing. Conservative on purpose:
+    # a false "agreed" wrongly re-earns confidence; a false "disagreed" merely
+    # replaces the claim with the fresh one — recoverable. Err toward disagreement.
+    claim_agreement_threshold: float = 0.90
+    numeric_tolerance: float = 0.01             # relative; numbers are load-bearing
+    entity_overlap_threshold: float = 0.5       # shared-entity fraction for entity_match
+    entity_lexical_floor: float = 0.45          # entity_match also needs this much lexical
+
+    # --- exploration bandit (per-topic; see exploration.py) ---
+    exploration_base_low: float = 0.02          # priors seeded from volatility_hint
+    exploration_base_medium: float = 0.08
+    exploration_base_high: float = 0.25
+    exploration_floor: float = 0.01
+    exploration_ceiling: float = 0.50
+    exploration_decay_factor: float = 0.85      # on agreement → toward floor
+    exploration_growth_factor: float = 1.60     # on disagreement → toward ceiling
+    half_life_factor_min: float = 0.25          # bounds on the topic decay adjustment
+    half_life_factor_max: float = 4.0
+    half_life_agreement_growth: float = 1.15    # agreement slows this topic's decay
+    half_life_disagreement_shrink: float = 0.50 # disagreement speeds it up
+
+    # --- observed volatility (evidence overrides the hint) ---
+    observed_volatility_min_obs: int = 5        # corroborations before override kicks in
+    observed_high_cutoff: float = 0.30          # disagreement rate >= → 'high'
+    observed_medium_cutoff: float = 0.10        # >= → 'medium'; below → 'low'
+
+    # --- topics (deterministic leader clustering) ---
+    topic_similarity_threshold: float = 0.80    # centroid cosine to join a topic
+
+    # --- self-verification loop ---
+    verify_batch_size: int = 3                  # topics per verify_once() pass
+    verify_interval_seconds: float = 300.0      # verify_loop cadence
+
+    # --- live search provider (env-gated; tests always use the fake) ---
+    provider: str = "none"                      # "claude-cli" enables live research
+    claude_bin: str = "claude"                  # Claude Code CLI binary
+    provider_model: str | None = None           # optional --model override
+    provider_timeout_seconds: float = 300.0
 
     # --- telemetry ---
     cold_path_estimate_tokens: int = 90_000     # default cold-derivation cost if caller omits one

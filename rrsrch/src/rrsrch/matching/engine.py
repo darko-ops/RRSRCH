@@ -18,7 +18,7 @@ from typing import Any
 
 import numpy as np
 
-from ..embeddings import Embedder, cosine
+from ..embeddings import Embedder, cosine, encode_async
 from ..schemas import DepositRecord
 from ..store.base import Store
 from . import scope
@@ -38,7 +38,7 @@ async def rank(
     *, k: int, vector_weight: float, lexical_weight: float,
 ) -> list[Match]:
     """Scope-gated, fused, ranked candidates (no threshold applied yet)."""
-    qemb = embedder.encode([query])[0]
+    qemb = (await encode_async(embedder, [query]))[0]  # off-loop: model inference blocks
     pool = await store.candidate_pool(np.asarray(qemb), query, k)
     matches: list[Match] = []
     for rec in pool:
