@@ -344,6 +344,43 @@ Choices made where the spec left room. Phase 1 additions at the bottom.
   traffic helped). Verifier cadence is a stated harness knob (every 10, batch
   3) — half that cadence let 1 poison deposit serve 9 times.
 
+## Ominis attestation handshake (Phase 3, 2026-07-02)
+- **Part 0 first (trust edge closed):** a `polarity_mismatch` driven purely by
+  clause CARDINALITY (paraphrases segmenting differently around connectives
+  outside the and/but/while set) still retires-and-replaces but no longer docks
+  the author — an honest wording difference is not a lie. Clean singleton
+  {pos}→{neg} flips keep the full penalty. Pinned both ways.
+- **Where attestation enters — the composition rule (trap A):** a VERIFIED
+  attestation shifts the Beta PRIOR toward `attested_prior_ceiling` (0.85 →
+  up to 0.95) by its level; track record applies the SAME update on that
+  shifted prior. Attested-unknown base 0.987 vs 0.96 ⇒ serve window +8.7%
+  (trusted faster, re-verified less — boundary-probed: stale at 2.82h
+  unattested, hit attested). An attested liar sinks sub-serve in ~3 independent
+  contradictions — raised prior, never a free pass. Unattested ⇒ prior
+  untouched ⇒ bit-for-bit Phase 2 (single-agent flywheel identical to the
+  decimal).
+- **Verification (deterministic, forged ≠ trusted):** `AttestationVerifier`
+  interface; LOCAL verifier = HMAC-signed tokens checked with compare_digest,
+  expiry against the injected clock, and BINDING (verified identity must equal
+  the presenting depositor). Forged/expired/misbound/malformed all fall back to
+  unattested — never an error, never trust. Real Ominis verifier is env-gated
+  and fails loudly (it is a separate product consumed via this interface).
+  Found-by-test: ISO expiry contains colons — token parsing uses rpartition.
+- **Attestation-aware vouch (trap B — the collusion breaker):** the strong
+  vouch (deposit floats at base 1.0) now requires a DISTINCT, verified-attested
+  corroborator or the rrsrch verifier. Unattested corroborators still agree,
+  re-earn anchors, and move track record (Phase 2 dynamics preserved) — but N
+  sock-puppets can never mint the float. Scripted A/B on the real stack
+  (`attested_vouch_required=False` = Phase 2 rules): the proven-bad ring's
+  cross-vouched lie SERVED under Phase 2 rules (vouch count 2) and is muted
+  under Phase 3 (vouch count 0), then retired by one attested auditor.
+  Collusion is hereby closed as a poison class; what remains for the identical-
+  lie space is only its bootstrap window, same as any unknown deposit.
+- **Attestation state:** highest verified level persists on
+  `depositor_trust.attested_level` (a weaker token never downgrades); the
+  presented token is stored on the deposit for audit (migration 0006; NULL
+  backfill = unattested = correct for all history).
+
 ## Considered, deferred
 - **`never_serve` volatility tier** (always-fresh facts like FX rates, instead of
   paying ceiling-rate exploration forever): legitimate, but it's new product

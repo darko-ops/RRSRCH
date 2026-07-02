@@ -30,10 +30,12 @@ async def tool_recalls(corpus: Corpus, since: str) -> list[dict[str, Any]]:
 async def tool_deposit(
     corpus: Corpus, query: str, claim: str, sources: list[dict[str, Any]] | None = None,
     volatility_hint: str = "medium", scope: dict[str, Any] | None = None, depositor: str = "local",
+    attestation: str | None = None,
 ) -> dict[str, Any]:
     rec = await corpus.deposit(DepositIn(
         query=query, claim=claim, sources=[Source(**s) for s in (sources or [])],
         volatility_hint=volatility_hint, scope=scope or None, depositor=depositor,
+        attestation=attestation,
     ))
     return {"id": str(rec.id), "created_at": rec.created_at.isoformat(), "volatility": rec.volatility}
 
@@ -41,7 +43,9 @@ async def tool_deposit(
 async def tool_corroborate(
     corpus: Corpus, deposit_id: str, claim: str,
     sources: list[dict[str, Any]] | None = None, depositor: str = "local",
+    attestation: str | None = None,
 ) -> dict[str, Any]:
     out = await corpus.corroborate(
-        deposit_id, claim, sources=[Source(**s) for s in (sources or [])], depositor=depositor)
+        deposit_id, claim, sources=[Source(**s) for s in (sources or [])],
+        depositor=depositor, attestation=attestation)
     return out.model_dump(exclude_none=True, mode="json")

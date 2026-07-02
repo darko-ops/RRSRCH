@@ -1,6 +1,6 @@
 # rrsrch — flywheel curve on synthetic-but-honest traffic
 
-*Generated 2026-07-02 21:42 UTC by `scripts/flywheel_report.py` from a real run:
+*Generated 2026-07-02 22:10 UTC by `scripts/flywheel_report.py` from a real run:
 postgres + minilm, 400 queries per exponent, seed 42,
 24 intents / 4 domains. The engine (matching, scope gate, intent
 guard, confidence) ran UNMODIFIED and never saw a label.*

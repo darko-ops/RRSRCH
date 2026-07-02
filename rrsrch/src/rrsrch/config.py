@@ -68,6 +68,17 @@ class Settings(BaseSettings):
     trust_base_at_prior: float = 0.96
     trust_sub_slope: float = 1.4
 
+    # --- attestation (Phase 3: verifiable identity weighting the trust prior) ---
+    attestation_verifier: str = "local"         # local (signed test tokens) | ominis | none
+    attestation_secret: str = "rrsrch-local-test-secret"   # LOCAL verifier only
+    # composition: an attested identity's Beta PRIOR shifts toward this ceiling
+    # by its attestation level; track record then adjusts it exactly as before.
+    attested_prior_ceiling: float = 0.95
+    # strong vouch (deposit floats at base 1.0) requires an ATTESTED distinct
+    # corroborator (or rrsrch's own verifier). False = Phase 2 rules (A/B lever
+    # for the collusion comparison — do not disable in production).
+    attested_vouch_required: bool = True
+
     # --- observed volatility (evidence overrides the hint) ---
     observed_volatility_min_obs: int = 5        # corroborations before override kicks in
     observed_high_cutoff: float = 0.30          # disagreement rate >= → 'high'

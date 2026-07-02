@@ -140,7 +140,12 @@ def _classify_serve(served_label: Label, engine_claim: str, label: Label,
     return "false_hit", cause
 
 
-async def run_stream(queries: list[Query], settings: Settings) -> RunResult:
+async def run_stream(queries: list[Query], settings: Settings,
+                     attested: dict[str, float] | None = None) -> RunResult:
+    """`attested` maps agent → attestation level: those agents present a valid
+    LOCAL token on every deposit/corroboration (the engine verifies it like any
+    token — the harness holds no special powers). Default None = all unattested
+    = exact Phase 2 behavior."""
     if settings.store == "postgres":
         from sqlalchemy import text
         from sqlalchemy.ext.asyncio import create_async_engine
@@ -152,6 +157,12 @@ async def run_stream(queries: list[Query], settings: Settings) -> RunResult:
 
     clock = Clock()
     corpus = Corpus(build_store(settings), get_embedder(settings), settings, now=clock)
+    tokens: dict[str, str] = {}
+    if attested:
+        from rrsrch.attestation import mint_token
+        tokens = {agent: mint_token(agent, level, T0 + timedelta(days=365),
+                                    settings.attestation_secret)
+                  for agent, level in attested.items()}
     registry: dict[str, RegEntry] = {}
     records: list[Record] = []
     trust_curve: list[tuple[int, dict[str, float]]] = []
@@ -231,7 +242,8 @@ async def run_stream(queries: list[Query], settings: Settings) -> RunResult:
                          and registry[res.deposit_id].label == q.label)
             if stale_own:
                 out = await corpus.corroborate(res.deposit_id, derived,
-                                               depositor=q.agent)
+                                               depositor=q.agent,
+                                               attestation=tokens.get(q.agent))
                 if out.outcome == "disagreed" and out.new_deposit_id:
                     registry[res.deposit_id].live = False
                     registry[out.new_deposit_id] = RegEntry(q.label, derived,
@@ -243,14 +255,16 @@ async def run_stream(queries: list[Query], settings: Settings) -> RunResult:
             else:
                 rec = await corpus.deposit(DepositIn(
                     query=q.text, claim=derived, scope=q.scope,
-                    volatility_hint=q.volatility, depositor=q.agent))
+                    volatility_hint=q.volatility, depositor=q.agent,
+                    attestation=tokens.get(q.agent)))
                 registry[str(rec.id)] = RegEntry(q.label, derived, depositor=q.agent)
                 deposits_by_agent[q.agent] = deposits_by_agent.get(q.agent, 0) + 1
                 if q.agent.startswith("malicious"):
                     # the Sybil attempt: hammer one's own deposit — must gain nothing
                     for _ in range(2):
                         await corpus.corroborate(str(rec.id), derived,
-                                                 depositor=q.agent)
+                                                 depositor=q.agent,
+                                                 attestation=tokens.get(q.agent))
 
         records.append(Record(idx, q.kind, res.outcome, res.reason, classification,
                               cause, sum(1 for e in registry.values() if e.live),

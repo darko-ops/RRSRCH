@@ -103,6 +103,16 @@ def trust_score(agreed: int, contradicted: int,
     return (agreed + alpha) / (agreed + contradicted + alpha + beta)
 
 
+def attested_prior(prior_mean: float, ceiling: float, level: float) -> float:
+    """Phase 3 composition rule: a VERIFIED attestation shifts the Beta PRIOR
+    toward `ceiling` by its level — trusted faster, re-verified less — and
+    track record then adjusts that prior with exactly the same update as an
+    unattested agent's. Attestation raises the starting point; behavior still
+    earns or burns it (an attested liar sinks below serve like anyone else).
+    Unattested (level absent) ⇒ prior_mean unchanged ⇒ bit-for-bit Phase 2."""
+    return prior_mean + (ceiling - prior_mean) * min(1.0, max(0.0, level))
+
+
 def trust_base(trust: float, prior_mean: float, base_at_prior: float,
                sub_slope: float) -> float:
     """Map trust → the confidence BASE (confidence at the anchor).

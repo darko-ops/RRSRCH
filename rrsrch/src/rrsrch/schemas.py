@@ -26,6 +26,7 @@ class DepositIn(BaseModel):
     volatility_hint: Volatility = "medium"
     scope: dict[str, Any] | None = None
     depositor: str = "local"
+    attestation: str | None = None     # opaque Ominis token; invalid ⇒ unattested
 
     @field_validator("volatility_hint")
     @classmethod
@@ -94,9 +95,12 @@ class DepositRecord:
     # scope extracted from the deposit's QUERY PROSE at deposit time (Phase 2);
     # declared `scope` stays authoritative, this supplements it for the gate.
     inferred_scope: dict[str, list[str]] | None = None
-    # agreements from depositors OTHER than the author: once > 0 the deposit is
-    # independently vouched and serves at full base regardless of author trust.
+    # STRONG-vouch count: agreements from a distinct ATTESTED identity (or the
+    # rrsrch verifier); once > 0 the deposit serves at full base regardless of
+    # author trust. Unattested agreements are WEAK — they re-earn the anchor and
+    # move track record but never set this (N sock-puppets can't float a lie).
     independent_corroboration_count: int = 0
+    attestation: str | None = None     # token presented at deposit time (audit)
 
     @staticmethod
     def new(**kw: Any) -> "DepositRecord":

@@ -41,6 +41,7 @@ class Deposit(Base):
     inferred_scope: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     independent_corroboration_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0")
+    attestation: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class DepositorTrust(Base):
@@ -56,6 +57,9 @@ class DepositorTrust(Base):
                                                     server_default="0")
     score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0,
                                          server_default="0")
+    # highest VERIFIED attestation level presented by this depositor (Phase 3);
+    # NULL ⇒ unattested ⇒ exactly the Phase 2 trust math.
+    attested_level: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class Topic(Base):

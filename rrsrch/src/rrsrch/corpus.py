@@ -56,6 +56,10 @@ class Corpus:
         self.provider = provider
         # An LLM may implement Extractor (it only PROPOSES fields); default is regex.
         self.extractor = extractor or agreement.RegexExtractor()
+        # attestation verification is deterministic code behind an interface;
+        # the default (local/none per settings) never requires a live service.
+        from .attestation import build_attestation_verifier
+        self.attestor = build_attestation_verifier(settings)
         self._half_lives = conf.half_lives_from_settings(settings)
 
     # ------------------------------------------------------------------ deposit
@@ -63,13 +67,14 @@ class Corpus:
     async def deposit(self, payload: DepositIn, *, created_at: datetime | None = None) -> DepositRecord:
         emb = (await encode_async(self.embedder, [payload.query]))[0]
         when = created_at or self.now()
+        await self._verify_attestation(payload.attestation, payload.depositor)
         topic_id = await topics.assign(self.store, emb, payload.scope,
                                        payload.volatility_hint, when, self.settings)
         rec = DepositRecord.new(
             query=payload.query, embedding=emb, claim=payload.claim,
             sources=[s.model_dump(mode="json") for s in payload.sources],
             scope=payload.scope, volatility=payload.volatility_hint, depositor=payload.depositor,
-            created_at=when, topic_id=topic_id,
+            created_at=when, topic_id=topic_id, attestation=payload.attestation,
             # implicit scope lives in the query prose — extract once, at write time
             inferred_scope={d: sorted(v) for d, v in scope_mod.infer(payload.query).items()},
         )
@@ -189,7 +194,8 @@ class Corpus:
 
     async def corroborate(self, deposit_id: str, claim: str,
                           sources: list[Source] | None = None,
-                          depositor: str = "local") -> CorroborateResult:
+                          depositor: str = "local",
+                          attestation: str | None = None) -> CorroborateResult:
         """Re-earn or retire a deposit against a freshly derived claim.
 
         DETERMINISTIC verdict (agreement.py): polarity, numbers, entities are
@@ -222,6 +228,17 @@ class Corpus:
         # corroboration moves the author's trust or vouches the deposit.
         # rrsrch's own verifier is independent; the original author is not.
         independent = depositor != rec.depositor
+        # STRONG vouch (Phase 3, the collusion breaker): the base-1.0 float
+        # requires the corroborator to hold a VERIFIED attestation bound to a
+        # DISTINCT identity — or to be rrsrch's own verifier. Unattested
+        # corroborators still agree, still re-earn the anchor, still move track
+        # record — but N sock-puppets can never float a lie over the serve line,
+        # because minting distinct attested identities is what Sybils can't do.
+        corroborator_attested = await self._verify_attestation(attestation, depositor)
+        strong_voucher = independent and (
+            depositor.startswith("rrsrch-") or corroborator_attested
+            or not self.settings.attested_vouch_required   # Phase-2-rules A/B lever
+        )
 
         if v.agree:
             author_base = await self._depositor_base(rec.depositor)
@@ -232,12 +249,12 @@ class Corpus:
             # the threshold regardless of anchor).
             if independent or author_base >= self.settings.confidence_threshold:
                 await self.store.mark_corroborated(rec.id, now, src_dicts,
-                                                   independent=independent)
+                                                   independent=strong_voucher)
             if independent:
                 await self._bump_trust(rec.depositor, agreed=1)
             if topic is not None:
                 await self._update_topic(topic, agreed=True)
-            served_base = 1.0 if (independent or rec.independent_corroboration_count
+            served_base = 1.0 if (strong_voucher or rec.independent_corroboration_count
                                   ) else await self._depositor_base(rec.depositor)
             await self._log_corroboration(rec, "agreed", v, topic,
                                           independent=independent)
@@ -284,7 +301,19 @@ class Corpus:
             topic.half_life_factor if topic else 1.0)
         anchor = rec.last_corroborated_at or rec.created_at
         young = (now - anchor).total_seconds() < eff_hl
-        if independent and young:
+        # Part 0 trust-guard: a polarity_mismatch driven purely by clause
+        # CARDINALITY (the sets differ because one wording segments into more
+        # clauses — connectives outside the and/but/while set — not because a
+        # single proposition cleanly flipped) still retires-and-replaces, but
+        # must NOT dock the author: an honest multi-clause paraphrase is a
+        # wording difference, not a lie. A clean singleton {pos} vs {neg} flip
+        # keeps the full penalty.
+        clean_flip = True
+        if v.rule == "polarity_mismatch":
+            a_pol = v.detail["new"]["polarity"]
+            b_pol = v.detail["old"]["polarity"]
+            clean_flip = len(a_pol) == 1 and len(b_pol) == 1
+        if independent and young and clean_flip:
             await self._bump_trust(rec.depositor, contradicted=1)
         if topic is not None:
             await self._update_topic(topic, agreed=False)
@@ -373,10 +402,15 @@ class Corpus:
 
     async def _trust(self, depositor: str) -> float:
         """Track-record trust — a pure function of independently recorded
-        corroboration outcomes. Never an LLM."""
+        corroboration outcomes, over an attestation-shifted prior (Phase 3).
+        Never an LLM. Unattested ⇒ the prior is untouched ⇒ exact Phase 2."""
         agreed, contradicted = await self.store.depositor_counts(depositor)
-        return conf.trust_score(agreed, contradicted,
-                                self.settings.trust_prior_mean,
+        level = await self.store.attested_level(depositor)
+        prior = self.settings.trust_prior_mean
+        if level is not None:
+            prior = conf.attested_prior(prior, self.settings.attested_prior_ceiling,
+                                        level)
+        return conf.trust_score(agreed, contradicted, prior,
                                 self.settings.trust_prior_strength)
 
     async def _depositor_base(self, depositor: str) -> float:
@@ -388,11 +422,23 @@ class Corpus:
     async def _bump_trust(self, depositor: str, *, agreed: int = 0,
                           contradicted: int = 0) -> None:
         a, c = await self.store.depositor_counts(depositor)
-        score = conf.trust_score(a + agreed, c + contradicted,
-                                 self.settings.trust_prior_mean,
+        level = await self.store.attested_level(depositor)
+        prior = self.settings.trust_prior_mean
+        if level is not None:
+            prior = conf.attested_prior(prior, self.settings.attested_prior_ceiling,
+                                        level)
+        score = conf.trust_score(a + agreed, c + contradicted, prior,
                                  self.settings.trust_prior_strength)
         await self.store.bump_depositor(depositor, agreed=agreed,
                                         contradicted=contradicted, score=score)
+
+    async def _verify_attestation(self, token: str | None, depositor: str) -> bool:
+        """Deterministic: a valid, unexpired, PRESENTER-BOUND token records the
+        depositor's verified level; anything else is silently unattested."""
+        res = self.attestor.verify(token, depositor, self.now())
+        if res.verified:
+            await self.store.set_attested_level(depositor, res.level)
+        return res.verified
 
     async def _confidence(self, rec: DepositRecord, topic: TopicState | None,
                           now: datetime) -> float:
@@ -435,7 +481,9 @@ class Corpus:
         detail: dict[str, Any] = {"rule": v.rule, "fields": v.detail,
                                   "independent": independent,
                                   "author": rec.depositor,
-                                  "author_trust": round(await self._trust(rec.depositor), 4)}
+                                  "author_trust": round(await self._trust(rec.depositor), 4),
+                                  "author_attested_level":
+                                      await self.store.attested_level(rec.depositor)}
         if topic is not None:
             detail["exploration_rate"] = round(topic.exploration_rate, 6)
             detail["half_life_factor"] = round(topic.half_life_factor, 4)

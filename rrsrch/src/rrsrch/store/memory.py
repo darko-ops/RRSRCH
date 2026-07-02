@@ -21,6 +21,7 @@ class InMemoryStore:
         self._topics: dict[str, TopicState] = {}
         self._events: list[dict[str, Any]] = []
         self._trust: dict[str, list[int]] = {}   # depositor → [agreed, contradicted]
+        self._attested: dict[str, float] = {}    # depositor → verified level
 
     async def add(self, rec: DepositRecord) -> UUID:
         self._d[rec.id] = rec
@@ -63,6 +64,13 @@ class InMemoryStore:
         cur = self._trust.setdefault(depositor, [0, 0])
         cur[0] += agreed
         cur[1] += contradicted
+
+    async def attested_level(self, depositor: str) -> float | None:
+        return self._attested.get(depositor)
+
+    async def set_attested_level(self, depositor: str, level: float) -> None:
+        # keep the HIGHEST verified level (a weaker later token never downgrades)
+        self._attested[depositor] = max(level, self._attested.get(depositor, 0.0))
 
     async def retire(self, deposit_id: UUID, superseded_by: UUID, now: datetime) -> None:
         rec = self._d[deposit_id]

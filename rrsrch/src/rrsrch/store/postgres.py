@@ -29,6 +29,7 @@ def _to_record(r: Deposit) -> DepositRecord:
         retired_at=r.retired_at, superseded_by=r.superseded_by,
         topic_id=r.topic_id, inferred_scope=r.inferred_scope,
         independent_corroboration_count=r.independent_corroboration_count,
+        attestation=r.attestation,
     )
 
 
@@ -61,6 +62,7 @@ class PostgresStore:
                 retired_at=rec.retired_at, superseded_by=rec.superseded_by,
                 topic_id=rec.topic_id, inferred_scope=rec.inferred_scope,
                 independent_corroboration_count=rec.independent_corroboration_count,
+                attestation=rec.attestation,
             ))
             await s.commit()
         return rec.id
@@ -127,6 +129,21 @@ class PostgresStore:
             row.agreed_count = (row.agreed_count or 0) + agreed
             row.contradicted_count = (row.contradicted_count or 0) + contradicted
             row.score = score   # derived value, persisted for observability
+            await s.commit()
+
+    async def attested_level(self, depositor: str) -> float | None:
+        async with self._sm() as s:
+            row = await s.get(DepositorTrust, depositor)
+            return row.attested_level if row else None
+
+    async def set_attested_level(self, depositor: str, level: float) -> None:
+        async with self._sm() as s:
+            row = await s.get(DepositorTrust, depositor)
+            if row is None:
+                row = DepositorTrust(depositor=depositor)
+                s.add(row)
+            # keep the HIGHEST verified level (a weaker token never downgrades)
+            row.attested_level = max(level, row.attested_level or 0.0)
             await s.commit()
 
     async def retire(self, deposit_id: UUID, superseded_by: UUID, now: datetime) -> None:
