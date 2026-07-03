@@ -404,7 +404,7 @@ function ProductExplainer({ isMobile }) {
       <section style={{ marginBottom: sectionGap }}>
         <Eyebrow>What it is</Eyebrow>
         <h2 style={{ ...heading, fontSize: isMobile ? '30px' : 'clamp(32px, 4.2vw, 52px)', maxWidth: '820px' }}>
-          A shared memory so your agents stop re-researching what&rsquo;s already known.
+          A shared, verified memory so AI agents search once and reuse forever, instead of re-deriving the same knowledge from scratch.
         </h2>
         <p style={{ ...body, maxWidth: '680px' }}>
           The backpack is a context-pack engine: a search-and-deposit memory your agents read from
@@ -767,7 +767,7 @@ function App() {
 
           <div style={{ display: 'inline-block' }}>
             <p style={{ color: 'white', margin: '0 0 4px 0', fontSize: '13px', lineHeight: '1.5', fontWeight: 'bold', fontFamily: theme.fonts.main, textAlign: 'right' }}>
-            : INTELLIGENCE / RESEARCH
+            : REGENERATIVE RESEARCH
             </p>
             <h1 style={{
               fontSize: 'clamp(40px, 6vw, 80px)',
@@ -783,8 +783,8 @@ function App() {
           </div>
 
           <p style={{ color: '#666', marginTop: '18px', fontSize: '18px', maxWidth: '450px', lineHeight: '1.5', fontWeight: 'bold', fontFamily: theme.fonts.main }}>
-          SHARED MEMORY FOR <br />
-          YOUR AGENTS.
+          SEARCH ONCE. <br />
+          REUSE FOREVER.
           </p>
         </div>
 
