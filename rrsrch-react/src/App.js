@@ -501,14 +501,17 @@ deposit(finding, source, confidence)
           </p>
           <div style={{ display: 'grid', gap: '14px' }}>
             <CodeBlock>{`$ git clone ${REPO_URL}.git
-$ cd RRSRCH/rrsrch && make up   # Postgres + pgvector + API on :8000`}</CodeBlock>
-            <CodeBlock>{`// claude_desktop_config.json   (after: pip install -e .  in rrsrch/)
+$ cd RRSRCH/rrsrch
+$ make up            # Postgres + pgvector + API on :8000
+$ pip install .      # puts the rrsrch-mcp server on your PATH`}</CodeBlock>
+            <CodeBlock>{`// claude_desktop_config.json
 {
   "mcpServers": {
     "rrsrch": {
       "command": "rrsrch-mcp",
       "env": {
         "RRSRCH_STORE": "postgres",
+        "RRSRCH_EMBEDDER": "local",
         "RRSRCH_DATABASE_URL": "postgresql+asyncpg://rrsrch:rrsrch@localhost:5432/rrsrch"
       }
     }
