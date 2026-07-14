@@ -30,6 +30,7 @@ def _to_record(r: Deposit) -> DepositRecord:
         topic_id=r.topic_id, inferred_scope=r.inferred_scope,
         independent_corroboration_count=r.independent_corroboration_count,
         attestation=r.attestation,
+        derivation_tokens=r.derivation_tokens,
     )
 
 
@@ -63,6 +64,7 @@ class PostgresStore:
                 topic_id=rec.topic_id, inferred_scope=rec.inferred_scope,
                 independent_corroboration_count=rec.independent_corroboration_count,
                 attestation=rec.attestation,
+                derivation_tokens=rec.derivation_tokens,
             ))
             await s.commit()
         return rec.id
@@ -235,6 +237,32 @@ class PostgresStore:
             ))
             await s.commit()
 
+    async def recent_events(self, limit: int) -> list[dict[str, Any]]:
+        async with self._sm() as s:
+            rows = (await s.execute(
+                select(QueryEvent).order_by(QueryEvent.ts.desc()).limit(limit)
+            )).scalars().all()
+        return [{
+            "ts": r.ts.isoformat() if r.ts else None,
+            "query": r.query, "outcome": r.outcome, "reason": r.reason,
+            "similarity": r.similarity, "confidence": r.confidence,
+            "tokens_saved_estimate": r.tokens_saved_estimate,
+            "tokens_spent_estimate": r.tokens_spent_estimate,
+            "served_deposit_id": str(r.served_deposit_id) if r.served_deposit_id else None,
+            "volatility": r.volatility, "topic_id": r.topic_id,
+        } for r in rows]
+
+    async def corpus_stats(self) -> dict[str, int]:
+        async with self._sm() as s:
+            live, distinct = (await s.execute(
+                select(func.count(), func.count(func.distinct(Deposit.query)))
+                .where(Deposit.retired_at.is_(None))
+            )).one()
+            total = (await s.execute(
+                select(func.count()).select_from(Deposit))).scalar_one()
+        return {"live_deposits": int(live), "distinct_questions": int(distinct),
+                "total_deposits": int(total)}
+
     async def event_stats(self) -> dict[str, Any]:
         # Aggregate in SQL — never pull every event row into Python.
         async with self._sm() as s:
@@ -260,6 +288,12 @@ class PostgresStore:
                 select(func.coalesce(func.sum(QueryEvent.tokens_spent_estimate), 0))
                 .where(QueryEvent.outcome == "explore")
             )).scalar_one() or 0
+            saved_measured, hits_measured = (await s.execute(
+                select(func.coalesce(func.sum(QueryEvent.tokens_saved_estimate), 0),
+                       func.count())
+                .where(QueryEvent.outcome == "hit",
+                       QueryEvent.detail["cold_basis"].as_string() == "measured")
+            )).one()
             by_topic: dict[str, dict[str, int]] = {}
             for tid, out, n, ev_spent, ev_saved in (await s.execute(
                 select(QueryEvent.topic_id, QueryEvent.outcome, func.count(),
@@ -282,6 +316,8 @@ class PostgresStore:
             )).scalar_one()
         return {"by_outcome": by_outcome, "reasons": reasons,
                 "tokens_saved": int(saved), "tokens_spent": int(spent),
+                "tokens_saved_measured": int(saved_measured),
+                "hits_measured_basis": int(hits_measured),
                 "exploration_tokens_spent": int(explore_spent),
                 "by_topic": by_topic,
                 "mean_time_to_correction_seconds": float(mean_ttc) if mean_ttc is not None else None}

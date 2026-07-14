@@ -61,6 +61,13 @@ class ClaimFields:
     predicates: dict[str, int] = field(default_factory=dict)
     versions: list[str] = field(default_factory=list)
     polarity: frozenset[str] = frozenset({"pos"})
+    # Interrogative FACET: the KIND of answer a QUESTION asks for (a party / a
+    # date / a timespan / a cost / a count / a procedure). None = undetermined
+    # (descriptive what-is/why/whether questions) — no signal, no gate. Only
+    # meaningful on queries; a statement claim rarely carries one and it is
+    # never consulted by the corroboration verdict, only by the serve-path
+    # intent guard (query-vs-query). See _extract_facet.
+    facet: str | None = None
 
     @property
     def negated(self) -> bool:
@@ -71,7 +78,7 @@ class ClaimFields:
     def to_log(self) -> dict[str, Any]:
         return {"numbers": self.numbers, "entities": sorted(self.entities),
                 "polarity": sorted(self.polarity), "predicates": self.predicates,
-                "versions": self.versions}
+                "versions": self.versions, "facet": self.facet}
 
 
 class Extractor(Protocol):
@@ -190,6 +197,35 @@ def _extract_predicates(text: str) -> dict[str, int]:
     return {axis: signs.pop() for axis, signs in directions.items() if len(signs) == 1}
 
 
+# Interrogative FACET cues. Cosine embeds "what's the deadline" and "who must
+# comply" as near as paraphrases, but they ask for a DATE vs a PARTY. Only sharp,
+# PARAMETRIC answer-shapes get a facet — a party / a date / a timespan / a money
+# amount / a count / a procedure. Descriptive questions (what-is, why, whether,
+# difference, what-happens) deliberately get NO facet: they are the fuzzy majority
+# and gating them would falsely reject genuine cross-wording paraphrases ("why
+# need CMMC" ~ "what is the purpose of CMMC"). Tight by design — like the scope
+# gazetteer, every entry can veto a serve and a false veto only costs a fresh
+# search. Ordered: specific "how much/long/many" win over the generic how-to.
+_FACET_CUES: list[tuple[str, "re.Pattern[str]"]] = [
+    ("cost",     re.compile(r"\bhow much\b|\bcosts?\b|\bpriced?\b|\bpricing\b|\bfees?\b", re.I)),
+    ("quantity", re.compile(r"\bhow many\b", re.I)),
+    ("duration", re.compile(r"\bhow long\b|\bduration\b", re.I)),
+    ("when",     re.compile(r"\bwhen\b|\bdeadline\b|\bdue date\b|\bby when\b", re.I)),
+    ("who",      re.compile(r"\bwho\b|\bwhom\b", re.I)),
+    ("how-to",   re.compile(r"\bhow (do|does|to|can|should|would|will)\b|"
+                            r"\bwhat should\b|\bwhat steps\b|\bhow-to\b", re.I)),
+]
+
+
+def _extract_facet(text: str) -> str | None:
+    """The interrogative facet, or None if undetermined (no gate). First cue
+    wins; synonyms normalize ('how much'→cost, 'how long'→duration)."""
+    for facet, pat in _FACET_CUES:
+        if pat.search(text or ""):
+            return facet
+    return None
+
+
 class RegexExtractor:
     """Deterministic, offline extractor. Best-effort precision; determinism is
     the requirement, the verdict logic is designed to be safe when extraction
@@ -211,7 +247,8 @@ class RegexExtractor:
         entities = {m.group(1) for m in _ENT.finditer(text)} - _ENT_STOP
         return ClaimFields(numbers=numbers, entities=entities,
                            polarity=_clause_polarity(text),
-                           predicates=_extract_predicates(text), versions=versions)
+                           predicates=_extract_predicates(text), versions=versions,
+                           facet=_extract_facet(text))
 
 
 @dataclass
@@ -296,7 +333,8 @@ class IntentVerdict:
     detail: dict[str, Any]    # 'intent_aligned' | 'no_signal'
 
 
-def intent_verdict(query_fields: ClaimFields, candidate_fields: ClaimFields) -> IntentVerdict:
+def intent_verdict(query_fields: ClaimFields, candidate_fields: ClaimFields,
+                   *, facet_gate: bool = True) -> IntentVerdict:
     """The serve-path intent guard: does the incoming QUERY ask the same-direction
     question as the candidate deposit's canonical query?
 
@@ -319,6 +357,17 @@ def intent_verdict(query_fields: ClaimFields, candidate_fields: ClaimFields) -> 
     for axis in shared:
         if query_fields.predicates[axis] != candidate_fields.predicates[axis]:
             return IntentVerdict(False, f"predicate_flip:{axis}", detail)
-    if shared or query_fields.negated:   # signals exist on both sides and align
+    # FACET gate: the query asks for a KIND of answer (a party / date / timespan /
+    # cost / count / procedure). Both sides determined and DIFFERENT ⇒ the
+    # candidate answers a different question-shape on the same topic — reject even
+    # at similarity 0.97, exactly like an implicit-scope conflict. Undetermined on
+    # either side ⇒ no facet signal (descriptive questions paraphrase freely).
+    if (facet_gate and query_fields.facet and candidate_fields.facet
+            and query_fields.facet != candidate_fields.facet):
+        return IntentVerdict(
+            False, f"facet_mismatch:{query_fields.facet}!={candidate_fields.facet}", detail)
+    # a matching determined facet is itself an alignment signal (like shared predicates)
+    aligned_facet = query_fields.facet is not None and candidate_fields.facet is not None
+    if shared or query_fields.negated or aligned_facet:
         return IntentVerdict(True, "intent_aligned", detail)
     return IntentVerdict(True, "no_signal", detail)

@@ -42,6 +42,8 @@ def metrics(stats: dict[str, Any], cold_path_estimate: int,
               for tid, state in (topic_states or {}).items()}
     for tid, flow in by_topic.items():   # events for topics with no live state row
         topics.setdefault(tid, dict(flow))
+    saved_measured = stats.get("tokens_saved_measured", 0)
+    hits_measured = stats.get("hits_measured_basis", 0)
     return {
         "total_queries": total,
         "hits": hits,
@@ -52,6 +54,12 @@ def metrics(stats: dict[str, Any], cold_path_estimate: int,
         "tokens_with_rrsrch": spent,
         "tokens_without_rrsrch": without,
         "total_tokens_saved": saved,
+        # the honest split: measured = hits whose deposit carried its real
+        # production cost (savings = that cost - served); estimated = the rest
+        "tokens_saved_measured": saved_measured,
+        "tokens_saved_estimated": saved - saved_measured,
+        "hits_measured_basis": hits_measured,
+        "hits_estimated_basis": hits - hits_measured,
         "avg_tokens_per_query_with": round(spent / total, 1) if total else 0.0,
         "avg_tokens_per_query_without": float(cold_path_estimate) if total else 0.0,
         "reduction_pct": round(100 * (1 - spent / without), 1) if without else 0.0,

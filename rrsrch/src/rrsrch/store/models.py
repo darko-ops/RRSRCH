@@ -42,6 +42,9 @@ class Deposit(Base):
     independent_corroboration_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0")
     attestation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # measured cost of producing the claim (reported by the depositor); NULL ⇒
+    # savings for hits on this deposit stay estimate-based
+    derivation_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class DepositorTrust(Base):

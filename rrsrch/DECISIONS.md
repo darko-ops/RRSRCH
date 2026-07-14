@@ -428,3 +428,29 @@ the corpus. Accepted as-is; revisit only with evidence from organic traffic.
 4. no regression: the Phase 0 suites run unmodified (except the corroborate tests
    whose claims now agree via numeric_match instead of lexical_match — same
    outcomes).
+
+## Reranker task (2026-07-03): cross-encoder matcher — built, calibrated, DEFAULT OFF
+- **Model choice** (calibration slice of `eval/equivalence_pairs.json` only):
+  stsb-roberta-base (STS) primary + quora-roberta-large (QQP) as a low-floor
+  VETO. The task-suggested ms-marco passage-relevance model fails structurally
+  inside one vertical (everything is "relevant" to everything; cal AUC 0.603 vs
+  0.873) — relevance ≠ same-question.
+- **Honest A/B outcome:** on the held-out slice the calibrated reranker does NOT
+  dominate a strict fused threshold (0.71) on the precision/recall frontier
+  (retrieval false-hit 0.200@recall 0.367 vs 0.111@0.400). Win condition not
+  met → `reranker="none"` stays the default; enabling is one setting with the
+  calibrated operating point (0.706) preloaded. See reports/reranker.md.
+- **The residual failure class is model-proof at this shelf:** lexically-twinned
+  different questions ("assessment takes how long" vs "certification valid how
+  long" = STS 0.96) vs cross-worded true paraphrases ("why create CMMC" vs
+  "purpose of CMMC" = STS 0.55). No threshold separates them; QQP veto helps but
+  caps recall (kills 11/21 true paraphrases). Next lever: fine-tune a pair
+  classifier on the eval set, or the deterministic subject/entity axis.
+- **One scoring path rule:** eval harness and serve path both score through
+  `CrossEncoderReranker.score_pairs` — an early harness applied its own sigmoid
+  on top of native [0,1] STS outputs and silently mis-calibrated the threshold.
+  Never score outside the class.
+- The question-equivalence eval set (188 verbatim questions / 11 independent
+  origins incl. DoD CIO; 1,195 labeled pairs, group-aware cal/test split) is
+  reusable infrastructure: threshold recalibration, future matcher A/Bs, and
+  seed data for a fine-tuned matcher.
