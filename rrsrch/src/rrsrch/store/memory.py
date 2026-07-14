@@ -114,19 +114,47 @@ class InMemoryStore:
     async def log_event(self, event: dict[str, Any]) -> None:
         self._events.append(event)
 
+    async def recent_events(self, limit: int) -> list[dict[str, Any]]:
+        # Events are appended in clock order; newest first, normalized to the
+        # same wire shape PostgresStore returns (ids as str, ts as ISO string).
+        out: list[dict[str, Any]] = []
+        for e in reversed(self._events[-limit:]):
+            dep_id = e.get("served_deposit_id")
+            out.append({
+                "ts": e.get("ts"), "query": e["query"], "outcome": e["outcome"],
+                "reason": e.get("reason"), "similarity": e.get("similarity"),
+                "confidence": e.get("confidence"),
+                "tokens_saved_estimate": e.get("tokens_saved_estimate"),
+                "tokens_spent_estimate": e.get("tokens_spent_estimate"),
+                "served_deposit_id": str(dep_id) if dep_id else None,
+                "volatility": e.get("volatility"), "topic_id": e.get("topic_id"),
+            })
+        return out
+
+    async def corpus_stats(self) -> dict[str, int]:
+        live = [r for r in self._d.values() if r.retired_at is None]
+        return {"live_deposits": len(live),
+                "distinct_questions": len({r.query for r in live}),
+                "total_deposits": len(self._d)}
+
     async def event_stats(self) -> dict[str, Any]:
         by_outcome: dict[str, int] = {}
         reasons: dict[str, int] = {}
         by_topic: dict[str, dict[str, int]] = {}
         ttc: list[float] = []
         saved = spent = explore_spent = 0
+        saved_measured = hits_measured = 0
         for e in self._events:
             out = e["outcome"]
             by_outcome[out] = by_outcome.get(out, 0) + 1
             if out in ("stale", "miss"):
                 reasons[e.get("reason") or "miss"] = reasons.get(e.get("reason") or "miss", 0) + 1
             ev_spent = e.get("tokens_spent_estimate") or 0
-            saved += e.get("tokens_saved_estimate") or 0
+            ev_saved = e.get("tokens_saved_estimate") or 0
+            saved += ev_saved
+            if out == "hit" and (e.get("detail") or {}).get("cold_basis") == "measured":
+                saved_measured += ev_saved
+                hits_measured += 1
             spent += ev_spent
             if out == "explore":
                 explore_spent += ev_spent
@@ -143,6 +171,8 @@ class InMemoryStore:
                 ttc.append(float(detail["time_to_correction_seconds"]))
         return {"by_outcome": by_outcome, "reasons": reasons,
                 "tokens_saved": saved, "tokens_spent": spent,
+                "tokens_saved_measured": saved_measured,
+                "hits_measured_basis": hits_measured,
                 "exploration_tokens_spent": explore_spent,
                 "by_topic": by_topic,
                 "mean_time_to_correction_seconds": (sum(ttc) / len(ttc)) if ttc else None}

@@ -27,6 +27,7 @@ from .matching import scope as scope_mod
 from .config import Settings
 from .embeddings import Embedder, encode_async
 from .matching import engine
+from .matching import rerank as rerank_mod
 from .schemas import (CorroborateResult, DepositIn, DepositRecord, RecallItem,
                       SearchResult, Source, TopicState)
 from .store.base import Store
@@ -44,7 +45,8 @@ class Corpus:
                  now: Callable[[], datetime] = _utcnow,
                  rng: Random | None = None,
                  provider: "SearchProvider | None" = None,
-                 extractor: agreement.Extractor | None = None) -> None:
+                 extractor: agreement.Extractor | None = None,
+                 reranker: rerank_mod.Reranker | None = None) -> None:
         self.store = store
         self.embedder = embedder
         self.settings = settings
@@ -56,6 +58,10 @@ class Corpus:
         self.provider = provider
         # An LLM may implement Extractor (it only PROPOSES fields); default is regex.
         self.extractor = extractor or agreement.RegexExtractor()
+        # The second-stage MATCHER (the one zone a model may judge). None ⇒ the
+        # fused-threshold serve path; set ⇒ its score replaces the cosine
+        # threshold as the match signal. It never touches confidence/trust.
+        self.reranker = reranker if reranker is not None else rerank_mod.get_reranker(settings)
         # attestation verification is deterministic code behind an interface;
         # the default (local/none per settings) never requires a live service.
         from .attestation import build_attestation_verifier
@@ -75,6 +81,7 @@ class Corpus:
             sources=[s.model_dump(mode="json") for s in payload.sources],
             scope=payload.scope, volatility=payload.volatility_hint, depositor=payload.depositor,
             created_at=when, topic_id=topic_id, attestation=payload.attestation,
+            derivation_tokens=payload.derivation_tokens,
             # implicit scope lives in the query prose — extract once, at write time
             inferred_scope={d: sorted(v) for d, v in scope_mod.infer(payload.query).items()},
         )
@@ -93,38 +100,21 @@ class Corpus:
             self.store, self.embedder, query, scope,
             k=s.candidate_k, vector_weight=s.vector_weight, lexical_weight=s.lexical_weight,
         )
+        if not ranked:
+            return await self._no_serve(query, "miss", "no_match", cold, sim=None)
 
-        if not ranked or ranked[0].similarity < s.similarity_threshold:
-            reason = "no_match" if not ranked else "below_similarity_threshold"
-            return await self._no_serve(query, "miss", reason, cold,
-                                        sim=ranked[0].similarity if ranked else None)
-
-        # INTENT GUARD — the LAST check before a candidate can become a hit.
-        # Same-scope, opposite-intent queries ("require X?" vs "NOT require X?",
-        # "enable" vs "disable") embed near-identically, so similarity alone
-        # would serve a confidently wrong answer. The verdict is deterministic
-        # code over fields from the ONE shared Extractor (agreement.py) —
-        # embedding similarity retrieves candidates, it never overrides intent.
-        query_fields = self.extractor.extract(query)
-        top = None
-        rejected: list[dict[str, Any]] = []
-        for cand in ranked:
-            if cand.similarity < s.similarity_threshold:
-                break                          # ranked is sorted; nothing below can serve
-            iv = agreement.intent_verdict(query_fields,
-                                          self.extractor.extract(cand.record.query))
-            if iv.match:
-                top = cand
-                break
-            rejected.append({"deposit_id": str(cand.record.id), "rule": iv.rule,
-                             "similarity": round(cand.similarity, 4),
-                             "fields": iv.detail})
+        # MATCH SELECTION — the one zone where a model may judge. Two paths:
+        # fused-threshold (Phase 2, reranker "none") or cross-encoder rerank
+        # (the rerank score, not fused cosine, is the serve signal). Both keep
+        # the deterministic safety gates and feed the SAME deterministic
+        # confidence/trust tail below.
+        if self.reranker is None:
+            top, detail, miss = await self._select_fused(query, ranked, cold)
+        else:
+            top, detail, miss = await self._select_reranked(query, ranked, cold)
         if top is None:
-            # every above-threshold candidate flipped intent → this is a MISS:
-            # a false hit is a wrong answer; a fresh search is just a cost.
-            return await self._no_serve(query, "miss", "intent_mismatch", cold,
-                                        sim=ranked[0].similarity,
-                                        detail={"intent_rejected": rejected})
+            assert miss is not None
+            return miss
 
         rec = top.record
         topic = await self.store.get_topic(rec.topic_id) if rec.topic_id else None
@@ -148,15 +138,97 @@ class Corpus:
             topic = await self.store.get_topic(rec.topic_id) if rec.topic_id else topic
 
         return await self._serve(query, rec, top.similarity, confidence, cold, now,
-                                 detail={"intent_rejected": rejected} if rejected else None)
+                                 detail=detail)
+
+    async def _select_fused(
+        self, query: str, ranked: list[engine.Match], cold: int,
+    ) -> tuple[engine.Match | None, dict[str, Any] | None, SearchResult | None]:
+        """Phase-2 selection: fused similarity clears the threshold, then the
+        INTENT GUARD — the LAST check before a candidate can become a hit.
+        Same-scope, opposite-intent queries ("require X?" vs "NOT require X?",
+        "enable" vs "disable") embed near-identically, so similarity alone
+        would serve a confidently wrong answer. The verdict is deterministic
+        code over fields from the ONE shared Extractor (agreement.py) —
+        embedding similarity retrieves candidates, it never overrides intent."""
+        s = self.settings
+        if ranked[0].similarity < s.similarity_threshold:
+            return None, None, await self._no_serve(
+                query, "miss", "below_similarity_threshold", cold, sim=ranked[0].similarity)
+        query_fields = self.extractor.extract(query)
+        rejected: list[dict[str, Any]] = []
+        for cand in ranked:
+            if cand.similarity < s.similarity_threshold:
+                break                          # ranked is sorted; nothing below can serve
+            iv = agreement.intent_verdict(query_fields,
+                                          self.extractor.extract(cand.record.query),
+                                          facet_gate=s.facet_gate)
+            if iv.match:
+                return cand, {"intent_rejected": rejected} if rejected else None, None
+            rejected.append({"deposit_id": str(cand.record.id), "rule": iv.rule,
+                             "similarity": round(cand.similarity, 4),
+                             "fields": iv.detail})
+        # every above-threshold candidate flipped intent → this is a MISS:
+        # a false hit is a wrong answer; a fresh search is just a cost.
+        return None, None, await self._no_serve(
+            query, "miss", "intent_mismatch", cold, sim=ranked[0].similarity,
+            detail={"intent_rejected": rejected})
+
+    async def _select_reranked(
+        self, query: str, ranked: list[engine.Match], cold: int,
+    ) -> tuple[engine.Match | None, dict[str, Any] | None, SearchResult | None]:
+        """Reranked selection: the deterministic SAFETY gates (scope already ran
+        in engine.rank; polarity/predicate — and facet, if enabled — here) veto
+        first, then the cross-encoder scores the survivors and its score, not
+        fused cosine, decides match-vs-miss. No fused-similarity threshold: the
+        rerank threshold IS the match judgment (calibrated, see config)."""
+        s = self.settings
+        assert self.reranker is not None
+        query_fields = self.extractor.extract(query)
+        survivors: list[engine.Match] = []
+        rejected: list[dict[str, Any]] = []
+        for cand in ranked[: s.rerank_top_k]:
+            iv = agreement.intent_verdict(query_fields,
+                                          self.extractor.extract(cand.record.query),
+                                          facet_gate=s.facet_gate)
+            if iv.match:
+                survivors.append(cand)
+            else:
+                rejected.append({"deposit_id": str(cand.record.id), "rule": iv.rule,
+                                 "similarity": round(cand.similarity, 4),
+                                 "fields": iv.detail})
+        if not survivors:
+            return None, None, await self._no_serve(
+                query, "miss", "intent_mismatch", cold, sim=ranked[0].similarity,
+                detail={"intent_rejected": rejected})
+        scores = await rerank_mod.score_async(
+            self.reranker, query, [c.record.query for c in survivors])
+        best = max(range(len(survivors)), key=scores.__getitem__)
+        top, score = survivors[best], scores[best]
+        detail: dict[str, Any] = {"rerank_score": round(score, 4)}
+        if rejected:
+            detail["intent_rejected"] = rejected
+        if score < s.rerank_threshold:
+            return None, None, await self._no_serve(
+                query, "miss", "below_rerank_threshold", cold, sim=top.similarity,
+                detail=detail)
+        return top, detail, None
 
     async def _serve(self, query: str, rec: DepositRecord, similarity: float,
                      confidence: float, cold: int, now: datetime,
                      detail: dict[str, Any] | None = None) -> SearchResult:
         served = telemetry.estimate_tokens(rec.claim) + telemetry.estimate_tokens(
             json.dumps(rec.sources))
+        # Savings basis: if the deposit carries its MEASURED production cost,
+        # this hit's savings is measured (that cost minus what we served).
+        # Otherwise it stays an estimate against the configured cold path —
+        # and is tagged so metrics can report the two honestly, separately.
+        if rec.derivation_tokens is not None:
+            saved, basis = max(0, rec.derivation_tokens - served), "measured"
+        else:
+            saved, basis = max(0, cold - served), "estimated"
+        detail = {**(detail or {}), "cold_basis": basis}
         await self._log(query, "hit", None, sim=similarity, c=confidence,
-                        saved=max(0, cold - served), spent=served, dep_id=str(rec.id),
+                        saved=saved, spent=served, dep_id=str(rec.id),
                         volatility=rec.volatility, topic_id=rec.topic_id, detail=detail)
         return SearchResult(
             serve=True, outcome="hit", claim=rec.claim, confidence=round(confidence, 4),
@@ -181,7 +253,8 @@ class Corpus:
             "topic_id": rec.topic_id, "detail": {"trigger": trigger},
         })
         out = await self.corroborate(str(rec.id), research.claim,
-                                     sources=research.sources, depositor=f"rrsrch-{trigger}")
+                                     sources=research.sources, depositor=f"rrsrch-{trigger}",
+                                     derivation_tokens=research.tokens_spent or None)
         if out.outcome == "disagreed" and out.new_deposit_id:
             fresh = await self.store.get(UUID(out.new_deposit_id))
             if fresh is not None:
@@ -195,7 +268,8 @@ class Corpus:
     async def corroborate(self, deposit_id: str, claim: str,
                           sources: list[Source] | None = None,
                           depositor: str = "local",
-                          attestation: str | None = None) -> CorroborateResult:
+                          attestation: str | None = None,
+                          derivation_tokens: int | None = None) -> CorroborateResult:
         """Re-earn or retire a deposit against a freshly derived claim.
 
         DETERMINISTIC verdict (agreement.py): polarity, numbers, entities are
@@ -287,6 +361,7 @@ class Corpus:
             scope=rec.scope, volatility=rec.volatility, depositor=depositor, created_at=now,
             topic_id=rec.topic_id,
             inferred_scope=rec.inferred_scope,   # same query text → same implicit scope
+            derivation_tokens=derivation_tokens,  # measured cost of the fresh derivation
         )
         await self.store.add(new)
         await self.store.retire(rec.id, new.id, now)
@@ -497,6 +572,31 @@ class Corpus:
             "topic_id": rec.topic_id, "detail": detail,
         })
 
+    async def recent(self, limit: int = 30) -> list[dict[str, Any]]:
+        """Read-only observability feed (the dashboard's reuse stream): the last
+        `limit` query events newest-first, with served rows (hit/stale) enriched
+        from the deposit they point at — claim (truncated), source urls,
+        depositor, and the deposit's age at serve time. Never touches the
+        matching/confidence/trust path."""
+        events = await self.store.recent_events(limit)
+        deposits: dict[str, DepositRecord | None] = {}
+        for e in events:
+            dep_id = e.get("served_deposit_id")
+            if not dep_id or e["outcome"] not in ("hit", "stale"):
+                continue
+            if dep_id not in deposits:
+                deposits[dep_id] = await self.store.get(UUID(dep_id))
+            rec = deposits[dep_id]
+            if rec is None:
+                continue
+            e["claim"] = rec.claim[:240] + ("…" if len(rec.claim) > 240 else "")
+            e["source_urls"] = [u for s in rec.sources if (u := s.get("url"))][:5]
+            e["depositor"] = rec.depositor
+            if e.get("ts"):
+                served_at = datetime.fromisoformat(e["ts"])
+                e["age_seconds"] = round((served_at - rec.created_at).total_seconds(), 1)
+        return events
+
     async def metrics(self) -> dict[str, Any]:
         stats = await self.store.event_stats()
         topic_states = {
@@ -511,5 +611,8 @@ class Corpus:
             }
             for t in await self.store.list_topics()
         }
-        return telemetry.metrics(stats, self.settings.cold_path_estimate_tokens,
-                                 topic_states=topic_states)
+        m = telemetry.metrics(stats, self.settings.cold_path_estimate_tokens,
+                              topic_states=topic_states)
+        # plain read-only counts for the dashboard tiles — no new metrics math
+        m["corpus"] = await self.store.corpus_stats()
+        return m

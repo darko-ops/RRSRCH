@@ -27,6 +27,10 @@ class DepositIn(BaseModel):
     scope: dict[str, Any] | None = None
     depositor: str = "local"
     attestation: str | None = None     # opaque Ominis token; invalid ⇒ unattested
+    # MEASURED cost (tokens) of the research that produced this claim, reported
+    # by the depositor. Optional; when present, later hits on this deposit count
+    # savings as measured instead of estimated.
+    derivation_tokens: int | None = Field(default=None, ge=0)
 
     @field_validator("volatility_hint")
     @classmethod
@@ -101,6 +105,7 @@ class DepositRecord:
     # move track record but never set this (N sock-puppets can't float a lie).
     independent_corroboration_count: int = 0
     attestation: str | None = None     # token presented at deposit time (audit)
+    derivation_tokens: int | None = None   # measured cost of producing the claim
 
     @staticmethod
     def new(**kw: Any) -> "DepositRecord":

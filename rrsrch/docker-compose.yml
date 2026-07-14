@@ -27,6 +27,10 @@ services:
     command: sh -c "alembic upgrade head && rrsrch-api"
     ports:
       - "8000:8000"
+    volumes:
+      # host pairing credentials (written by `rrsrch-login` on the host) so the
+      # containerized API's read-only /whoami reflects the machine's account
+      - ~/.rrsrch:/root/.rrsrch:ro
 
 volumes:
   rrsrch_pgdata:
