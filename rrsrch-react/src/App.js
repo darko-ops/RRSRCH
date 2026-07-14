@@ -1164,7 +1164,7 @@ function AccountPage({ isMobile }) {
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState('backpack');
+  const [tab, setTab] = useState('atlas');
   const [devices, setDevices] = useState([]);
   const DEFAULT_PROJECT = {
     id: 'default', name: 'bouncr (local)',
@@ -1359,38 +1359,86 @@ function AccountPage({ isMobile }) {
     );
   }
 
+  const sideLabel = {
+    fontFamily: theme.fonts.mono, fontSize: '11px', color: '#888',
+    textTransform: 'uppercase', letterSpacing: '1px', margin: '16px 0 2px'
+  };
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-      <Eyebrow>Dashboard</Eyebrow>
-      <h2 style={heading}>Welcome, {user.name}.</h2>
-      <p style={{ ...body, marginBottom: '28px' }}>
-        Signed in as <span style={{ color: '#ccc' }}>{user.email}</span> · member since{' '}
-        {new Date(user.created_at).toLocaleDateString()}
-      </p>
+    <div style={{
+      display: isMobile ? 'flex' : 'grid',
+      flexDirection: 'column',
+      gridTemplateColumns: '240px minmax(0, 1fr)',
+      gap: isMobile ? '20px' : '36px',
+      maxWidth: '1150px', margin: '0 auto', alignItems: 'start'
+    }}>
+      {/* left side panel: identity, project, section navigation */}
+      <aside style={{
+        position: isMobile ? 'static' : 'sticky', top: '96px',
+        display: 'flex', flexDirection: 'column', gap: '8px'
+      }}>
+        <Eyebrow>Dashboard</Eyebrow>
+        <div style={{ color: '#fff', fontSize: '22px', fontWeight: 800, letterSpacing: '-0.02em', fontFamily: theme.fonts.main }}>
+          Welcome, {user.name}.
+        </div>
+        <div style={{ color: '#8a8a8a', fontSize: '12px', lineHeight: 1.6, fontFamily: theme.fonts.main }}>
+          {user.email}<br />member since {new Date(user.created_at).toLocaleDateString()}
+        </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
-        <span style={{ fontFamily: theme.fonts.mono, fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>Project</span>
+        <div style={sideLabel}>Project</div>
         <select value={active.id} onChange={(e) => persistProjects(projects, e.target.value)}
           style={{ background: 'rgba(0,255,136,0.08)', color: NAV_GREEN,
                    border: '1px solid rgba(0,255,136,0.45)', borderRadius: '8px',
-                   padding: '8px 12px', font: 'inherit', fontSize: '13px', fontWeight: 600,
-                   cursor: 'pointer', outline: 'none' }}>
+                   padding: '9px 12px', font: 'inherit', fontSize: '13px', fontWeight: 600,
+                   cursor: 'pointer', outline: 'none', width: '100%' }}>
           {projects.map((pr) => (
             <option key={pr.id} value={pr.id} style={{ background: '#0a0a0a', color: '#fff' }}>
               {pr.name}
             </option>
           ))}
         </select>
-        <button onClick={() => setCreating(!creating)} style={{
-          background: creating ? '#fff' : 'none', border: creating ? '1px solid #fff' : '1px solid #333',
-          borderRadius: '8px', color: creating ? '#000' : '#ccc', fontSize: '12px', padding: '8px 14px',
-          cursor: 'pointer', fontFamily: theme.fonts.main }}>{creating ? 'Cancel' : '＋ New project'}</button>
-        {projects.length > 1 && (
-          <button onClick={deleteActive} style={{ background: 'none', border: 'none',
-            color: '#555', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline',
-            fontFamily: theme.fonts.main }}>delete</button>
-        )}
-      </div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button onClick={() => setCreating(!creating)} style={{
+            flex: 1, background: creating ? '#fff' : 'none',
+            border: creating ? '1px solid #fff' : '1px solid #333',
+            borderRadius: '8px', color: creating ? '#000' : '#ccc', fontSize: '12px',
+            padding: '8px 12px', cursor: 'pointer', fontFamily: theme.fonts.main
+          }}>{creating ? 'Cancel' : '＋ New project'}</button>
+          {projects.length > 1 && (
+            <button onClick={deleteActive} style={{ background: 'none', border: 'none',
+              color: '#555', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline',
+              fontFamily: theme.fonts.main }}>delete</button>
+          )}
+        </div>
+
+        <div style={sideLabel}>Sections</div>
+        {[['atlas', 'Atlas', Shield], ['backpack', 'Backpack', Database], ['connect', 'Connect agents', TerminalIcon]].map(([t, label, Icon]) => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
+            textAlign: 'left', padding: '10px 14px', borderRadius: '10px', cursor: 'pointer',
+            fontFamily: theme.fonts.main, fontSize: '13px', fontWeight: 700,
+            background: tab === t ? 'rgba(0,255,136,0.08)' : 'transparent',
+            color: tab === t ? NAV_GREEN : '#888',
+            border: tab === t ? '1px solid rgba(0,255,136,0.45)' : '1px solid #2a2a2a'
+          }}>
+            <Icon size={14} />{label}
+          </button>
+        ))}
+
+        <div style={{ marginTop: '22px', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-start' }}>
+          <button onClick={signOut} style={{
+            background: 'transparent', color: '#ccc', border: '1px solid #333',
+            borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: 600,
+            cursor: 'pointer', fontFamily: theme.fonts.main
+          }}>Sign out</button>
+          <button onClick={deleteAccount} style={{
+            background: 'none', border: 'none', color: '#555', fontSize: '12px',
+            cursor: 'pointer', textDecoration: 'underline', fontFamily: theme.fonts.main
+          }}>Delete account</button>
+        </div>
+      </aside>
+
+      {/* main column: the active section's content */}
+      <div style={{ minWidth: 0 }}>
 
       {creating && (
         <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid #222', borderRadius: '14px',
@@ -1426,18 +1474,6 @@ function AccountPage({ isMobile }) {
           }}>Create project</button>
         </div>
       )}
-
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '22px', flexWrap: 'wrap' }}>
-        {[['backpack', 'Backpack'], ['atlas', 'Atlas'], ['connect', 'Connect agents']].map(([t, label]) => (
-          <button key={t} onClick={() => setTab(t)} style={{
-            padding: '9px 18px', borderRadius: '8px', cursor: 'pointer',
-            fontFamily: theme.fonts.main, fontSize: '13px', fontWeight: 700,
-            background: tab === t ? '#fff' : 'transparent',
-            color: tab === t ? '#000' : '#888',
-            border: tab === t ? '1px solid #fff' : '1px solid #333'
-          }}>{label}</button>
-        ))}
-      </div>
 
       {(pairCode || pairMsg) && (
         <div style={{ background: 'rgba(0,255,136,0.04)', border: '1px solid rgba(0,255,136,0.25)', borderRadius: '12px', padding: '16px 18px', marginBottom: '20px' }}>
@@ -1501,16 +1537,6 @@ Waiting for approval... ✓`}</CodeBlock>
         </>
       )}
 
-      <div style={{ display: 'flex', gap: '14px', alignItems: 'center', marginTop: '10px' }}>
-        <button onClick={signOut} style={{
-          background: 'transparent', color: '#ccc', border: '1px solid #333',
-          borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: 600,
-          cursor: 'pointer', fontFamily: theme.fonts.main
-        }}>Sign out</button>
-        <button onClick={deleteAccount} style={{
-          background: 'none', border: 'none', color: '#555', fontSize: '12px',
-          cursor: 'pointer', textDecoration: 'underline', fontFamily: theme.fonts.main
-        }}>Delete account</button>
       </div>
     </div>
   );
@@ -1524,54 +1550,96 @@ const TAGLINES = {
   account: ['YOUR ACCOUNT & CONNECTIONS.', 'SIGN IN AND POINT YOUR AGENTS.'],
 };
 
-// --- Home: two product cards under the hero ---
+// --- Home: hero product cards — appear on the right after 2s; picking one ---
+// --- expands it and collapses the other (still clickable to swap) ---
 
-function HomeCards({ isMobile, navigate }) {
-  const card = {
-    background: 'rgba(0,0,0,0.3)', border: '1px solid #222', borderRadius: '14px',
-    padding: isMobile ? '26px' : '36px', cursor: 'pointer', transition: 'border-color .2s ease'
-  };
+function HeroProductCards({ isMobile, navigate }) {
+  const [visible, setVisible] = useState([false, false]);
+  const [pick, setPick] = useState(null);   // 'backpack' | 'atlas' | null
+  useEffect(() => {
+    const t1 = setTimeout(() => setVisible([true, false]), 2000);
+    const t2 = setTimeout(() => setVisible([true, true]), 2200);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+
   const products = [
     {
-      route: 'backpack', accent: '#00ff88', icon: Database, name: 'Backpack',
-      tag: 'verified shared memory',
-      text: 'A search-and-deposit memory for AI agents: consistent, cited answers with confidence and freshness — instead of a fresh derivation every run. Self-host today.'
+      route: 'atlas', name: 'Atlas', accent: ATLAS_ACCENT, icon: Shield,
+      liner: 'A verified map of your system, with evidence.',
+      more: 'A probe attests what your stack actually does: declared vs observed, reconciled deterministically. Drift surfaces with evidence; unknowns stay honest. Pilot.'
     },
     {
-      route: 'atlas', accent: ATLAS_ACCENT, icon: Shield, name: 'Atlas',
-      tag: 'verified system graph',
-      text: 'A data-flow attestation of your stack: declared vs inferred vs observed, reconciled deterministically. Drift surfaces with evidence; unknowns stay honest. Pilot.'
+      route: 'backpack', name: 'Backpack', accent: '#00ff88', icon: Database,
+      liner: 'Shared, verified memory for your agents.',
+      more: 'A search-and-deposit corpus with confidence, provenance, and freshness on every claim — agents check it before re-deriving anything. Self-host today.'
     }
   ];
+
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-      <Eyebrow>Two products, one discipline</Eyebrow>
-      <h2 style={{
-        fontSize: isMobile ? '26px' : 'clamp(28px, 3.4vw, 40px)', color: '#fff',
-        fontWeight: 800, lineHeight: 1.15, margin: '0 0 14px 0',
-        letterSpacing: '-0.02em', fontFamily: theme.fonts.main
-      }}>Context agents can act on — because every claim carries its evidence.</h2>
-      <p style={{ color: '#8a8a8a', fontSize: isMobile ? '15px' : '17px', lineHeight: 1.7, maxWidth: '640px', margin: '0 0 36px 0' }}>
-        rrsrch builds verified context for AI agents: memory with provenance (Backpack) and system
-        maps with provenance (Atlas). No black-box scores, no invented edges — sources, confidence,
-        and freshness on everything.
-      </p>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px' }}>
-        {products.map(({ route, accent, icon: Icon, name, tag, text }) => (
-          <div key={route} style={card}
-            onClick={() => navigate(route)}
-            onMouseEnter={e => e.currentTarget.style.borderColor = accent}
-            onMouseLeave={e => e.currentTarget.style.borderColor = '#222'}>
-            <Icon size={22} color={accent} style={{ marginBottom: '16px' }} />
-            <div style={{ color: '#fff', fontSize: '20px', fontWeight: 800, marginBottom: '4px' }}>{name}</div>
-            <div style={{ fontFamily: theme.fonts.mono, fontSize: '12px', color: accent, marginBottom: '12px' }}>{tag}</div>
-            <div style={{ color: '#7a7a7a', fontSize: '14px', lineHeight: 1.65, marginBottom: '18px' }}>{text}</div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: accent, fontSize: '13px', fontWeight: 700 }}>
-              Explore {name} <ArrowRight size={14} />
+    <div style={{
+      position: 'absolute',
+      right: isMobile ? '16px' : '60px',
+      left: isMobile ? '16px' : 'auto',
+      top: isMobile ? '14%' : '50%',
+      transform: isMobile ? 'none' : 'translateY(-50%)',
+      display: 'flex', flexDirection: 'column', gap: '14px',
+      width: isMobile ? 'auto' : '360px', zIndex: 6
+    }}>
+      {products.map((p, i) => {
+        const Icon = p.icon;
+        const expanded = pick === p.route;
+        const dimmed = pick && !expanded;
+        return (
+          <div key={p.route}
+            onClick={() => setPick(p.route)}
+            style={{
+              borderRadius: '22px',
+              border: `1px solid ${expanded ? p.accent : 'rgba(255,255,255,0.12)'}`,
+              background: 'rgba(8,8,8,0.55)',
+              backdropFilter: 'blur(14px)',
+              padding: dimmed ? '14px 22px' : expanded ? '26px' : '22px',
+              maxHeight: dimmed ? '52px' : expanded ? '420px' : '150px',
+              overflow: 'hidden',
+              cursor: 'pointer',
+              opacity: visible[i] ? (dimmed ? 0.75 : 1) : 0,
+              transform: visible[i] ? 'translateX(0)' : 'translateX(44px)',
+              transition: 'all 0.45s cubic-bezier(.4,0,.2,1)'
+            }}
+            onMouseEnter={(e) => { if (!expanded) e.currentTarget.style.borderColor = p.accent; }}
+            onMouseLeave={(e) => { if (!expanded) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Icon size={18} color={p.accent} />
+              <span style={{ color: '#fff', fontSize: '17px', fontWeight: 800, fontFamily: theme.fonts.main }}>{p.name}</span>
+              {dimmed && (
+                <span style={{ marginLeft: 'auto', color: '#777', fontSize: '11px', fontFamily: theme.fonts.mono, textTransform: 'uppercase', letterSpacing: '1px' }}>view</span>
+              )}
             </div>
+            {!dimmed && (
+              <div style={{ color: '#9a9a9a', fontSize: '13.5px', lineHeight: 1.6, marginTop: '10px', fontFamily: theme.fonts.main }}>
+                {p.liner}
+              </div>
+            )}
+            {expanded && (
+              <>
+                <div style={{ color: '#7a7a7a', fontSize: '13px', lineHeight: 1.65, marginTop: '10px', fontFamily: theme.fonts.main }}>
+                  {p.more}
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); navigate(p.route); }}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '8px',
+                    marginTop: '16px', background: p.accent, color: '#000',
+                    border: 'none', borderRadius: '10px', padding: '10px 18px',
+                    fontSize: '13px', fontWeight: 800, cursor: 'pointer',
+                    fontFamily: theme.fonts.main
+                  }}>
+                  Explore {p.name} <ArrowRight size={14} />
+                </button>
+              </>
+            )}
           </div>
-        ))}
-      </div>
+        );
+      })}
     </div>
   );
 }
@@ -1600,7 +1668,9 @@ function App() {
     const el = scrollContainerRef.current;
     if (!el) return;
     const t = setTimeout(() => {
-      if (route === 'home') el.scrollTo({ top: 0, behavior: 'smooth' });
+      // home and account both start at the top (account has no hero at all);
+      // product pages keep the hero and scroll down to their content
+      if (route === 'home' || route === 'account') el.scrollTo({ top: 0, behavior: 'smooth' });
       else if (contentRef.current) {
         el.scrollTo({ top: contentRef.current.offsetTop - 24, behavior: 'smooth' });
       }
@@ -1734,8 +1804,8 @@ function App() {
             active={route === 'backpack' || route === 'atlas'}
             selectedLabel={route === 'backpack' ? 'Backpack' : route === 'atlas' ? 'Atlas' : null}
             items={[
-              { label: 'Backpack', icon: Database, accent: '#00ff88', onClick: () => navigate('backpack') },
               { label: 'Atlas', icon: Shield, accent: '#7aa7e0', onClick: () => navigate('atlas') },
+              { label: 'Backpack', icon: Database, accent: '#00ff88', onClick: () => navigate('backpack') },
             ]} />
           <NavButton onClick={() => navigate('account')} icon={TerminalIcon} label="Agents"
             active={route === 'account'} />
@@ -1745,9 +1815,11 @@ function App() {
           </div>
         </div>
 
-        {/* Hero Section - Full Screen (all routes; tagline follows the route) */}
+        {/* Hero Section - Full Screen (account skips it: dashboard starts at the top) */}
+        {route !== 'account' && (
         <div style={{
           height: '100vh',
+          position: 'relative',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'flex-end', // Pushed to bottom
@@ -1756,6 +1828,7 @@ function App() {
           paddingLeft: '60px',
           textAlign: 'left'
         }}>
+          {route === 'home' && <HeroProductCards isMobile={isMobile} navigate={navigate} />}
            <div style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -1792,9 +1865,13 @@ function App() {
           {TAGLINES[route][1]}
           </p>
         </div>
+        )}
 
-        {/* Spacer to delay panel appearance and allow sphere to shrink fully visible */}
-        <div style={{ height: '13vh' }}></div>
+        {/* Home is a single screen: hero + product cards, no scroll content */}
+        {route !== 'home' && (<>
+
+        {/* Spacer: below the hero on product pages; just clears the fixed nav on account */}
+        <div style={{ height: route === 'account' ? (isMobile ? '72px' : '96px') : '13vh' }}></div>
 
         {/* Main Content Layout with Background Panel */}
         <div ref={contentRef} style={{
@@ -1812,7 +1889,6 @@ function App() {
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
         }}>
 
-          {route === 'home' && <HomeCards isMobile={isMobile} navigate={navigate} />}
           {route === 'backpack' && <ProductExplainer isMobile={isMobile} />}
           {route === 'atlas' && <AtlasExplainer isMobile={isMobile} />}
           {route === 'account' && <AccountPage isMobile={isMobile} />}
@@ -1849,6 +1925,8 @@ function App() {
         </div>
 
         <div style={{ height: '100px' }}></div>
+
+        </>)}
       </div>
 
       {/* Modal Layer */}
