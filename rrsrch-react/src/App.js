@@ -438,22 +438,43 @@ function Eyebrow({ children }) {
 }
 
 function CodeBlock({ children }) {
+  const [copied, setCopied] = useState(false);
+  const text = Array.isArray(children) ? children.join('') : String(children ?? '');
+  const copy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    }).catch(() => {});
+  };
   return (
-    <pre style={{
-      background: '#0a0a0a',
-      border: '1px solid #1e1e1e',
-      borderRadius: '10px',
-      padding: '18px 20px',
-      margin: 0,
-      fontFamily: theme.fonts.mono,
-      fontSize: '13px',
-      lineHeight: '1.7',
-      color: '#d0d0d0',
-      overflowX: 'auto',
-      whiteSpace: 'pre'
-    }}>
-      {children}
-    </pre>
+    <div style={{ position: 'relative' }}>
+      <button onClick={copy} style={{
+        position: 'absolute', top: '10px', right: '10px', zIndex: 1,
+        background: 'rgba(255,255,255,0.06)', border: '1px solid #2a2a2a',
+        borderRadius: '6px', color: copied ? NAV_GREEN : '#888', fontSize: '11px',
+        padding: '4px 10px', cursor: 'pointer', fontFamily: theme.fonts.mono,
+        letterSpacing: '0.5px', transition: 'color 0.2s ease'
+      }}
+        onMouseEnter={(e) => { if (!copied) e.currentTarget.style.color = '#ddd'; }}
+        onMouseLeave={(e) => { if (!copied) e.currentTarget.style.color = '#888'; }}>
+        {copied ? '✓ copied' : 'copy'}
+      </button>
+      <pre style={{
+        background: '#0a0a0a',
+        border: '1px solid #1e1e1e',
+        borderRadius: '10px',
+        padding: '18px 80px 18px 20px',
+        margin: 0,
+        fontFamily: theme.fonts.mono,
+        fontSize: '13px',
+        lineHeight: '1.7',
+        color: '#d0d0d0',
+        overflowX: 'auto',
+        whiteSpace: 'pre'
+      }}>
+        {children}
+      </pre>
+    </div>
   );
 }
 
@@ -899,11 +920,20 @@ function ConnectionDocs({ isMobile }) {
           <span style={{ fontFamily: theme.fonts.mono, fontSize: '11px', color: ATLAS_ACCENT, border: `1px solid ${ATLAS_ACCENT}55`, borderRadius: '100px', padding: '3px 10px' }}>SHIPS WITH THE PILOT</span>
         </div>
         <p style={{ color: '#7a7a7a', fontSize: '14px', lineHeight: 1.6, margin: '0 0 14px 0' }}>
-          Will expose the reconciled graph to agents: query edges and provenance, check blast radius
-          before a change, fetch the attestation. Preview config — the server ships with the pilot.
+          Attest a system with the probe (one repo from its own directory, or several repos as one
+          system) — it publishes to your account and the Atlas tab here reads it. Nothing hosted,
+          nothing local in the dashboard.
         </p>
-        <CodeBlock>{`// preview — final flags may change with the pilot
-{
+        <CodeBlock>{`# one repo — run from inside it
+$ cd ~/code/your-app && atlas-probe
+
+# several repos, one system (e.g. a Vercel site + a dockerized service)
+$ atlas-probe --name your-system ~/code/your-web ~/code/your-worker`}</CodeBlock>
+        <p style={{ color: '#7a7a7a', fontSize: '14px', lineHeight: 1.6, margin: '14px 0' }}>
+          The MCP server exposes the reconciled graph to agents: summary, edges with their evidence,
+          deterministic blast radius, and the honest gaps. Ships with the pilot.
+        </p>
+        <CodeBlock>{`{
   "mcpServers": {
     "atlas": {
       "command": "atlas-mcp",
@@ -1092,6 +1122,9 @@ $ cd ~/code/${slug} && atlas-probe
 
   useEffect(() => {
     let alive = true;
+    // project switch: drop the previous project's graph immediately — rendering
+    // it under a new slug leaves stale node/edge selections pointing nowhere
+    setStatus('loading'); setGraph(null); setPublished([]);
     const auth = { Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY)}` };
     const poll = async () => {
       try {
@@ -1152,7 +1185,9 @@ $ cd ~/code/${slug} && atlas-probe
       </div>
     );
   }
-  return <AtlasAttestation graph={graph} isMobile={isMobile} />;
+  // key remounts the attestation per target: internal state (selection, blast
+  // target, camera) must never carry across graphs — stale ids crash lookups
+  return <AtlasAttestation key={slug} graph={graph} isMobile={isMobile} />;
 }
 
 function AccountPage({ isMobile }) {
