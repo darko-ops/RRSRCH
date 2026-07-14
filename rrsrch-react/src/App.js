@@ -1,8 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Sphere, Stars, Grid } from '@react-three/drei';
 import * as THREE from 'three';
-import { Mail, MessageCircle, FileText, X, Twitter, ArrowRight, Search, User } from 'lucide-react';
+import { MessageCircle, X, Twitter, ArrowRight, Search, Github, Database, Zap, Shield, Terminal as TerminalIcon, Clock, ChevronDown } from 'lucide-react';
+import AtlasAttestation from './AtlasView';
+
+// Product / deploy config
+const REPO_URL = 'https://github.com/darko-ops/RRSRCH';
+const WAITLIST_EMAIL = 'demetri@rrsrch.com';
 
 // Theme Configuration
 const theme = {
@@ -264,15 +269,17 @@ function Modal({ isOpen, onClose, children }) {
   );
 }
 
-function NavButton({ onClick, icon: Icon, label }) {
+const NAV_GREEN = '#00ff88';
+
+function NavButton({ onClick, icon: Icon, label, active }) {
   return (
     <button
       onClick={onClick}
       style={{
-        background: 'transparent',
-        border: '1px solid rgba(255,255,255,0.1)',
+        background: active ? 'rgba(0,255,136,0.08)' : 'transparent',
+        border: active ? `1px solid rgba(0,255,136,0.45)` : '1px solid rgba(255,255,255,0.1)',
         borderRadius: '24px',
-        color: '#aaa',
+        color: active ? NAV_GREEN : '#aaa',
         padding: '10px 20px',
         cursor: 'pointer',
         fontFamily: theme.fonts.main,
@@ -286,12 +293,12 @@ function NavButton({ onClick, icon: Icon, label }) {
         backdropFilter: 'blur(5px)'
       }}
       onMouseEnter={e => {
-        e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-        e.currentTarget.style.color = 'white';
+        e.currentTarget.style.background = active ? 'rgba(0,255,136,0.15)' : 'rgba(255,255,255,0.1)';
+        e.currentTarget.style.color = active ? NAV_GREEN : 'white';
       }}
       onMouseLeave={e => {
-        e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.color = '#aaa';
+        e.currentTarget.style.background = active ? 'rgba(0,255,136,0.08)' : 'transparent';
+        e.currentTarget.style.color = active ? NAV_GREEN : '#aaa';
       }}
     >
       <Icon size={14} />
@@ -300,3280 +307,110 @@ function NavButton({ onClick, icon: Icon, label }) {
   );
 }
 
-function NewsItem({ date, title, excerpt, onClick }) {
-  // Parse markdown-style bold text (**text**)
-  const parseMarkdown = (text) => {
-    if (!text) return '';
-
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, index) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={index} style={{ color: '#fff', fontWeight: 600 }}>{part.slice(2, -2)}</strong>;
-      }
-      return <span key={index}>{part}</span>;
-    });
-  };
-
-  // Check if excerpt is same as title (tidbit post)
-  const isTidbit = !excerpt || excerpt.trim() === '' || excerpt.trim() === title.trim();
-
-  // Tidbit/tweet style - rounded box
-  if (isTidbit) {
-    return (
-      <div
-        style={{
-          marginBottom: '30px',
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.12)',
-          borderRadius: '16px',
-          padding: '24px',
-          cursor: 'default'
-        }}
-      >
-        <div style={{
-          fontSize: '10px',
-          color: '#aaa',
-          marginBottom: '12px',
-          fontFamily: theme.fonts.mono,
-          textTransform: 'uppercase',
-          letterSpacing: '1px',
-          fontWeight: 600
-        }}>
-          Update · {date}
-        </div>
-        <h3 style={{
-          margin: '0',
-          fontSize: '18px',
-          color: '#fff',
-          fontWeight: 400,
-          letterSpacing: '-0.02em',
-          lineHeight: '1.5'
-        }}>
-          {parseMarkdown(title)}
-        </h3>
-      </div>
-    );
-  }
-
-  // Regular article style
-  return (
-    <div
-      style={{
-        marginBottom: '40px',
-        borderBottom: '1px solid #222',
-        paddingBottom: '30px',
-        cursor: 'pointer'
-      }}
-      onClick={onClick}
-    >
-      <div style={{
-        fontSize: '11px',
-        color: '#666',
-        marginBottom: '12px',
-        fontFamily: theme.fonts.mono
-      }}>
-        {date}
-      </div>
-      <h3 style={{
-        margin: '0 0 15px 0',
-        fontSize: '24px',
-        color: '#fff',
-        fontWeight: 400,
-        letterSpacing: '-0.02em'
-      }}>
-        {parseMarkdown(title)}
-      </h3>
-      <p style={{
-        fontSize: '15px',
-        lineHeight: '1.7',
-        color: '#888',
-        margin: '0 0 20px 0',
-        maxWidth: '90%'
-      }}>
-        {parseMarkdown(excerpt)}
-      </p>
-      <button
-        onClick={(e) => { e.stopPropagation(); onClick(); }}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: '#fff',
-          fontSize: '12px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '5px',
-          padding: 0,
-          cursor: 'pointer',
-          textTransform: 'uppercase',
-          letterSpacing: '1px'
-        }}
-      >
-        Read Report <ArrowRight size={12} />
-      </button>
-    </div>
-  );
-}
-
-function ArticleView({ post, onBack, relatedPosts, onSelectPost }) {
-  // Parse markdown-style bold text (**text**), headers (###), and URLs
-  const parseMarkdown = (text) => {
-    if (!text) return '';
-
-    // Split by newlines to handle headers line by line
-    const lines = text.split('\n');
-    return lines.map((line, lineIndex) => {
-      // Check for headers (### header text)
-      if (line.trim().startsWith('###')) {
-        const headerText = line.replace(/^###\s*/, '').trim();
-        return (
-          <h3 key={lineIndex} style={{
-            color: '#fff',
-            fontWeight: 700,
-            fontSize: '20px',
-            margin: '30px 0 15px 0',
-            lineHeight: '1.3'
-          }}>
-            {headerText}
-          </h3>
-        );
-      }
-
-      // Check for Source: URL pattern - match and replace entire line
-      if (line.match(/Source:/i) && line.match(/https?:\/\//)) {
-        // First try to match markdown link syntax: [text](url)
-        const markdownMatch = line.match(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/);
-        if (markdownMatch) {
-          const cleanUrl = markdownMatch[2].trim();
-          return (
-            <div key={lineIndex} style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #333' }}>
-              <span style={{ color: '#666' }}>Source: </span>
-              <a
-                href={cleanUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  color: '#00ff88',
-                  textDecoration: 'none',
-                  borderBottom: '1px solid #00ff88'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-              >
-                Here
-              </a>
-            </div>
-          );
-        }
-        // Fallback to plain URL matching
-        const urlMatch = line.match(/(https?:\/\/[^\s)]+)/);
-        if (urlMatch) {
-          const cleanUrl = urlMatch[1].replace(/[.,;:)}\]]+$/, ''); // Remove trailing punctuation
-          return (
-            <div key={lineIndex} style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #333' }}>
-              <span style={{ color: '#666' }}>Source: </span>
-              <a
-                href={cleanUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  color: '#00ff88',
-                  textDecoration: 'none',
-                  borderBottom: '1px solid #00ff88'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-              >
-                Here
-              </a>
-            </div>
-          );
-        }
-      }
-
-      // Handle bold text and inline URLs within regular lines
-      const parts = line.split(/(\*\*.*?\*\*|https?:\/\/[^\s]+)/g);
-      const parsedLine = parts.map((part, index) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
-          return <strong key={`${lineIndex}-${index}`} style={{ color: '#fff', fontWeight: 600 }}>{part.slice(2, -2)}</strong>;
-        }
-        if (part.match(/^https?:\/\//)) {
-          return (
-            <a
-              key={`${lineIndex}-${index}`}
-              href={part}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                color: '#00ff88',
-                textDecoration: 'none',
-                borderBottom: '1px solid #00ff88'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
-              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-            >
-              Here
-            </a>
-          );
-        }
-        return <span key={`${lineIndex}-${index}`}>{part}</span>;
-      });
-
-      return <div key={lineIndex}>{parsedLine}</div>;
-    });
-  };
-
-  return (
-    <div>
-      <button
-        onClick={onBack}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: '#666',
-          fontSize: '12px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '5px',
-          padding: '0 0 20px 0',
-          cursor: 'pointer',
-          textTransform: 'uppercase',
-          letterSpacing: '1px',
-          marginBottom: '20px'
-        }}
-      >
-        <ArrowRight size={12} style={{ transform: 'rotate(180deg)' }} /> Back to Transmissions
-      </button>
-
-      <div style={{
-        fontSize: '11px',
-        color: '#666',
-        marginBottom: '12px',
-        fontFamily: theme.fonts.mono
-      }}>
-        {new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')}
-      </div>
-
-      <h1 style={{
-        margin: '0 0 30px 0',
-        fontSize: '36px',
-        color: '#fff',
-        fontWeight: 400,
-        letterSpacing: '-0.02em',
-        lineHeight: '1.2'
-      }}>
-        {post.title}
-      </h1>
-
-      <div style={{
-        fontSize: '16px',
-        lineHeight: '1.8',
-        color: '#aaa',
-        marginBottom: '60px',
-        whiteSpace: 'pre-wrap'
-      }}>
-        {parseMarkdown(post.content || post.excerpt)}
-      </div>
-
-      {relatedPosts.length > 0 && (
-        <div style={{ marginTop: '60px', paddingTop: '40px', borderTop: '1px solid #222' }}>
-          <h3 style={{
-            fontSize: '14px',
-            color: '#444',
-            marginBottom: '30px',
-            letterSpacing: '1px',
-            textTransform: 'uppercase'
-          }}>
-            Related Transmissions
-          </h3>
-          {relatedPosts.map((related) => (
-            <div
-              key={related.id}
-              onClick={() => onSelectPost && onSelectPost(related)}
-              style={{
-                marginBottom: '20px',
-                paddingBottom: '20px',
-                borderBottom: '1px solid #111',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = '0.7';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = '1';
-              }}
-            >
-              <div style={{ fontSize: '16px', color: '#fff', marginBottom: '8px' }}>{related.title}</div>
-              <div style={{ fontSize: '13px', color: '#666' }}>{related.excerpt.substring(0, 100)}...</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function LiveTable({ selectedTopic, selectedPreset }) {
-  const [assets, setAssets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [lastUpdate, setLastUpdate] = useState(new Date());
-  const isFirstFetch = useRef(true);
-
-  // Preset symbol mappings
-  const presetSymbols = {
-    'AI & Chips': [
-      'NVDA',   // Nvidia
-      'AMD',    // Advanced Micro Devices
-      'AVGO',   // Broadcom
-      'TSM',    // Taiwan Semiconductor Manufacturing Company
-      'INTC',   // Intel
-      'QCOM',   // Qualcomm
-      'MU',     // Micron Technology
-      'SNOW',   // Snowflake
-      'SMCI',   // Super Micro Computer
-      'GOOGL',  // Alphabet (Google)
-      'PLTR',   // Palantir Technologies
-      'CLS'     // Celestica
-    ],
-    'Robotics': [
-      'SYM',    // Symbotic
-      'KYCCF',  // Keyence
-      'ISRG',   // Intuitive Surgical
-      'ZBRA',   // Zebra Technologies
-      'PATH',   // UiPath
-      'EMR',    // Emerson Electric
-      'TRMB',   // Trimble
-      'OMCL',   // Omnicell
-      'LECO',   // Lincoln Electric Holdings
-      'ABB'     // ABB
-    ],
-    'Defense': [
-      'LMT',    // Lockheed Martin
-      'RTX',    // Raytheon
-      'NOC',    // Northrop Grumman
-      'GD',     // General Dynamics
-      'HWM',    // Howmet Aerospace
-      'AXON',   // Axon Enterprise
-      'HII',    // Huntington Ingalls Industries
-      'KTOS',   // Kratos Defense & Security
-      'AVAV'    // AeroVironment
-    ],
-    'Energy & Power': [
-      'NEE',    // NextEra Energy
-      'GEV',    // GE Vernova
-      'FSLR',   // First Solar
-      'BE',     // Bloom Energy
-      'BEP',    // Brookfield Renewable Partners
-      'CVX',    // Chevron
-      'XOM',    // Exxon Mobil
-      'BP',     // BP
-      'SRLP'    // Solid Power
-    ],
-  };
+// Top-bar dropdown, styled to match NavButton; closes on outside click or selection.
+// `active` lights the trigger green; `selectedLabel` marks the current item in the menu.
+function NavDropdown({ label, icon: Icon, items, active, selectedLabel }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
 
   useEffect(() => {
-    const fetchAssets = async () => {
-      try {
-        // Only show loading on first fetch
-        if (isFirstFetch.current) {
-          setLoading(true);
-        }
-
-        const API_URL = process.env.REACT_APP_API_URL || '';
-        let allAssets = [];
-
-        // Fetch data based on selected topic
-        if (selectedTopic === 'Markets') {
-          // Fetch macro market indices
-          const marketResponse = await fetch(`${API_URL}/api/markets`);
-
-          if (marketResponse.ok) {
-            const marketData = await marketResponse.json();
-
-            if (marketData.markets && marketData.markets.length > 0) {
-              const formattedMarkets = marketData.markets.map(market => ({
-                symbol: market.symbol,
-                name: market.name,
-                price: market.price,
-                change: market.change,
-                volume: 0,
-                high: market.high,
-                low: market.low,
-                type: 'market'
-              }));
-              allAssets = [...allAssets, ...formattedMarkets];
-            }
-          }
-        } else if (selectedTopic === 'Crypto') {
-          // Fetch crypto data - Top 15 by market cap
-          const cryptoIds = [
-            'bitcoin', 'ethereum', 'tether', 'binancecoin', 'solana',
-            'usd-coin', 'ripple', 'dogecoin', 'cardano', 'tron',
-            'avalanche-2', 'chainlink', 'polkadot', 'shiba-inu', 'bitcoin-cash'
-          ];
-          const cryptoResponse = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoIds.join(',')}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true&include_24hr_high=true&include_24hr_low=true`);
-
-          if (cryptoResponse.ok) {
-            const cryptoData = await cryptoResponse.json();
-
-            if (cryptoData && Object.keys(cryptoData).length > 0) {
-              const nameMap = {
-                'bitcoin': { symbol: 'BTC', name: 'Bitcoin' },
-                'ethereum': { symbol: 'ETH', name: 'Ethereum' },
-                'tether': { symbol: 'USDT', name: 'Tether' },
-                'binancecoin': { symbol: 'BNB', name: 'BNB' },
-                'solana': { symbol: 'SOL', name: 'Solana' },
-                'usd-coin': { symbol: 'USDC', name: 'USD Coin' },
-                'ripple': { symbol: 'XRP', name: 'XRP' },
-                'dogecoin': { symbol: 'DOGE', name: 'Dogecoin' },
-                'cardano': { symbol: 'ADA', name: 'Cardano' },
-                'tron': { symbol: 'TRX', name: 'TRON' },
-                'avalanche-2': { symbol: 'AVAX', name: 'Avalanche' },
-                'chainlink': { symbol: 'LINK', name: 'Chainlink' },
-                'polkadot': { symbol: 'DOT', name: 'Polkadot' },
-                'shiba-inu': { symbol: 'SHIB', name: 'Shiba Inu' },
-                'bitcoin-cash': { symbol: 'BCH', name: 'Bitcoin Cash' }
-              };
-
-              const formattedCrypto = Object.entries(cryptoData).map(([id, data]) => {
-                const mapped = nameMap[id] || { symbol: id.toUpperCase().slice(0, 4), name: id };
-
-                return {
-                  symbol: mapped.symbol,
-                  name: mapped.name,
-                  price: data.usd || 0,
-                  change: data.usd_24h_change || 0,
-                  volume: data.usd_24h_vol || 0,
-                  marketCap: data.usd_market_cap || 0,
-                  high: data.usd_24h_high || 0,
-                  low: data.usd_24h_low || 0,
-                  type: 'crypto'
-                };
-              });
-
-              // Sort by market cap descending
-              formattedCrypto.sort((a, b) => b.marketCap - a.marketCap);
-              allAssets = [...allAssets, ...formattedCrypto];
-            }
-          }
-        } else if (selectedTopic === 'Stocks') {
-          // Fetch stock data from backend
-          const stockResponse = await fetch(`${API_URL}/api/stocks`);
-
-          if (stockResponse.ok) {
-            const stockData = await stockResponse.json();
-
-            if (stockData.stocks && stockData.stocks.length > 0) {
-              const formattedStocks = stockData.stocks.map(stock => ({
-                symbol: stock.symbol,
-                name: stock.symbol,
-                price: stock.price,
-                change: stock.change,
-                volume: stock.volume,
-                high: stock.high,
-                low: stock.low,
-                type: 'stock'
-              }));
-              allAssets = [...allAssets, ...formattedStocks];
-            }
-          }
-        } else if (selectedTopic === 'ETFs') {
-          // Fetch AI ETF data from backend
-          const etfResponse = await fetch(`${API_URL}/api/etfs`);
-
-          if (etfResponse.ok) {
-            const etfData = await etfResponse.json();
-
-            if (etfData.etfs && etfData.etfs.length > 0) {
-              const formattedEtfs = etfData.etfs.map(etf => ({
-                symbol: etf.symbol,
-                name: etf.symbol,
-                price: etf.price,
-                change: etf.change,
-                volume: etf.volume,
-                high: etf.high,
-                low: etf.low,
-                type: 'etf'
-              }));
-              allAssets = [...allAssets, ...formattedEtfs];
-            }
-          }
-        }
-
-        // Apply preset filter if selected
-        if (selectedPreset && selectedPreset !== 'All' && presetSymbols[selectedPreset]) {
-          const presetList = presetSymbols[selectedPreset];
-          allAssets = allAssets.filter(asset => presetList.includes(asset.symbol));
-        }
-
-        if (allAssets.length > 0) {
-          setAssets(allAssets);
-          setLastUpdate(new Date());
-          isFirstFetch.current = false;
-        }
-
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching asset data:', err);
-        setLoading(false);
-      }
+    if (!open) return;
+    const onDocClick = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
     };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
 
-    fetchAssets();
-    const interval = setInterval(fetchAssets, 30000); // 30 second auto-refresh (to avoid rate limits)
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTopic, selectedPreset]);
-
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(price);
-  };
-
-  const formatVolume = (volume) => {
-    if (volume >= 1e9) return `$${(volume / 1e9).toFixed(2)}B`;
-    if (volume >= 1e6) return `$${(volume / 1e6).toFixed(2)}M`;
-    return `$${(volume / 1e3).toFixed(2)}K`;
-  };
-
-  const formatChange = (change) => {
-    const sign = change >= 0 ? '+' : '';
-    return `${sign}${change.toFixed(2)}%`;
-  };
-
-  const SkeletonRow = () => (
-    <tr style={{ borderBottom: '1px solid #222' }}>
-      {[1, 2, 3, 4, 5].map(i => (
-        <td key={i} style={{ padding: '15px 10px' }}>
-          <div style={{
-            height: '14px',
-            background: 'rgba(255,255,255,0.05)',
-            borderRadius: '4px',
-            animation: 'pulse 1.5s ease-in-out infinite'
-          }} />
-        </td>
-      ))}
-    </tr>
-  );
-
+  const restBg = active ? 'rgba(0,255,136,0.08)' : 'transparent';
+  const restColor = active ? NAV_GREEN : '#aaa';
   return (
-    <div>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '20px'
-      }}>
-        <h2 style={{
-          fontSize: '18px',
-          color: '#fff',
-          fontWeight: 700,
-          margin: 0
-        }}>
-          LIVE TERMINAL
-        </h2>
-        <div style={{
-          fontSize: '11px',
-          color: '#666',
-          fontFamily: theme.fonts.mono
-        }}>
-          Updated: {lastUpdate.toLocaleTimeString()}
-        </div>
-      </div>
-
-      {/* Session Summary Strip */}
-      {selectedTopic === 'Markets' && assets.length > 0 && (
-        <div style={{
-          background: 'rgba(0,0,0,0.3)',
-          border: '1px solid #222',
-          borderRadius: '6px',
-          padding: '12px 16px',
-          marginBottom: '20px',
-          fontSize: '12px',
-          fontFamily: theme.fonts.mono,
-          color: '#aaa',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '20px',
-          flexWrap: 'wrap'
-        }}>
-          <span style={{ color: '#666', fontWeight: 600 }}>US Session:</span>
-          {(() => {
-            const spyAsset = assets.find(a => a.symbol === 'S&P 500');
-            const nasdaqAsset = assets.find(a => a.symbol === 'NASDAQ');
-            const vixAsset = assets.find(a => a.symbol === 'VIX (Volatility)');
-            const positiveCount = assets.filter(a => a.change > 0).length;
-            const negativeCount = assets.filter(a => a.change < 0).length;
-            const sessionSentiment = positiveCount > negativeCount ? 'Bullish' : negativeCount > positiveCount ? 'Bearish' : 'Mixed';
-            const sentimentColor = sessionSentiment === 'Bullish' ? '#00ff88' : sessionSentiment === 'Bearish' ? '#ff4444' : '#ffa500';
-
-            return (
-              <>
-                <span style={{ color: sentimentColor, fontWeight: 600 }}>{sessionSentiment}</span>
-                {spyAsset && (
-                  <>
-                    <span>·</span>
-                    <span>
-                      S&P <span style={{ color: spyAsset.change >= 0 ? '#00ff88' : '#ff4444', fontWeight: 600 }}>
-                        {spyAsset.change >= 0 ? '+' : ''}{spyAsset.change.toFixed(2)}%
-                      </span>
-                    </span>
-                  </>
-                )}
-                {nasdaqAsset && (
-                  <>
-                    <span>·</span>
-                    <span>
-                      NASDAQ <span style={{ color: nasdaqAsset.change >= 0 ? '#00ff88' : '#ff4444', fontWeight: 600 }}>
-                        {nasdaqAsset.change >= 0 ? '+' : ''}{nasdaqAsset.change.toFixed(2)}%
-                      </span>
-                    </span>
-                  </>
-                )}
-                {vixAsset && vixAsset.price > 0 && (
-                  <>
-                    <span>·</span>
-                    <span>
-                      VIX {vixAsset.price.toFixed(1)} <span style={{
-                        color: vixAsset.price < 15 ? '#00ff88' : vixAsset.price > 25 ? '#ff4444' : '#ffa500',
-                        fontWeight: 600
-                      }}>
-                        ({vixAsset.price < 15 ? 'Calm' : vixAsset.price > 25 ? 'High' : 'Elevated'})
-                      </span>
-                    </span>
-                  </>
-                )}
-              </>
-            );
-          })()}
-        </div>
-      )}
-
-      {selectedTopic === 'Crypto' && assets.length > 0 && (
-        <div style={{
-          background: 'rgba(0,0,0,0.3)',
-          border: '1px solid #222',
-          borderRadius: '6px',
-          padding: '12px 16px',
-          marginBottom: '20px',
-          fontSize: '12px',
-          fontFamily: theme.fonts.mono,
-          color: '#aaa',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '20px',
-          flexWrap: 'wrap'
-        }}>
-          <span style={{ color: '#666', fontWeight: 600 }}>Crypto Market:</span>
-          {(() => {
-            const btcAsset = assets.find(a => a.symbol === 'BTC');
-            const ethAsset = assets.find(a => a.symbol === 'ETH');
-            const positiveCount = assets.filter(a => a.change > 0).length;
-            const negativeCount = assets.filter(a => a.change < 0).length;
-            const sessionSentiment = positiveCount > negativeCount ? 'Bullish' : negativeCount > positiveCount ? 'Bearish' : 'Mixed';
-            const sentimentColor = sessionSentiment === 'Bullish' ? '#00ff88' : sessionSentiment === 'Bearish' ? '#ff4444' : '#ffa500';
-
-            return (
-              <>
-                <span style={{ color: sentimentColor, fontWeight: 600 }}>{sessionSentiment}</span>
-                {btcAsset && (
-                  <>
-                    <span>·</span>
-                    <span>
-                      BTC <span style={{ color: btcAsset.change >= 0 ? '#00ff88' : '#ff4444', fontWeight: 600 }}>
-                        {btcAsset.change >= 0 ? '+' : ''}{btcAsset.change.toFixed(2)}%
-                      </span>
-                    </span>
-                  </>
-                )}
-                {ethAsset && (
-                  <>
-                    <span>·</span>
-                    <span>
-                      ETH <span style={{ color: ethAsset.change >= 0 ? '#00ff88' : '#ff4444', fontWeight: 600 }}>
-                        {ethAsset.change >= 0 ? '+' : ''}{ethAsset.change.toFixed(2)}%
-                      </span>
-                    </span>
-                  </>
-                )}
-                <span>·</span>
-                <span>
-                  {positiveCount} Up, {negativeCount} Down
-                </span>
-              </>
-            );
-          })()}
-        </div>
-      )}
-
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          fontFamily: theme.fonts.mono
-        }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #333' }}>
-              <th style={{ padding: '12px 10px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase' }}>Asset</th>
-              <th style={{ padding: '12px 10px', textAlign: 'right', fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase' }}>Price</th>
-              <th style={{ padding: '12px 10px', textAlign: 'right', fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase' }}>24h %</th>
-              <th style={{ padding: '12px 10px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase' }}>Day Range</th>
-              <th style={{ padding: '12px 10px', textAlign: 'right', fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase' }}>Volume</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <>
-                <SkeletonRow />
-                <SkeletonRow />
-                <SkeletonRow />
-                <SkeletonRow />
-              </>
-            ) : (
-              assets.map((asset, index) => {
-                const isDataOffline = !asset.price || asset.price === 0;
-                const isPreMarket = asset.type === 'stock' && new Date().getDay() !== 0 && new Date().getDay() !== 6;
-
-                return (
-                  <tr key={index} style={{ borderBottom: '1px solid #222' }}>
-                    <td style={{ padding: '15px 10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div>
-                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>{asset.symbol}</div>
-                          <div style={{ fontSize: '11px', color: '#666' }}>{asset.name}</div>
-                        </div>
-                        {isDataOffline && (
-                          <span style={{
-                            fontSize: '9px',
-                            padding: '2px 6px',
-                            background: 'rgba(255,68,68,0.1)',
-                            color: '#ff4444',
-                            border: '1px solid rgba(255,68,68,0.3)',
-                            borderRadius: '3px',
-                            textTransform: 'uppercase',
-                            fontWeight: 600,
-                            letterSpacing: '0.5px'
-                          }}>
-                            {asset.type === 'stock' || asset.type === 'etf' ? 'PRE-MARKET' : 'DATA OFFLINE'}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{ padding: '15px 10px', textAlign: 'right', fontSize: '14px', color: isDataOffline ? '#555' : '#fff' }}>
-                      {isDataOffline ? '—' : formatPrice(asset.price)}
-                    </td>
-                    <td style={{
-                      padding: '15px 10px',
-                      textAlign: 'right',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      color: isDataOffline ? '#555' : (asset.change >= 0 ? '#00ff88' : '#ff4444')
-                    }}>
-                      {isDataOffline ? '—' : formatChange(asset.change)}
-                    </td>
-                    <td style={{ padding: '15px 10px' }}>
-                      {!isDataOffline && asset.high && asset.low && asset.high > asset.low ? (
-                        <div style={{ width: '120px' }}>
-                          <div style={{
-                            height: '4px',
-                            background: '#222',
-                            borderRadius: '2px',
-                            position: 'relative',
-                            overflow: 'hidden'
-                          }}>
-                            <div style={{
-                              position: 'absolute',
-                              left: `${((asset.price - asset.low) / (asset.high - asset.low)) * 100}%`,
-                              top: '50%',
-                              transform: 'translate(-50%, -50%)',
-                              width: '8px',
-                              height: '8px',
-                              borderRadius: '50%',
-                              background: asset.change >= 0 ? '#00ff88' : '#ff4444',
-                              border: '1px solid #000'
-                            }} />
-                          </div>
-                          <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            fontSize: '9px',
-                            color: '#555',
-                            marginTop: '4px'
-                          }}>
-                            <span>{formatPrice(asset.low)}</span>
-                            <span>{formatPrice(asset.high)}</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: '11px', color: '#555' }}>—</div>
-                      )}
-                    </td>
-                    <td style={{ padding: '15px 10px', textAlign: 'right', fontSize: '13px', color: isDataOffline ? '#555' : '#aaa' }}>
-                      {isDataOffline ? '—' : formatVolume(asset.volume)}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 0.3; }
-          50% { opacity: 0.6; }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-// ATLAS Sidebar Component
-function AtlasSidebar({ selectedTopic, selectedSubsection, hoveredEntity }) {
-  const domainColors = {
-    'Software': '#0088ff',
-    'Hardware': '#00ff88',
-    'Manufacturing': '#ff8800',
-    'Robotics': '#ff0088',
-    'People': '#8800ff'
-  };
-
-  const domainColor = domainColors[selectedTopic] || '#00ff88';
-
-  // Subsection-specific rankings
-  const subsectionRankings = {
-    'Models': {
-      title: 'Model Rankings',
-      items: [
-        { rank: 1, name: 'Gemini 3 Pro Preview', score: 100, company: 'Google DeepMind' },
-        { rank: 2, name: 'GPT-5.1 (High)', score: 99, company: 'OpenAI' },
-        { rank: 3, name: 'GPT-5 Codex (High)', score: 98, company: 'OpenAI' },
-        { rank: 4, name: 'GPT-5 (High)', score: 97, company: 'OpenAI' },
-        { rank: 5, name: 'Kimi K2 Thinking', score: 96, company: 'Moonshot AI' },
-        { rank: 6, name: 'GPT-5 (Medium)', score: 95, company: 'OpenAI' },
-        { rank: 7, name: 'o3', score: 94, company: 'OpenAI' },
-        { rank: 8, name: 'Grok 4', score: 93, company: 'xAI' },
-        { rank: 9, name: 'GPT-5 Mini (High)', score: 92, company: 'OpenAI' },
-        { rank: 10, name: 'Grok 4.1 Fast', score: 91, company: 'xAI' },
-        { rank: 11, name: 'GPT-4o', score: 90, company: 'OpenAI' },
-        { rank: 12, name: 'Claude 3.5 Opus', score: 89, company: 'Anthropic' }
-      ]
-    },
-    'GPUs': {
-      title: 'GPU Rankings',
-      items: [
-        { rank: 1, name: 'H100 SXM', score: 100, company: 'NVIDIA' },
-        { rank: 2, name: 'B200', score: 98, company: 'NVIDIA' },
-        { rank: 3, name: 'H200', score: 97, company: 'NVIDIA' },
-        { rank: 4, name: 'MI300X', score: 95, company: 'AMD' },
-        { rank: 5, name: 'A100 80GB', score: 92, company: 'NVIDIA' },
-        { rank: 6, name: 'RTX 4090', score: 89, company: 'NVIDIA' },
-        { rank: 7, name: 'MI250X', score: 86, company: 'AMD' },
-        { rank: 8, name: 'L40S', score: 84, company: 'NVIDIA' },
-        { rank: 9, name: 'H20', score: 82, company: 'NVIDIA' },
-        { rank: 10, name: 'A800', score: 80, company: 'NVIDIA' }
-      ]
-    },
-    'AI Frameworks': {
-      title: 'Framework Rankings',
-      items: [
-        { rank: 1, name: 'PyTorch', score: 98, company: 'Meta' },
-        { rank: 2, name: 'JAX', score: 94, company: 'Google' },
-        { rank: 3, name: 'TensorFlow', score: 92, company: 'Google' },
-        { rank: 4, name: 'MLX', score: 88, company: 'Apple' },
-        { rank: 5, name: 'Keras', score: 85, company: 'Independent' },
-        { rank: 6, name: 'MXNet', score: 75, company: 'Apache' }
-      ]
-    },
-    'Fabs': {
-      title: 'Fab Rankings',
-      items: [
-        { rank: 1, name: 'TSMC', score: 100, company: 'Taiwan' },
-        { rank: 2, name: 'Samsung Foundry', score: 95, company: 'South Korea' },
-        { rank: 3, name: 'Intel Foundry', score: 90, company: 'USA' },
-        { rank: 4, name: 'GlobalFoundries', score: 85, company: 'USA' },
-        { rank: 5, name: 'SMIC', score: 80, company: 'China' },
-        { rank: 6, name: 'UMC', score: 75, company: 'Taiwan' },
-        { rank: 7, name: 'Tower Semiconductor', score: 72, company: 'Israel' },
-        { rank: 8, name: 'Rapidus', score: 68, company: 'Japan' },
-        { rank: 9, name: 'Hua Hong Semiconductor', score: 65, company: 'China' },
-        { rank: 10, name: 'DB HiTek', score: 62, company: 'South Korea' }
-      ]
-    },
-    'Humanoid Robotics': {
-      title: 'Humanoid Robot Rankings',
-      items: [
-        { rank: 1, name: 'Figure 01', score: 100, company: 'Figure AI' },
-        { rank: 2, name: 'Tesla Optimus Gen 2', score: 98, company: 'Tesla' },
-        { rank: 3, name: 'Digit Gen 3', score: 96, company: 'Agility Robotics' },
-        { rank: 4, name: 'Phoenix', score: 94, company: 'Sanctuary AI' },
-        { rank: 5, name: 'Unitree G1 Pro', score: 92, company: 'Unitree' },
-        { rank: 6, name: 'Apollo', score: 89, company: 'Apptronik' },
-        { rank: 7, name: 'GR1', score: 87, company: 'Fourier Intelligence' },
-        { rank: 8, name: 'NEO', score: 85, company: '1X Robotics' },
-        { rank: 9, name: 'Robosapien X', score: 83, company: 'Raytheon' },
-        { rank: 10, name: 'Walker X', score: 81, company: 'UBTECH' }
-      ]
-    }
-  };
-
-  // Entity details for hover previews
-  const entityDetails = {
-    // Models - Top 10 Rankings
-    'GPT-4o': {
-      name: 'GPT-4o',
-      subtitle: 'OpenAI - Most capable multimodal model',
-      specs: ['State-of-the-art reasoning', 'Vision, audio, real-time', 'Best-in-class tool integration'],
-      score: 100,
-      rank: 1,
-      company: 'OpenAI',
-      why: 'Most capable, multimodal general-purpose model. State-of-the-art reasoning, vision, audio, and high-fidelity agent tool-use.',
-      strengths: ['Cognitive reliability', 'Real-time multimodal', 'Best tool integration'],
-      weaknesses: ['Proprietary', 'Expensive']
-    },
-    'Gemini 3 Pro': {
-      name: 'Gemini 3 Pro',
-      subtitle: 'Google DeepMind - Long-context reasoning champion',
-      specs: ['Huge context windows', 'Strong multimodal embeddings', 'Deep Google ecosystem'],
-      score: 98,
-      rank: 2,
-      company: 'Google DeepMind',
-      why: 'Rivals GPT-4o in reasoning and multimodal depth; excels in long-context research tasks and integrated agent workflows.',
-      strengths: ['Huge context windows', 'Strong multimodal embeddings', 'Google ecosystem'],
-      weaknesses: ['Access + licensing constraints']
-    },
-    'Claude 3.5 Opus': {
-      name: 'Claude 3.5 Opus',
-      subtitle: 'Anthropic - Most consistent and reliable',
-      specs: ['Least hallucinatory', 'Exceptional structured reasoning', 'Long-document mastery'],
-      score: 97,
-      rank: 3,
-      company: 'Anthropic',
-      why: 'The most consistent and least hallucinatory model. Exceptional structured reasoning and analysis.',
-      strengths: ['Safety', 'Reliability', 'Long-document mastery'],
-      weaknesses: ['Slightly behind in multimodal creativity']
-    },
-    'Llama 3.1 405B': {
-      name: 'Llama 3.1 405B',
-      subtitle: 'Meta - Strongest open-weight model',
-      specs: ['Near-frontier performance', 'Full self-hosting control', 'Massive community'],
-      score: 95,
-      rank: 4,
-      company: 'Meta',
-      why: 'The strongest open-weight model in the world. Near-frontier performance with full self-hosting control.',
-      strengths: ['Open-source', 'Customizable', 'Community momentum'],
-      weaknesses: ['Very compute-heavy to run at scale']
-    },
-    'Qwen 2.5-72B': {
-      name: 'Qwen 2.5-72B',
-      subtitle: 'Alibaba - Best open-source all-rounder',
-      specs: ['Strong multilingual', 'Excellent coding & math', 'Flexible licensing'],
-      score: 93,
-      rank: 5,
-      company: 'Alibaba',
-      why: 'Currently the most consistently strong open-source family across multilingual, coding, math, and reasoning.',
-      strengths: ['Cost-efficient', 'Fast adoption', 'Flexible licensing'],
-      weaknesses: ['Benchmarks vary model-to-model']
-    },
-    'Mistral Large 2': {
-      name: 'Mistral Large 2',
-      subtitle: 'Mistral AI - Lightweight frontier performance',
-      specs: ['Strong speed and efficiency', 'European open ecosystem', 'Clean API'],
-      score: 91,
-      rank: 6,
-      company: 'Mistral AI',
-      why: 'Lightweight frontier-class performance with strong speed and efficiency.',
-      strengths: ['European ecosystem', 'Clean API', 'Rapidly improving'],
-      weaknesses: ['Slightly behind Qwen/Llama in raw reasoning']
-    },
-    'GPT-4o mini': {
-      name: 'GPT-4o mini',
-      subtitle: 'OpenAI - Best small model in the world',
-      specs: ['Frontier performance at 1/10th cost', 'Excellent for agents', 'Tool-use at scale'],
-      score: 89,
-      rank: 7,
-      company: 'OpenAI',
-      why: 'Best small model in the world. Frontier-level performance at 1/10th the cost.',
-      strengths: ['Highly efficient', 'Excellent for agents', 'Tool-use and reasoning at scale'],
-      weaknesses: ['Not a full frontier model']
-    },
-    'DeepSeek-V3': {
-      name: 'DeepSeek-V3',
-      subtitle: 'DeepSeek - Elite math and code performance',
-      specs: ['Insane price-performance', 'Open weights available', 'Strong for cost-aware'],
-      score: 88,
-      rank: 8,
-      company: 'DeepSeek',
-      why: 'Elite math, code, and reasoning performance relative to size; extremely strong for cost-aware deployments.',
-      strengths: ['Insane price-performance', 'Open weights', 'Math and code'],
-      weaknesses: ['Not as multimodal as GPT/Gemini']
-    },
-    'Gemma 2-27B': {
-      name: 'Gemma 2-27B',
-      subtitle: 'Google - Best mid-sized open model',
-      specs: ['Efficient with strong reasoning', 'Lightweight and fast', 'Runs practically anywhere'],
-      score: 86,
-      rank: 9,
-      company: 'Google',
-      why: 'One of the best mid-sized open models ever built — efficient with impressive reasoning for its size.',
-      strengths: ['Lightweight', 'Fast', 'Runs anywhere'],
-      weaknesses: ['Not frontier-tier']
-    },
-    'Phi-4': {
-      name: 'Phi-4',
-      subtitle: 'Microsoft Research - Best small model per parameter',
-      specs: ['Small footprint', 'Excellent training efficiency', 'Reasoning champion'],
-      score: 85,
-      rank: 10,
-      company: 'Microsoft Research',
-      why: 'Best-in-class small model family for reasoning per parameter.',
-      strengths: ['Small footprint', 'Training efficiency', 'Excellent reasoning'],
-      weaknesses: ['Limited raw frontier performance']
-    },
-    // Hardware - GPUs Top 10 Rankings
-    'H100 SXM': {
-      name: 'H100 SXM',
-      subtitle: 'NVIDIA - Backbone of frontier AI',
-      specs: ['80GB–96GB HBM3', '700W TDP', 'Best for frontier model training'],
-      score: 100,
-      rank: 1,
-      company: 'NVIDIA',
-      why: 'Still the backbone of nearly every frontier AI cluster on Earth. HBM, tensor throughput, and NVLink ecosystem lock-in make it unstoppable.',
-      strengths: ['Best real-world performance', 'Best scaling', 'Highest adoption'],
-      weaknesses: ['Extremely supply-constrained']
-    },
-    'B200': {
-      name: 'B200',
-      subtitle: 'NVIDIA - Next-gen Blackwell architecture',
-      specs: ['192GB HBM3e', '1000W TDP', '2×–4× uplift over H100'],
-      score: 98,
-      rank: 2,
-      company: 'NVIDIA',
-      why: 'Next-gen Blackwell architecture — massive gains in FP8/FP16 throughput and inference perf.',
-      strengths: ['~2×–4× uplift over H100', 'Massive throughput gains'],
-      weaknesses: ['Limited availability until mid–late 2025', 'Early customers only']
-    },
-    'H200': {
-      name: 'H200',
-      subtitle: 'NVIDIA - Memory champion for inference',
-      specs: ['141GB HBM3e', '700W TDP', 'Inference-optimized'],
-      score: 97,
-      rank: 3,
-      company: 'NVIDIA',
-      why: 'An H100 but with more memory — absolutely dominant for LLM inference + long-context models.',
-      strengths: ['Huge HBM3 capacity + bandwidth', 'LLM inference champion'],
-      weaknesses: ['Slightly behind H100/B200 in training throughput']
-    },
-    'MI300X': {
-      name: 'MI300X',
-      subtitle: 'AMD - Best non-NVIDIA alternative',
-      specs: ['192GB HBM3', 'Chiplet architecture', 'Competitive pricing vs NVIDIA'],
-      score: 95,
-      rank: 4,
-      company: 'AMD',
-      why: 'Best non-NVIDIA alternative — impressive memory capacity, strong inference throughput.',
-      strengths: ['Major hyperscaler adoption', 'Excellent per-dollar performance'],
-      weaknesses: ['Software ecosystem still behind CUDA stack']
-    },
-    'A100 80GB': {
-      name: 'A100 80GB',
-      subtitle: 'NVIDIA - Previous gen workhorse',
-      specs: ['80GB HBM2e', '400W TDP', 'Still widely deployed'],
-      score: 92,
-      rank: 5,
-      company: 'NVIDIA',
-      why: 'The previous generation still widely deployed and very strong in inference.',
-      strengths: ['Massive installed base', 'Proven reliability'],
-      weaknesses: ['Aging architecture', 'Lower FP8 flexibility']
-    },
-    'RTX 4090': {
-      name: 'RTX 4090',
-      subtitle: 'NVIDIA - King of consumer AI compute',
-      specs: ['24GB GDDR6X', '450W TDP', 'Best price/performance for research'],
-      score: 89,
-      rank: 6,
-      company: 'NVIDIA',
-      why: 'The king of consumer AI compute — unrivaled price/performance for local LLM/UI workloads.',
-      strengths: ['Insane value', 'Dominates personal clusters + dev setups'],
-      weaknesses: ['Not designed for multi-GPU scaling', 'Not data center ready']
-    },
-    'MI250X': {
-      name: 'MI250X',
-      subtitle: 'AMD - HPC-focused GPU',
-      specs: ['128GB HBM2e', 'High memory bandwidth', 'Dual-GPU design'],
-      score: 86,
-      rank: 7,
-      company: 'AMD',
-      why: 'HPC-focused GPU still strong in certain scientific + ML training environments.',
-      strengths: ['High memory bandwidth', 'Competitive in HPC/FP64'],
-      weaknesses: ['Not ideal for cutting-edge LLM training']
-    },
-    'L40S': {
-      name: 'L40S',
-      subtitle: 'NVIDIA - Cost-optimized inference GPU',
-      specs: ['48GB GDDR6', 'Enterprise deployments', 'Great inference efficiency'],
-      score: 84,
-      rank: 8,
-      company: 'NVIDIA',
-      why: 'A cost-optimized inference GPU for enterprise deployments; very strong for dev clusters.',
-      strengths: ['Great inference cost efficiency', 'Enterprise-ready'],
-      weaknesses: ['Mediocre for training large models']
-    },
-    'H20': {
-      name: 'H20',
-      subtitle: 'NVIDIA - China-only export variant',
-      specs: ['96GB HBM3', 'Export-compliant', 'Strong FP8 throughput'],
-      score: 82,
-      rank: 9,
-      company: 'NVIDIA',
-      why: 'Export-compliant variant of H100; strong in LLM inference workloads.',
-      strengths: ['Good FP8 throughput for its category', 'Compliant for China market'],
-      weaknesses: ['Limited globally', 'Intentionally constrained']
-    },
-    'A800': {
-      name: 'A800',
-      subtitle: 'NVIDIA - Legacy China-only variant',
-      specs: ['80GB HBM2e', 'A100-based', 'Widely used in China'],
-      score: 80,
-      rank: 10,
-      company: 'NVIDIA',
-      why: 'Legacy but still widely used in China for large-scale inference clustering.',
-      strengths: ['Stable', 'Scalable', 'Affordable'],
-      weaknesses: ['Far behind H100-class compute']
-    },
-    // Other entities
-    'TPU v5e': { name: 'TPU v5e', subtitle: 'Google AI accelerator', specs: ['Cost-optimized training', 'High performance/watt', 'GCP exclusive'], score: 94 },
-    'Trainium2': { name: 'Trainium2', subtitle: 'AWS training chip', specs: ['4x performance vs v1', 'NeuronLink interconnect', 'AWS infrastructure'], score: 92 },
-    'Groq LPU': { name: 'Groq LPU', subtitle: 'Inference specialist chip', specs: ['Ultra-low latency', '500 tok/s inference', 'Deterministic performance'], score: 91 },
-    'PyTorch': { name: 'PyTorch', subtitle: 'Dominant ML framework', specs: ['150M monthly downloads', 'Dynamic computation graphs', 'Meta-backed'], score: 98 },
-    // Manufacturing - Semiconductor Fabs Top 10 Rankings
-    'TSMC': {
-      name: 'TSMC',
-      subtitle: 'Taiwan - Undisputed leader in advanced nodes',
-      specs: ['3nm process leader', '90% AI chip production', 'Apple & NVIDIA partner'],
-      score: 100,
-      rank: 1,
-      company: 'Taiwan',
-      why: 'Undisputed leader in advanced nodes (3nm, 2nm incoming), responsible for NVIDIA H100/B200/H200, Apple M-series, AMD MI300, and nearly every modern AI chip.',
-      strengths: ['Best yields at leading nodes', 'Exclusive advanced packaging (CoWoS, InFO)', 'Largest AI-relevant production in the world'],
-      weaknesses: ['Single-region geopolitical risk']
-    },
-    'Samsung Foundry': {
-      name: 'Samsung Foundry',
-      subtitle: 'South Korea - Only real competitor to TSMC',
-      specs: ['3nm GAA shipping', 'World leader in memory', 'Advanced EUV capacity'],
-      score: 95,
-      rank: 2,
-      company: 'South Korea',
-      why: 'Only real competitor to TSMC at the cutting edge. Strong in GAA FET development (3nm GAA shipping), plus massive memory leadership.',
-      strengths: ['World leader in memory (HBM + DDR)', 'Advanced EUV capacity'],
-      weaknesses: ['Yields behind TSMC on leading logic nodes']
-    },
-    'Intel Foundry': {
-      name: 'Intel Foundry',
-      subtitle: 'USA - Re-emerging with advanced nodes',
-      specs: ['18A/20A nodes', 'Advanced packaging', 'Government subsidies'],
-      score: 90,
-      rank: 3,
-      company: 'USA',
-      why: 'Re-emerging with 18A/20A nodes and heavy government subsidies. Strong bet for future AI chips and packaging.',
-      strengths: ['Most advanced packaging stack (Foveros, EMIB)', 'Strong U.S. strategic positioning'],
-      weaknesses: ['Still lagging TSMC/Samsung in leading-node volume']
-    },
-    'GlobalFoundries': {
-      name: 'GlobalFoundries',
-      subtitle: 'USA - Mid-tier node specialist',
-      specs: ['12nm/22nm/45nm', 'Automotive/industrial', 'Edge AI chips'],
-      score: 85,
-      rank: 4,
-      company: 'USA',
-      why: 'Dominant in mid-tier nodes (12nm, 22nm, 45nm). Not cutting-edge, but huge for automotive, industrial, RF, and edge AI chips.',
-      strengths: ['Essential for global supply chain resilience'],
-      weaknesses: ['No EUV', 'Not competing at 5nm/3nm']
-    },
-    'SMIC': {
-      name: 'SMIC',
-      subtitle: 'China - Largest Chinese foundry',
-      specs: ['Rapidly advancing', 'Domestic AI chips', 'Massive scale'],
-      score: 80,
-      rank: 5,
-      company: 'China',
-      why: 'China\'s top fab, rapidly advancing with constrained tools. Important for domestic AI chip production.',
-      strengths: ['Massive scale', 'Strategic importance'],
-      weaknesses: ['Tech restricted (no EUV)', 'Lower yields']
-    },
-    'UMC': {
-      name: 'UMC',
-      subtitle: 'Taiwan - Second-largest Taiwan foundry',
-      specs: ['Mature nodes', 'IoT/automotive', 'Stable supply'],
-      score: 75,
-      rank: 6,
-      company: 'Taiwan',
-      why: 'Taiwan\'s second-largest foundry; excels in mature nodes.',
-      strengths: ['Stable supply for IoT, automotive, controllers'],
-      weaknesses: ['No leading-edge nodes']
-    },
-    'Tower Semiconductor': {
-      name: 'Tower Semiconductor',
-      subtitle: 'Israel - Specialty process leader',
-      specs: ['Analog/RF specialist', 'Sensors/power', 'Global presence'],
-      score: 72,
-      rank: 7,
-      company: 'Israel',
-      why: 'Global niche leader for analog, RF, and specialty process technologies.',
-      strengths: ['Essential for sensors, power management, RF ICs'],
-      weaknesses: ['Lower AI-chip relevance']
-    },
-    'Rapidus': {
-      name: 'Rapidus',
-      subtitle: 'Japan - Emerging advanced-node fab',
-      specs: ['2nm program with IBM', 'Japan/U.S. backed', 'Strategic positioning'],
-      score: 68,
-      rank: 8,
-      company: 'Japan',
-      why: 'Still emerging, but backed by Japan + U.S. to create a new advanced-node competitor (2nm program with IBM).',
-      strengths: ['Strategic government support'],
-      weaknesses: ['Not in volume production yet']
-    },
-    'Hua Hong Semiconductor': {
-      name: 'Hua Hong Semiconductor',
-      subtitle: 'China - Specialty-node foundry',
-      specs: ['Analog/power specialist', 'Domestic independence', 'Huge scale'],
-      score: 65,
-      rank: 9,
-      company: 'China',
-      why: 'Major Chinese specialty-node foundry (analog/power), essential for domestic chip independence.',
-      strengths: ['Huge scale in older nodes'],
-      weaknesses: ['Not a leading-edge logic player']
-    },
-    'DB HiTek': {
-      name: 'DB HiTek',
-      subtitle: 'South Korea - Analog/mixed-signal specialist',
-      specs: ['Automotive chips', 'Display drivers', 'Sensor ICs'],
-      score: 62,
-      rank: 10,
-      company: 'South Korea',
-      why: 'Specializes in analog/mixed-signal and automotive chips.',
-      strengths: ['Strong for sensors, display drivers'],
-      weaknesses: ['Limited relevance to frontier AI silicon']
-    },
-    // Robotics - Humanoid Robots Top 10 Rankings
-    'Figure 01': {
-      name: 'Figure 01',
-      subtitle: 'Figure AI - Most advanced full-stack humanoid',
-      specs: ['BMW partnership', 'OpenAI integration', 'Full dexterity'],
-      score: 100,
-      rank: 1,
-      company: 'Figure AI',
-      why: 'Most advanced full-stack humanoid today. Excellent mobility, stable locomotion, human-level hand control progress, and strongest enterprise partnerships (BMW, OpenAI).',
-      strengths: ['Best-in-class teleoperation + imitation learning', 'Real warehouse deployment tests', 'Tightest AI integration with foundation models'],
-      weaknesses: ['Still early in mass production']
-    },
-    'Tesla Optimus Gen 2': {
-      name: 'Tesla Optimus Gen 2',
-      subtitle: 'Tesla - Fastest improvement curve',
-      specs: ['Real-time end-to-end control', 'Human-like hands', 'Smooth gait'],
-      score: 98,
-      rank: 2,
-      company: 'Tesla',
-      why: 'Fastest improvement curve in robotics. Real-time end-to-end learned control, human-like hands, extremely smooth gait, and Tesla\'s manufacturing scale gives it the long-term edge.',
-      strengths: ['Best hand dexterity in the field', 'Insane training data advantage (Optimus Gym)', 'Robotics + FSD model cross-pollination'],
-      weaknesses: ['Not in customer pilots yet']
-    },
-    'Digit Gen 3': {
-      name: 'Digit Gen 3',
-      subtitle: 'Agility Robotics - First commercial deployment',
-      specs: ['Warehouse deployments', 'Safety certified', 'Stable mobility'],
-      score: 96,
-      rank: 3,
-      company: 'Agility Robotics',
-      why: 'First humanoid approved for actual commercial deployment in warehouses. Most mature hardware, safety certs, and stable mobility.',
-      strengths: ['Only humanoid with real on-site deployments', 'Rugged, reliable, affordable', 'Great at repetitive warehouse tasks'],
-      weaknesses: ['Not as dexterous or human-like as Figure/Tesla']
-    },
-    'Phoenix': {
-      name: 'Phoenix',
-      subtitle: 'Sanctuary AI - Hands-first dexterity leader',
-      specs: ['Fine motor skills', 'Foundation model cognition', 'Teleoperation'],
-      score: 94,
-      rank: 4,
-      company: 'Sanctuary AI',
-      why: 'Industry leader in dexterous teleoperation and fine motor skills — the "hands-first" approach. Strong cognitive layer using foundation models.',
-      strengths: ['Best manipulation of small objects', 'Excellent remote operation fidelity'],
-      weaknesses: ['Locomotion and mobile autonomy lag behind leaders']
-    },
-    'Unitree G1 Pro': {
-      name: 'Unitree G1 Pro',
-      subtitle: 'Unitree - Price-performance king',
-      specs: ['Fast locomotion', 'Affordable', 'Strong AI pipeline'],
-      score: 92,
-      rank: 5,
-      company: 'Unitree',
-      why: 'The price-performance king. Most affordable humanoid with surprisingly good mobility and strong early AI pipeline.',
-      strengths: ['Very fast locomotion', 'Affordable enough for research + startups'],
-      weaknesses: ['Limited manipulation capabilities']
-    },
-    'Apollo': {
-      name: 'Apollo',
-      subtitle: 'Apptronik - Industrial reliability focus',
-      specs: ['Mercedes partnership', 'Good mobility', 'Industry-focused'],
-      score: 89,
-      rank: 6,
-      company: 'Apptronik',
-      why: 'Well-designed with industry-focused reliability. Strong partnerships (Mercedes) and good engineering discipline.',
-      strengths: ['Practical industrial-first design', 'Good mobility and endurance'],
-      weaknesses: ['Not frontier-level in dexterity']
-    },
-    'GR1': {
-      name: 'GR1',
-      subtitle: 'Fourier Intelligence - China manufacturing leader',
-      specs: ['Strong China presence', 'Improving locomotion', 'Manufacturing scale'],
-      score: 87,
-      rank: 7,
-      company: 'Fourier Intelligence',
-      why: 'Strong presence in China and rapidly improving locomotion + manufacturing capacity.',
-      strengths: ['Scaling manufacturing fastest after Unitree'],
-      weaknesses: ['Early software stack', 'Limited manipulation']
-    },
-    'NEO': {
-      name: 'NEO',
-      subtitle: '1X Robotics - Indoor autonomy specialist',
-      specs: ['Mobile indoor robotics', 'Excellent torso control', 'AI workforce integration'],
-      score: 85,
-      rank: 8,
-      company: '1X Robotics',
-      why: 'Leader in mobile indoor robotics. Excellent torso + arm control, heavy focus on teleop + "AI workforce" integration.',
-      strengths: ['Strong autonomy indoors', 'Good manipulation training'],
-      weaknesses: ['Not truly humanoid legs-first design (some variants use wheels)']
-    },
-    'Robosapien X': {
-      name: 'Robosapien X',
-      subtitle: 'Raytheon - Defense-grade robustness',
-      specs: ['Military-grade', 'Advanced telepresence', 'Rugged hardware'],
-      score: 83,
-      rank: 9,
-      company: 'Raytheon Collaborative Systems',
-      why: 'More defense-focused, but strong balance, rugged hardware, and advanced telepresence control.',
-      strengths: ['Military-grade robustness'],
-      weaknesses: ['Not optimized for commercial markets']
-    },
-    'Walker X': {
-      name: 'Walker X',
-      subtitle: 'UBTECH - Balanced general-purpose humanoid',
-      specs: ['Smooth locomotion', 'Good stability', 'Home robotics'],
-      score: 81,
-      rank: 10,
-      company: 'UBTECH',
-      why: 'Older than most on this list, but still one of the most balanced general-purpose humanoids.',
-      strengths: ['Smooth locomotion, good stability', 'Solid home robotics demos'],
-      weaknesses: ['Outpaced by newer AI-first entrants']
-    }
-  };
-
-  // Domain-specific insights
-  const domainInsights = {
-    'Software': {
-      topRankings: [
-        { name: 'GPT-4o' },
-        { name: 'Gemini 3 Pro' },
-        { name: 'Claude 3.5 Opus' },
-        { name: 'Llama 3.1 405B' },
-        { name: 'Qwen 2.5-72B' }
-      ],
-      vendors: ['OpenAI', 'Anthropic', 'Google DeepMind', 'Meta', 'Alibaba'],
-      trends: [
-        'Multimodal models are the new standard',
-        'Context windows pushing 1M+ tokens',
-        'Open-weight models closing the gap',
-        'Reasoning capabilities leap forward',
-        'Agent-native architectures emerging'
-      ]
-    },
-    'Hardware': {
-      topRankings: [
-        { name: 'H100 SXM' },
-        { name: 'B200' },
-        { name: 'H200' },
-        { name: 'MI300X' },
-        { name: 'A100 80GB' }
-      ],
-      vendors: ['NVIDIA', 'AMD', 'Intel', 'Google (TPU)', 'AWS (Trainium)'],
-      trends: [
-        'HBM3e memory is the main bottleneck',
-        'NVIDIA supply-constrained through 2025',
-        'Blackwell architecture 2-4× performance leap',
-        'AMD gaining enterprise traction',
-        'Custom ASICs for inference scaling'
-      ]
-    },
-    'Manufacturing': {
-      topRankings: [
-        { name: 'TSMC' },
-        { name: 'Samsung Foundry' },
-        { name: 'Intel Foundry' },
-        { name: 'GlobalFoundries' },
-        { name: 'SMIC' }
-      ],
-      vendors: ['ASML', 'Lam Research', 'Applied Materials', 'Tokyo Electron', 'KLA'],
-      trends: [
-        'CoWoS packaging capacity is critical path',
-        '2nm GAA nodes entering production 2025',
-        'US-China supply chain bifurcation',
-        'Advanced packaging more important than node',
-        'Geopolitical risk driving diversification'
-      ]
-    },
-    'Robotics': {
-      topRankings: [
-        { name: 'Figure 01' },
-        { name: 'Tesla Optimus Gen 2' },
-        { name: 'Digit Gen 3' },
-        { name: 'Phoenix' },
-        { name: 'Unitree G1 Pro' }
-      ],
-      vendors: ['Figure AI', 'Tesla', 'Agility Robotics', 'Sanctuary AI', 'Unitree'],
-      trends: [
-        'Vision-Language-Action models enable generalization',
-        'First commercial humanoid deployments in 2025',
-        'Embodied AI is the next frontier',
-        'Teleoperation → imitation learning pipeline',
-        'Hardware costs dropping rapidly'
-      ]
-    },
-    'People': {
-      topRankings: [
-        { name: 'Sam Altman' },
-        { name: 'Demis Hassabis' },
-        { name: 'Jensen Huang' },
-        { name: 'Ilya Sutskever' },
-        { name: 'Dario Amodei' }
-      ],
-      vendors: ['OpenAI', 'Google DeepMind', 'NVIDIA', 'Anthropic', 'Meta AI'],
-      trends: [
-        'Founder-led AI labs dominating innovation',
-        'Research talent consolidating at top labs',
-        'Safety-focused leadership emerging',
-        'Technical founders vs. business executives',
-        'Investor networks shaping AGI roadmaps'
-      ]
-    }
-  };
-
-  const insights = domainInsights[selectedTopic] || domainInsights['Software'];
-  const entity = hoveredEntity ? entityDetails[hoveredEntity] : null;
-  const rankings = selectedSubsection ? subsectionRankings[selectedSubsection] : null;
-
-  // Safety check - if no insights and no rankings, don't render
-  if (!insights && !rankings) {
-    return null;
-  }
-
-  return (
-    <div style={{
-      background: 'rgba(0,0,0,0.5)',
-      border: '1px solid #222',
-      borderRadius: '8px',
-      padding: '20px',
-      backdropFilter: 'blur(10px)'
-    }}>
-      {rankings ? (
-        // Subsection Rankings View
-        <div>
-          <h3 style={{
-            fontSize: '13px',
-            color: domainColor,
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-            fontWeight: 700,
-            marginBottom: '20px'
-          }}>
-            {rankings.title}
-          </h3>
-          <div>
-            {rankings.items.map((item, i) => (
-              <div key={i} style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '12px',
-                marginBottom: '16px',
-                paddingBottom: '16px',
-                borderBottom: i < rankings.items.length - 1 ? '1px solid #222' : 'none'
-              }}>
-                <div style={{
-                  fontSize: '16px',
-                  fontWeight: 700,
-                  color: domainColor,
-                  fontFamily: theme.fonts.mono,
-                  minWidth: '24px'
-                }}>
-                  {item.rank}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{
-                    fontSize: '13px',
-                    color: '#fff',
-                    fontWeight: 600,
-                    marginBottom: '4px'
-                  }}>
-                    {item.name}
-                  </div>
-                  <div style={{
-                    fontSize: '11px',
-                    color: '#666',
-                    fontFamily: theme.fonts.mono
-                  }}>
-                    {item.company}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : entity ? (
-        // Entity Preview Mode
-        <div>
-          <div style={{
-            fontSize: '11px',
-            color: domainColor,
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-            fontWeight: 600,
-            marginBottom: '12px'
-          }}>
-            {entity.rank ? `#${entity.rank} Model` : 'Entity Preview'}
-          </div>
-          <h3 style={{
-            fontSize: '18px',
-            color: '#fff',
-            fontWeight: 700,
-            margin: '0 0 4px 0'
-          }}>
-            {entity.name}
-          </h3>
-          <p style={{
-            fontSize: '12px',
-            color: '#888',
-            margin: '0 0 16px 0'
-          }}>
-            {entity.subtitle}
-          </p>
-
-          {entity.why && (
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{
-                fontSize: '11px',
-                color: domainColor,
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                fontWeight: 600,
-                marginBottom: '8px'
-              }}>
-                Why #{entity.rank}
-              </div>
-              <p style={{
-                fontSize: '12px',
-                color: '#aaa',
-                lineHeight: '1.6',
-                margin: 0
-              }}>
-                {entity.why}
-              </p>
-            </div>
-          )}
-
-          {entity.strengths && (
-            <div style={{ marginBottom: '12px' }}>
-              <div style={{
-                fontSize: '11px',
-                color: '#00ff88',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                fontWeight: 600,
-                marginBottom: '6px'
-              }}>
-                Strengths
-              </div>
-              {entity.strengths.map((strength, i) => (
-                <div key={i} style={{
-                  fontSize: '11px',
-                  color: '#aaa',
-                  marginBottom: '4px',
-                  paddingLeft: '12px',
-                  position: 'relative'
-                }}>
-                  <span style={{
-                    position: 'absolute',
-                    left: 0,
-                    color: '#00ff88'
-                  }}>+</span>
-                  {strength}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {entity.weaknesses && (
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{
-                fontSize: '11px',
-                color: '#ff4444',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                fontWeight: 600,
-                marginBottom: '6px'
-              }}>
-                Weaknesses
-              </div>
-              {entity.weaknesses.map((weakness, i) => (
-                <div key={i} style={{
-                  fontSize: '11px',
-                  color: '#aaa',
-                  marginBottom: '4px',
-                  paddingLeft: '12px',
-                  position: 'relative'
-                }}>
-                  <span style={{
-                    position: 'absolute',
-                    left: 0,
-                    color: '#ff4444'
-                  }}>−</span>
-                  {weakness}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div style={{ marginBottom: '16px' }}>
-            {entity.specs.map((spec, i) => (
-              <div key={i} style={{
-                fontSize: '12px',
-                color: '#aaa',
-                marginBottom: '6px',
-                paddingLeft: '12px',
-                position: 'relative'
-              }}>
-                <span style={{
-                  position: 'absolute',
-                  left: 0,
-                  color: domainColor
-                }}>•</span>
-                {spec}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        // Domain RRSRCH Leaderboard Mode
-        <div>
-          <h3 style={{
-            fontSize: '13px',
-            color: domainColor,
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-            fontWeight: 700,
-            marginBottom: '20px'
-          }}>
-            RRSRCH Leaderboards
-          </h3>
-
-          {/* Software Domain - Models */}
-          {selectedTopic === 'Software' && (
-            <div>
-              <div style={{
-                fontSize: '11px',
-                color: '#666',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                fontWeight: 600,
-                marginBottom: '12px'
-              }}>
-                Top AI Models
-              </div>
-              <div style={{ marginBottom: '20px' }}>
-                {subsectionRankings['Models'].items.slice(0, 8).map((item, i) => (
-                  <div key={i} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    marginBottom: '10px',
-                    paddingBottom: '10px',
-                    borderBottom: i < 7 ? '1px solid #1a1a1a' : 'none'
-                  }}>
-                    <div style={{
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      color: domainColor,
-                      fontFamily: theme.fonts.mono,
-                      minWidth: '20px'
-                    }}>
-                      {item.rank}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#fff',
-                        fontWeight: 500
-                      }}>
-                        {item.name}
-                      </div>
-                      <div style={{
-                        fontSize: '10px',
-                        color: '#555',
-                        fontFamily: theme.fonts.mono
-                      }}>
-                        {item.company}
-                      </div>
-                    </div>
-                    <div style={{
-                      fontSize: '11px',
-                      color: '#666',
-                      fontFamily: theme.fonts.mono
-                    }}>
-                      {item.score}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Hardware Domain - GPUs */}
-          {selectedTopic === 'Hardware' && (
-            <div>
-              <div style={{
-                fontSize: '11px',
-                color: '#666',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                fontWeight: 600,
-                marginBottom: '12px'
-              }}>
-                Top AI GPUs
-              </div>
-              <div style={{ marginBottom: '20px' }}>
-                {subsectionRankings['GPUs'].items.slice(0, 8).map((item, i) => (
-                  <div key={i} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    marginBottom: '10px',
-                    paddingBottom: '10px',
-                    borderBottom: i < 7 ? '1px solid #1a1a1a' : 'none'
-                  }}>
-                    <div style={{
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      color: domainColor,
-                      fontFamily: theme.fonts.mono,
-                      minWidth: '20px'
-                    }}>
-                      {item.rank}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#fff',
-                        fontWeight: 500
-                      }}>
-                        {item.name}
-                      </div>
-                      <div style={{
-                        fontSize: '10px',
-                        color: '#555',
-                        fontFamily: theme.fonts.mono
-                      }}>
-                        {item.company}
-                      </div>
-                    </div>
-                    <div style={{
-                      fontSize: '11px',
-                      color: '#666',
-                      fontFamily: theme.fonts.mono
-                    }}>
-                      {item.score}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Manufacturing Domain - Fabs */}
-          {selectedTopic === 'Manufacturing' && (
-            <div>
-              <div style={{
-                fontSize: '11px',
-                color: '#666',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                fontWeight: 600,
-                marginBottom: '12px'
-              }}>
-                Top Semiconductor Fabs
-              </div>
-              <div style={{ marginBottom: '20px' }}>
-                {subsectionRankings['Fabs'].items.slice(0, 8).map((item, i) => (
-                  <div key={i} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    marginBottom: '10px',
-                    paddingBottom: '10px',
-                    borderBottom: i < 7 ? '1px solid #1a1a1a' : 'none'
-                  }}>
-                    <div style={{
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      color: domainColor,
-                      fontFamily: theme.fonts.mono,
-                      minWidth: '20px'
-                    }}>
-                      {item.rank}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#fff',
-                        fontWeight: 500
-                      }}>
-                        {item.name}
-                      </div>
-                      <div style={{
-                        fontSize: '10px',
-                        color: '#555',
-                        fontFamily: theme.fonts.mono
-                      }}>
-                        {item.company}
-                      </div>
-                    </div>
-                    <div style={{
-                      fontSize: '11px',
-                      color: '#666',
-                      fontFamily: theme.fonts.mono
-                    }}>
-                      {item.score}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Robotics Domain - Humanoid Robots */}
-          {selectedTopic === 'Robotics' && (
-            <div>
-              <div style={{
-                fontSize: '11px',
-                color: '#666',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                fontWeight: 600,
-                marginBottom: '12px'
-              }}>
-                Top Humanoid Robots
-              </div>
-              <div style={{ marginBottom: '20px' }}>
-                {subsectionRankings['Humanoid Robotics'].items.slice(0, 8).map((item, i) => (
-                  <div key={i} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    marginBottom: '10px',
-                    paddingBottom: '10px',
-                    borderBottom: i < 7 ? '1px solid #1a1a1a' : 'none'
-                  }}>
-                    <div style={{
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      color: domainColor,
-                      fontFamily: theme.fonts.mono,
-                      minWidth: '20px'
-                    }}>
-                      {item.rank}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#fff',
-                        fontWeight: 500
-                      }}>
-                        {item.name}
-                      </div>
-                      <div style={{
-                        fontSize: '10px',
-                        color: '#555',
-                        fontFamily: theme.fonts.mono
-                      }}>
-                        {item.company}
-                      </div>
-                    </div>
-                    <div style={{
-                      fontSize: '11px',
-                      color: '#666',
-                      fontFamily: theme.fonts.mono
-                    }}>
-                      {item.score}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* People Domain - Keep trends for now since we don't have people rankings */}
-          {selectedTopic === 'People' && (
-            <div>
-              <div style={{
-                fontSize: '11px',
-                color: '#666',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                fontWeight: 600,
-                marginBottom: '12px'
-              }}>
-                AI Leadership Landscape
-              </div>
-              <div>
-                {insights.trends.map((trend, i) => (
-                  <div key={i} style={{
-                    fontSize: '12px',
-                    color: '#aaa',
-                    marginBottom: '10px',
-                    paddingBottom: '10px',
-                    paddingLeft: '12px',
-                    position: 'relative',
-                    lineHeight: '1.5',
-                    borderBottom: i < insights.trends.length - 1 ? '1px solid #1a1a1a' : 'none'
-                  }}>
-                    <span style={{
-                      position: 'absolute',
-                      left: 0,
-                      color: domainColor
-                    }}>•</span>
-                    {trend}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Subsection Detail Page Component
-function SubsectionDetail({ subsectionName, domainColor, onBack, items, onEntityHover, onEntityClick }) {
-  const [expandedEntity, setExpandedEntity] = useState(null);
-
-  // Subsection content data
-  const subsectionContent = {
-    'Models': {
-      title: 'AI Models',
-      explanation: 'Large language models (LLMs) and foundation models are neural networks trained on massive datasets to understand, generate, and reason about human language. These models range from 7 billion to over 1 trillion parameters and power everything from ChatGPT to coding assistants.',
-      newcomerInfo: [
-        'Start with GPT-4 or Claude 3 for general tasks',
-        'Llama 3 and Mistral are leading open-weight options',
-        'Context window (how much text the model can process) is critical',
-        'Benchmark scores (MMLU, HumanEval) indicate capability',
-        'Multimodal models can process images, not just text'
-      ],
-      keyMetrics: [
-        { label: 'Active Production Models', value: '120+' },
-        { label: 'Average Benchmark Score', value: '79.2/100' },
-        { label: 'Largest Context Window', value: '1M tokens' },
-        { label: 'Market Leaders', value: 'OpenAI, Anthropic' }
-      ]
-    },
-    'GPUs': {
-      title: 'GPUs',
-      explanation: 'Graphics Processing Units (GPUs) are specialized processors designed for parallel computation, making them essential for training and running AI models. NVIDIA dominates the market with H100 and upcoming B200 chips, though AMD and others are competing.',
-      newcomerInfo: [
-        'H100 is the gold standard for training frontier models',
-        'NVIDIA controls ~88% of the AI accelerator market',
-        'HBM (High Bandwidth Memory) capacity is often the bottleneck',
-        'Supply is severely constrained through 2026',
-        'RTX 4090 offers best price/performance for researchers'
-      ],
-      keyMetrics: [
-        { label: 'Peak Performance', value: '1979 TFLOPS (H100)' },
-        { label: 'Market Leader', value: 'NVIDIA' },
-        { label: 'Avg Top-Tier Cost', value: '$18K-$30K' },
-        { label: '2024 Shipments', value: '2.5M units' }
-      ]
-    },
-    'AI Frameworks': {
-      title: 'AI Frameworks',
-      explanation: 'Machine learning frameworks are software libraries that provide the building blocks for developing AI models. PyTorch and TensorFlow dominate, with PyTorch winning mindshare in research while both remain strong in production.',
-      newcomerInfo: [
-        'PyTorch is recommended for most new projects',
-        'Dynamic computation graphs make debugging easier',
-        'JAX is emerging for high-performance computing',
-        'Most modern models are trained with PyTorch',
-        'Framework choice affects ecosystem access'
-      ],
-      keyMetrics: [
-        { label: 'Top Framework', value: 'PyTorch' },
-        { label: 'Monthly Downloads', value: '265M combined' },
-        { label: 'Active ML Projects', value: '1.2M+' },
-        { label: 'GitHub Stars', value: '366K combined' }
-      ]
-    },
-    'Fabs': {
-      title: 'Semiconductor Fabs',
-      explanation: 'Semiconductor fabrication plants (fabs) are specialized facilities that manufacture the chips powering AI. TSMC dominates advanced process nodes, producing over 90% of cutting-edge AI chips. Their 3nm and upcoming 2nm processes are critical to AI hardware advancement.',
-      newcomerInfo: [
-        'TSMC manufactures chips for NVIDIA, Apple, AMD',
-        'CoWoS packaging enables HBM integration',
-        'Geopolitical risk is a major concern',
-        'Process node leadership drives AI performance',
-        'Capacity constraints affect entire industry'
-      ],
-      keyMetrics: [
-        { label: 'Market Leader', value: 'TSMC' },
-        { label: 'Leading Process', value: '3nm' },
-        { label: 'Major Fabs', value: '5 key players' },
-        { label: 'TSMC Market Share', value: '90% advanced nodes' }
-      ]
-    },
-    'Humanoid Robotics': {
-      title: 'Humanoid Robotics',
-      explanation: 'Humanoid robots are autonomous systems designed to replicate human form and movement. Recent advances in AI and actuator technology have enabled Figure 02, Tesla Optimus, and others to perform complex manipulation tasks.',
-      newcomerInfo: [
-        'Figure 02 leads in commercial deployment',
-        'Tesla Optimus targets mass manufacturing',
-        'Hardware costs are decreasing rapidly',
-        'Autonomy stacks leverage LLMs for task planning',
-        'Key challenges: dexterity, power, and cost'
-      ],
-      keyMetrics: [
-        { label: 'Leading Platform', value: 'Figure 02' },
-        { label: 'Est. Market Size', value: '$38B by 2035' },
-        { label: 'Active Platforms', value: '12+' },
-        { label: 'Key Players', value: 'Figure, Tesla, 1X' }
-      ]
-    }
-  };
-
-  const content = subsectionContent[subsectionName] || {
-    title: subsectionName,
-    explanation: `Detailed information about ${subsectionName} in the AI ecosystem.`,
-    newcomerInfo: [
-      'This is a key component of modern AI infrastructure',
-      'Understanding this area is essential for AI practitioners',
-      'Market dynamics are rapidly evolving'
-    ],
-    keyMetrics: []
-  };
-
-  return (
-    <div>
-      {/* Back button */}
+    <div ref={wrapRef} style={{ position: 'relative' }}>
       <button
-        onClick={onBack}
+        onClick={() => setOpen(!open)}
         style={{
-          background: 'transparent',
-          border: `1px solid ${domainColor}`,
-          borderRadius: '6px',
-          color: domainColor,
-          padding: '8px 16px',
-          fontSize: '12px',
-          fontWeight: 600,
+          background: open ? (active ? 'rgba(0,255,136,0.15)' : 'rgba(255,255,255,0.1)') : restBg,
+          border: active ? '1px solid rgba(0,255,136,0.45)' : '1px solid rgba(255,255,255,0.1)',
+          borderRadius: '24px',
+          color: open ? (active ? NAV_GREEN : 'white') : restColor,
+          padding: '10px 20px',
           cursor: 'pointer',
-          marginBottom: '30px',
-          transition: 'all 0.2s ease'
+          fontFamily: theme.fonts.main,
+          fontSize: '12px',
+          textTransform: 'uppercase',
+          letterSpacing: '1px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          transition: 'all 0.2s ease',
+          backdropFilter: 'blur(5px)'
         }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = `${domainColor}22`;
+        onMouseEnter={e => {
+          e.currentTarget.style.background = active ? 'rgba(0,255,136,0.15)' : 'rgba(255,255,255,0.1)';
+          e.currentTarget.style.color = active ? NAV_GREEN : 'white';
         }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
+        onMouseLeave={e => {
+          if (open) return;
+          e.currentTarget.style.background = restBg;
+          e.currentTarget.style.color = restColor;
         }}
       >
-        ← Back to {subsectionName.split(' ')[0]} Overview
+        {Icon && <Icon size={14} />}
+        {label}
+        <ChevronDown size={12} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
       </button>
-
-      {/* Title */}
-      <h1 style={{
-        fontSize: '36px',
-        color: domainColor,
-        fontWeight: 700,
-        margin: '0 0 20px 0',
-        letterSpacing: '1px'
-      }}>
-        {content.title}
-      </h1>
-
-      {/* Explanation */}
-      <div style={{
-        background: 'rgba(0,0,0,0.3)',
-        border: '1px solid #222',
-        borderRadius: '8px',
-        padding: '24px',
-        marginBottom: '30px'
-      }}>
-        <h3 style={{
-          fontSize: '14px',
-          color: domainColor,
-          textTransform: 'uppercase',
-          letterSpacing: '1px',
-          fontWeight: 700,
-          marginBottom: '16px'
-        }}>
-          What is this?
-        </h3>
-        <p style={{
-          fontSize: '15px',
-          color: '#aaa',
-          lineHeight: '1.8',
-          margin: 0
-        }}>
-          {content.explanation}
-        </p>
-      </div>
-
-      {/* Entity Collage */}
-      {items && items.length > 0 && (
+      {open && (
         <div style={{
-          background: 'rgba(0,0,0,0.3)',
-          border: '1px solid #222',
-          borderRadius: '8px',
-          padding: '24px'
-        }}>
-          <h3 style={{
-            fontSize: '14px',
-            color: domainColor,
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-            fontWeight: 700,
-            marginBottom: '20px'
-          }}>
-            Explore {subsectionName}
-          </h3>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-            gap: '12px'
-          }}>
-            {items.map((item, i) => (
-              <React.Fragment key={i}>
-                <div
-                  onClick={() => {
-                    if (entityInfo[item]) {
-                      setExpandedEntity(expandedEntity === item ? null : item);
-                    }
-                  }}
-                  onMouseEnter={() => onEntityHover && onEntityHover(item)}
-                  onMouseLeave={() => onEntityHover && onEntityHover(null)}
-                  style={{
-                    background: expandedEntity === item ? `${domainColor}22` : `${domainColor}11`,
-                    border: expandedEntity === item ? `1px solid ${domainColor}` : `1px solid ${domainColor}33`,
-                    borderRadius: '6px',
-                    padding: '16px',
-                    fontSize: '13px',
-                    color: '#fff',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    textAlign: 'center',
-                    fontWeight: 500
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.background = `${domainColor}22`;
-                    e.currentTarget.style.borderColor = domainColor;
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                  }}
-                  onMouseOut={(e) => {
-                    if (expandedEntity !== item) {
-                      e.currentTarget.style.background = `${domainColor}11`;
-                      e.currentTarget.style.borderColor = `${domainColor}33`;
-                      e.currentTarget.style.transform = 'translateY(0)';
-                    }
-                  }}
-                >
-                {item}
-              </div>
-
-              {/* Expanded entity info */}
-              {expandedEntity === item && entityInfo[item] && (
-                <div style={{
-                  gridColumn: '1 / -1',
-                  background: 'rgba(0,0,0,0.5)',
-                  border: `1px solid ${domainColor}`,
-                  borderRadius: '8px',
-                  padding: '20px',
-                  marginTop: '-10px',
-                  marginBottom: '10px'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                    marginBottom: '15px'
-                  }}>
-                    <div>
-                      <h4 style={{
-                        fontSize: '18px',
-                        color: '#fff',
-                        margin: '0 0 5px 0',
-                        fontWeight: 700
-                      }}>
-                        {entityInfo[item].name}
-                      </h4>
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#666',
-                        fontFamily: theme.fonts.mono
-                      }}>
-                        {entityInfo[item].developer}
-                      </div>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setExpandedEntity(null);
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#666',
-                        fontSize: '20px',
-                        cursor: 'pointer',
-                        padding: 0,
-                        lineHeight: 1
-                      }}
-                      onMouseEnter={(e) => e.target.style.color = '#fff'}
-                      onMouseLeave={(e) => e.target.style.color = '#666'}
-                    >
-                      ×
-                    </button>
-                  </div>
-
-                  {/* Benchmarks Grid (if available) */}
-                  {(entityInfo[item].contextWindow || entityInfo[item].aaiIndex) && (
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
-                      gap: '10px',
-                      marginBottom: '15px',
-                      padding: '12px',
-                      background: 'rgba(0,0,0,0.3)',
-                      borderRadius: '6px'
-                    }}>
-                      {entityInfo[item].contextWindow && (
-                        <div>
-                          <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>CONTEXT</div>
-                          <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].contextWindow}</div>
-                        </div>
-                      )}
-                      {entityInfo[item].aaiIndex && (
-                        <div>
-                          <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>AAI INDEX</div>
-                          <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].aaiIndex}</div>
-                        </div>
-                      )}
-                      {entityInfo[item].critPt && (
-                        <div>
-                          <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>CRITPT</div>
-                          <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].critPt}</div>
-                        </div>
-                      )}
-                      {entityInfo[item].mmmuPro && (
-                        <div>
-                          <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>MMMU PRO</div>
-                          <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].mmmuPro}</div>
-                        </div>
-                      )}
-                      {entityInfo[item].price && (
-                        <div>
-                          <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>PRICE</div>
-                          <div style={{ fontSize: '11px', color: domainColor, fontWeight: 600 }}>{entityInfo[item].price}</div>
-                        </div>
-                      )}
-                      {entityInfo[item].speed && entityInfo[item].speed !== 'TBD' && (
-                        <div>
-                          <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>SPEED</div>
-                          <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].speed}</div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{
-                      fontSize: '10px',
-                      color: domainColor,
-                      textTransform: 'uppercase',
-                      letterSpacing: '1px',
-                      marginBottom: '5px',
-                      fontWeight: 600
-                    }}>Type</div>
-                    <div style={{ fontSize: '13px', color: '#fff', lineHeight: '1.5' }}>
-                      {entityInfo[item].type}
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{
-                      fontSize: '10px',
-                      color: domainColor,
-                      textTransform: 'uppercase',
-                      letterSpacing: '1px',
-                      marginBottom: '5px',
-                      fontWeight: 600
-                    }}>Strengths</div>
-                    <div style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5' }}>
-                      {entityInfo[item].strengths}
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{
-                      fontSize: '10px',
-                      color: domainColor,
-                      textTransform: 'uppercase',
-                      letterSpacing: '1px',
-                      marginBottom: '5px',
-                      fontWeight: 600
-                    }}>Use Cases</div>
-                    <div style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5' }}>
-                      {entityInfo[item].useCases}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{
-                      fontSize: '10px',
-                      color: domainColor,
-                      textTransform: 'uppercase',
-                      letterSpacing: '1px',
-                      marginBottom: '5px',
-                      fontWeight: 600
-                    }}>Notes</div>
-                    <div style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5' }}>
-                      {entityInfo[item].notes}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </React.Fragment>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Info for Newcomers */}
-      <div style={{
-        background: 'rgba(0,0,0,0.3)',
-        border: '1px solid #222',
-        borderRadius: '8px',
-        padding: '24px',
-        marginTop: '30px'
-      }}>
-        <h3 style={{
-          fontSize: '14px',
-          color: domainColor,
-          textTransform: 'uppercase',
-          letterSpacing: '1px',
-          fontWeight: 700,
-          marginBottom: '16px'
-        }}>
-          Essential Knowledge
-        </h3>
-        <div>
-          {content.newcomerInfo.map((info, i) => (
-            <div key={i} style={{
-              fontSize: '14px',
-              color: '#aaa',
-              marginBottom: '12px',
-              paddingLeft: '20px',
-              position: 'relative',
-              lineHeight: '1.6'
-            }}>
-              <span style={{
-                position: 'absolute',
-                left: 0,
-                color: domainColor,
-                fontSize: '18px'
-              }}>•</span>
-              {info}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AtlasDashboard({ selectedTopic, onEntityHover, onSubsectionClick, onEntityClick }) {
-  // Domain subsections data
-  const domainData = {
-    'Software': {
-      subsections: [
-        {
-          title: 'Models',
-          items: ['Gemini 3 Pro Preview', 'GPT-5.1 (High)', 'GPT-5 Codex (High)', 'GPT-5 (High)', 'Kimi K2 Thinking', 'GPT-5 (Medium)', 'o3', 'Grok 4', 'GPT-5 Mini (High)', 'Grok 4.1 Fast', 'GPT-4o', 'Claude 3.5 Opus']
-        },
-        {
-          title: 'Model Families',
-          items: ['Transformers', 'Diffusion Models', 'Mixture-of-Experts', 'State Space Models', 'Retrieval-Augmented']
-        },
-        {
-          title: 'AI Frameworks',
-          items: ['PyTorch', 'JAX', 'TensorFlow', 'MLX', 'Keras']
-        },
-        {
-          title: 'Runtimes / Serving',
-          items: ['vLLM', 'Ollama', 'Triton', 'TensorRT', 'llama.cpp', 'SGLang']
-        },
-        {
-          title: 'AI Benchmarks',
-          items: ['MMLU', 'GSM8K', 'HumanEval', 'MATH', 'MLPerf', 'GPQA']
-        },
-        {
-          title: 'Core Infrastructure',
-          items: ['Qdrant', 'Pinecone', 'Weaviate', 'Ray', 'Airflow', 'Weights & Biases', 'MLflow']
-        }
-      ]
-    },
-    'Hardware': {
-      subsections: [
-        {
-          title: 'GPUs',
-          items: ['H100 SXM', 'B200', 'MI300X', 'H200', 'A100 80GB', 'RTX 4090']
-        },
-        {
-          title: 'AI Accelerators / ASICs',
-          items: ['TPU v5e', 'Groq LPU', 'Cerebras WSE-3', 'Trainium2', 'Inferentia2', 'SambaNova SN40L']
-        },
-        {
-          title: 'Memory & Interconnect',
-          items: ['HBM3e', 'HBM3', 'NVLink', 'PCIe Gen5', 'CXL', 'Infinity Fabric']
-        },
-        {
-          title: 'Data Center Servers',
-          items: ['NVIDIA DGX', 'Supermicro AI', 'Dell PowerEdge', 'HPE Cray', 'AWS Trainium Pods']
-        },
-        {
-          title: 'Networking',
-          items: ['Infiniband', 'RoCE', 'Ultra Ethernet', 'Spectrum-X', 'AI Cluster Fabric']
-        }
-      ]
-    },
-    'Manufacturing': {
-      subsections: [
-        {
-          title: 'Fabs',
-          items: ['TSMC', 'Intel Foundry', 'Samsung', 'SMIC', 'GlobalFoundries']
-        },
-        {
-          title: 'Packaging & Assembly',
-          items: ['CoWoS', 'Chiplets', '3D Stacking', 'Advanced Packaging', 'FOWLP']
-        },
-        {
-          title: 'Component Supply',
-          items: ['SK Hynix (HBM)', 'Micron (HBM)', 'Samsung Memory', 'TSMC CoWoS']
-        },
-        {
-          title: 'Equipment Makers',
-          items: ['ASML', 'Lam Research', 'Applied Materials', 'Tokyo Electron', 'KLA']
-        },
-        {
-          title: 'Supply Chain',
-          items: ['Substrates', 'Lithography', 'Cooling Systems', 'Photoresists', 'Chemicals']
-        }
-      ]
-    },
-    'Robotics': {
-      subsections: [
-        {
-          title: 'Humanoid Robotics',
-          items: ['Figure 02', 'Tesla Optimus', 'Agility Robotics', '1X NEO', 'Unitree H1']
-        },
-        {
-          title: 'Industrial Robotics',
-          items: ['Fanuc', 'ABB', 'Kuka', 'Yaskawa', 'Universal Robots']
-        },
-        {
-          title: 'Embedded AI / Edge Chips',
-          items: ['Jetson Orin', 'Snapdragon 8 Gen 3', 'Apple Neural Engine', 'Hailo-8', 'Edge TPU']
-        },
-        {
-          title: 'Sensors & Actuators',
-          items: ['LiDAR', 'Depth Cameras', 'IMUs', 'Force Sensors', 'Servo Motors']
-        },
-        {
-          title: 'Autonomy Stacks',
-          items: ['Tesla FSD', 'Waymo Driver', 'NVIDIA DRIVE', 'Apollo', 'Mobileye SuperVision']
-        }
-      ]
-    },
-    'People': {
-      subsections: [
-        {
-          title: 'Founders',
-          items: ['Sam Altman', 'Demis Hassabis', 'Dario Amodei', 'Elon Musk', 'Mark Zuckerberg', 'Reid Hoffman']
-        },
-        {
-          title: 'Researchers',
-          items: ['Ilya Sutskever', 'Andrej Karpathy', 'Yann LeCun', 'Geoffrey Hinton', 'Yoshua Bengio', 'Andrew Ng']
-        },
-        {
-          title: 'Executives',
-          items: ['Jensen Huang', 'Satya Nadella', 'Sundar Pichai', 'Lisa Su', 'Pat Gelsinger', 'Andy Jassy']
-        },
-        {
-          title: 'Investors',
-          items: ['Marc Andreessen', 'Vinod Khosla', 'Peter Thiel', 'Daniel Gross', 'Nat Friedman', 'Elad Gil']
-        }
-      ]
-    }
-  };
-
-  const InfoCard = ({ title, value, subtitle, icon, trend }) => (
-    <div style={{
-      background: 'rgba(0,0,0,0.3)',
-      border: '1px solid #222',
-      borderRadius: '8px',
-      padding: '20px',
-      flex: 1,
-      minWidth: '200px'
-    }}>
-      <div style={{
-        fontSize: '11px',
-        color: '#666',
-        textTransform: 'uppercase',
-        letterSpacing: '1px',
-        marginBottom: '12px',
-        fontWeight: 600
-      }}>
-        {icon && <span style={{ marginRight: '8px' }}>{icon}</span>}
-        {title}
-      </div>
-      <div style={{
-        fontSize: '28px',
-        color: '#fff',
-        fontWeight: 700,
-        marginBottom: '8px',
-        fontFamily: theme.fonts.main
-      }}>
-        {value}
-      </div>
-      <div style={{
-        fontSize: '12px',
-        color: '#888',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px'
-      }}>
-        <span>{subtitle}</span>
-        {trend && (
-          <span style={{
-            color: trend.startsWith('+') ? '#00ff88' : trend.startsWith('-') ? '#ff4444' : '#888',
-            fontWeight: 600,
-            fontFamily: theme.fonts.mono
-          }}>
-            {trend}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-
-  const FeatureCard = ({ name, description, metrics, image }) => (
-    <div style={{
-      background: 'rgba(0,0,0,0.3)',
-      border: '1px solid #222',
-      borderRadius: '8px',
-      padding: '20px',
-      display: 'flex',
-      gap: '20px',
-      alignItems: 'flex-start'
-    }}>
-      {image && (
-        <div style={{
-          width: '80px',
-          height: '80px',
-          background: 'rgba(255,255,255,0.05)',
-          borderRadius: '8px',
+          position: 'absolute',
+          top: 'calc(100% + 8px)',
+          left: 0,
+          minWidth: '180px',
+          background: 'rgba(12,12,12,0.92)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: '14px',
+          padding: '6px',
+          backdropFilter: 'blur(10px)',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '32px',
-          flexShrink: 0
+          flexDirection: 'column',
+          gap: '2px',
+          animation: 'slideIn 0.15s ease-out',
+          zIndex: 20
         }}>
-          {image}
-        </div>
-      )}
-      <div style={{ flex: 1 }}>
-        <h4 style={{
-          fontSize: '18px',
-          color: '#fff',
-          fontWeight: 700,
-          margin: '0 0 8px 0'
-        }}>
-          {name}
-        </h4>
-        <p style={{
-          fontSize: '13px',
-          color: '#aaa',
-          lineHeight: '1.6',
-          margin: '0 0 12px 0'
-        }}>
-          {description}
-        </p>
-        <div style={{
-          display: 'flex',
-          gap: '20px',
-          fontSize: '12px',
-          fontFamily: theme.fonts.mono
-        }}>
-          {metrics.map((metric, i) => (
-            <div key={i}>
-              <span style={{ color: '#666' }}>{metric.label}: </span>
-              <span style={{ color: '#fff', fontWeight: 600 }}>{metric.value}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
-  // Domain color mapping
-  const domainColors = {
-    'Software': '#0088ff',
-    'Hardware': '#00ff88',
-    'Manufacturing': '#ff8800',
-    'Robotics': '#ff0088',
-    'People': '#8800ff'
-  };
-
-  // Subsection descriptions
-  const subsectionDescriptions = {
-    'Models': 'Foundation models and LLMs driving the current AI revolution',
-    'Model Families': 'Architectural paradigms and approaches to building AI systems',
-    'AI Frameworks': 'Core libraries for building and training neural networks',
-    'Runtimes / Serving': 'Tools for deploying and running models in production',
-    'AI Benchmarks': 'Standardized tests measuring model capabilities',
-    'Core Infrastructure': 'Vector databases, orchestration, and ML tooling',
-    'GPUs': 'Graphics processors powering AI training and inference',
-    'AI Accelerators / ASICs': 'Custom silicon designed specifically for AI workloads',
-    'Memory & Interconnect': 'High-bandwidth memory and chip-to-chip communication',
-    'Data Center Servers': 'Compute systems optimized for large-scale AI',
-    'Networking': 'High-speed fabrics connecting AI clusters',
-    'Fabs': 'Semiconductor fabrication facilities producing AI chips',
-    'Packaging & Assembly': 'Advanced techniques for assembling modern chips',
-    'Component Supply': 'Critical components in the AI silicon supply chain',
-    'Equipment Makers': 'Companies producing semiconductor manufacturing equipment',
-    'Supply Chain': 'Materials and processes enabling chip production',
-    'Humanoid Robotics': 'Human-form robots with AI capabilities',
-    'Industrial Robotics': 'Manufacturing and automation robot systems',
-    'Embedded AI / Edge Chips': 'AI processors for edge devices and robotics',
-    'Sensors & Actuators': 'Hardware enabling robot perception and movement',
-    'Autonomy Stacks': 'Software systems for autonomous navigation'
-  };
-
-  // Subsection component - displays items in a collage with explore button
-  const SubsectionCard = ({ title, items, domainColor, onEntityHover, onSubsectionClick, onEntityClick }) => {
-  const [expandedEntity, setExpandedEntity] = useState(null);
-
-  return (
-    <div style={{
-      background: 'rgba(0,0,0,0.2)',
-      border: '1px solid #222',
-      borderRadius: '8px',
-      padding: '20px',
-      marginBottom: '20px'
-    }}>
-      <h4 style={{
-        fontSize: '13px',
-        color: domainColor,
-        fontWeight: 700,
-        textTransform: 'uppercase',
-        letterSpacing: '1px',
-        marginBottom: '8px'
-      }}>
-        {title}
-      </h4>
-      <p style={{
-        fontSize: '12px',
-        color: '#666',
-        margin: '0 0 20px 0',
-        lineHeight: '1.5'
-      }}>
-        {subsectionDescriptions[title] || 'Explore this category'}
-      </p>
-
-      {/* Collage Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-        gap: '10px'
-      }}>
-        {/* Explore More Button - larger and prominent */}
-        <div
-          onClick={() => onSubsectionClick && onSubsectionClick(title)}
-          style={{
-            gridColumn: 'span 2',
-            gridRow: 'span 2',
-            background: `linear-gradient(135deg, ${domainColor}22 0%, ${domainColor}11 100%)`,
-            border: `2px solid ${domainColor}`,
-            borderRadius: '8px',
-            padding: '20px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.3s ease',
-            minHeight: '140px'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = `linear-gradient(135deg, ${domainColor}33 0%, ${domainColor}22 100%)`;
-            e.currentTarget.style.transform = 'scale(1.02)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = `linear-gradient(135deg, ${domainColor}22 0%, ${domainColor}11 100%)`;
-            e.currentTarget.style.transform = 'scale(1)';
-          }}
-        >
-          <div style={{
-            fontSize: '16px',
-            fontWeight: 700,
-            color: domainColor,
-            marginBottom: '8px',
-            textAlign: 'center'
-          }}>
-            Explore {title}
-          </div>
-          <div style={{
-            fontSize: '11px',
-            color: '#888',
-            textAlign: 'center'
-          }}>
-            View full directory →
-          </div>
-        </div>
-
-        {/* Item Pills */}
-        {items.slice(0, 8).map((item, i) => (
-          <React.Fragment key={i}>
-            <div style={{
-              background: expandedEntity === item ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
-              border: expandedEntity === item ? `1px solid ${domainColor}` : '1px solid #333',
-              borderRadius: '6px',
-              padding: '12px 10px',
-              fontSize: '11px',
-              color: expandedEntity === item ? '#fff' : '#aaa',
-              fontFamily: theme.fonts.mono,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-              minHeight: '60px',
-              lineHeight: '1.3'
-            }}
-            onClick={() => {
-              if (entityInfo[item]) {
-                setExpandedEntity(expandedEntity === item ? null : item);
-              }
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = domainColor;
-              e.currentTarget.style.color = '#fff';
-              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-              if (onEntityHover) onEntityHover(item);
-            }}
-            onMouseLeave={(e) => {
-              if (expandedEntity !== item) {
-                e.currentTarget.style.borderColor = '#333';
-                e.currentTarget.style.color = '#aaa';
-                e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-              }
-              if (onEntityHover) onEntityHover(null);
-            }}
-            >
-              {item}
-            </div>
-
-            {/* Expanded entity info */}
-            {expandedEntity === item && entityInfo[item] && (
-              <div style={{
-                gridColumn: '1 / -1',
-                background: 'rgba(0,0,0,0.5)',
-                border: `1px solid ${domainColor}`,
-                borderRadius: '8px',
-                padding: '20px',
-                marginTop: '-10px',
-                marginBottom: '10px'
-              }}>
-                <div style={{
+          {items.map(({ label: itemLabel, icon: ItemIcon, accent, onClick }) => {
+            const selected = itemLabel === selectedLabel;
+            return (
+              <button
+                key={itemLabel}
+                onClick={() => { setOpen(false); onClick(); }}
+                style={{
+                  background: selected ? 'rgba(0,255,136,0.08)' : 'transparent',
+                  border: 'none',
+                  borderRadius: '10px',
+                  color: selected ? NAV_GREEN : '#aaa',
+                  padding: '10px 14px',
+                  cursor: 'pointer',
+                  fontFamily: theme.fonts.main,
+                  fontSize: '12px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                  marginBottom: '15px'
-                }}>
-                  <div>
-                    <h4 style={{
-                      fontSize: '18px',
-                      color: '#fff',
-                      margin: '0 0 5px 0',
-                      fontWeight: 700
-                    }}>
-                      {entityInfo[item].name}
-                    </h4>
-                    <div style={{
-                      fontSize: '12px',
-                      color: '#666',
-                      fontFamily: theme.fonts.mono
-                    }}>
-                      {entityInfo[item].developer}
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setExpandedEntity(null);
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#666',
-                      fontSize: '20px',
-                      cursor: 'pointer',
-                      padding: 0,
-                      lineHeight: 1
-                    }}
-                    onMouseEnter={(e) => e.target.style.color = '#fff'}
-                    onMouseLeave={(e) => e.target.style.color = '#666'}
-                  >
-                    ×
-                  </button>
-                </div>
-
-                {/* Benchmarks Grid (if available) */}
-                {(entityInfo[item].contextWindow || entityInfo[item].aaiIndex) && (
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
-                    gap: '10px',
-                    marginBottom: '15px',
-                    padding: '12px',
-                    background: 'rgba(0,0,0,0.3)',
-                    borderRadius: '6px'
-                  }}>
-                    {entityInfo[item].contextWindow && (
-                      <div>
-                        <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>CONTEXT</div>
-                        <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].contextWindow}</div>
-                      </div>
-                    )}
-                    {entityInfo[item].aaiIndex && (
-                      <div>
-                        <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>AAI INDEX</div>
-                        <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].aaiIndex}</div>
-                      </div>
-                    )}
-                    {entityInfo[item].critPt && (
-                      <div>
-                        <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>CRITPT</div>
-                        <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].critPt}</div>
-                      </div>
-                    )}
-                    {entityInfo[item].mmmuPro && (
-                      <div>
-                        <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>MMMU PRO</div>
-                        <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].mmmuPro}</div>
-                      </div>
-                    )}
-                    {entityInfo[item].price && (
-                      <div>
-                        <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>PRICE</div>
-                        <div style={{ fontSize: '11px', color: domainColor, fontWeight: 600 }}>{entityInfo[item].price}</div>
-                      </div>
-                    )}
-                    {entityInfo[item].speed && entityInfo[item].speed !== 'TBD' && (
-                      <div>
-                        <div style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>SPEED</div>
-                        <div style={{ fontSize: '12px', color: domainColor, fontWeight: 600, fontFamily: theme.fonts.mono }}>{entityInfo[item].speed}</div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div style={{ marginBottom: '12px' }}>
-                  <div style={{
-                    fontSize: '10px',
-                    color: domainColor,
-                    textTransform: 'uppercase',
-                    letterSpacing: '1px',
-                    marginBottom: '5px',
-                    fontWeight: 600
-                  }}>Type</div>
-                  <div style={{ fontSize: '13px', color: '#fff', lineHeight: '1.5' }}>
-                    {entityInfo[item].type}
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: '12px' }}>
-                  <div style={{
-                    fontSize: '10px',
-                    color: domainColor,
-                    textTransform: 'uppercase',
-                    letterSpacing: '1px',
-                    marginBottom: '5px',
-                    fontWeight: 600
-                  }}>Strengths</div>
-                  <div style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5' }}>
-                    {entityInfo[item].strengths}
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: '12px' }}>
-                  <div style={{
-                    fontSize: '10px',
-                    color: domainColor,
-                    textTransform: 'uppercase',
-                    letterSpacing: '1px',
-                    marginBottom: '5px',
-                    fontWeight: 600
-                  }}>Use Cases</div>
-                  <div style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5' }}>
-                    {entityInfo[item].useCases}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{
-                    fontSize: '10px',
-                    color: domainColor,
-                    textTransform: 'uppercase',
-                    letterSpacing: '1px',
-                    marginBottom: '5px',
-                    fontWeight: 600
-                  }}>Notes</div>
-                  <div style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5' }}>
-                    {entityInfo[item].notes}
-                  </div>
-                </div>
-              </div>
-            )}
-          </React.Fragment>
-        ))}
-      </div>
-    </div>
-  );
-  };
-
-  // Get current domain data - default to Software if not set
-  const currentDomain = domainData[selectedTopic] || domainData['Software'];
-  const currentColor = domainColors[selectedTopic] || domainColors['Software'];
-
-  // Domain descriptions
-  const domainDescriptions = {
-    'Software': 'Code, models, and measurements of AI capabilities',
-    'Hardware': 'Physical compute that powers and trains AI systems',
-    'Manufacturing': 'Global industrial chain making AI silicon possible',
-    'Robotics': 'Where AI interacts with the physical world',
-    'People': 'The people driving the AI revolution',
-  };
-
-  // If no valid domain, don't render
-  if (!currentDomain) {
-    return null;
-  }
-
-  return (
-    <div>
-      {/* Domain Header */}
-      <div style={{
-        marginBottom: '40px',
-        paddingBottom: '20px',
-        borderBottom: `2px solid ${currentColor}`
-      }}>
-        <h2 style={{
-          fontSize: '32px',
-          color: currentColor,
-          fontWeight: 700,
-          margin: '0 0 12px 0',
-          textTransform: 'uppercase',
-          letterSpacing: '2px'
-        }}>
-          {selectedTopic}
-        </h2>
-        <p style={{
-          fontSize: '15px',
-          color: '#888',
-          margin: 0,
-          lineHeight: '1.6'
-        }}>
-          {domainDescriptions[selectedTopic]}
-        </p>
-      </div>
-
-      {/* Subsections */}
-      <div>
-        {currentDomain.subsections.map((subsection, index) => (
-          <SubsectionCard
-            key={index}
-            title={subsection.title}
-            items={subsection.items}
-            domainColor={currentColor}
-            onEntityHover={onEntityHover}
-            onSubsectionClick={onSubsectionClick}
-            onEntityClick={onEntityClick}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-
-function MarketWatch() {
-  const [watchList, setWatchList] = useState(() => {
-    const saved = localStorage.getItem('marketWatchList');
-    return saved ? JSON.parse(saved) : ['BTC', 'ETH', 'NVDA', 'TSLA'];
-  });
-  const [prices, setPrices] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [showAddTicker, setShowAddTicker] = useState(false);
-  const [newTicker, setNewTicker] = useState('');
-
-  useEffect(() => {
-    localStorage.setItem('marketWatchList', JSON.stringify(watchList));
-  }, [watchList]);
-
-  useEffect(() => {
-    const fetchPrices = async () => {
-      try {
-        const newPrices = {};
-        const API_URL = process.env.REACT_APP_API_URL || '';
-
-        // Separate crypto and stock tickers
-        const cryptoTickers = watchList.filter(t => ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'AVAX', 'DOT'].includes(t.toUpperCase()));
-        const stockTickers = watchList.filter(t => !['BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'AVAX', 'DOT'].includes(t.toUpperCase()));
-
-        // Fetch crypto prices
-        if (cryptoTickers.length > 0) {
-          const cryptoMap = {
-            'BTC': 'bitcoin', 'ETH': 'ethereum', 'SOL': 'solana',
-            'XRP': 'ripple', 'DOGE': 'dogecoin', 'ADA': 'cardano',
-            'AVAX': 'avalanche-2', 'DOT': 'polkadot'
-          };
-          const ids = cryptoTickers.map(t => cryptoMap[t.toUpperCase()]).filter(Boolean).join(',');
-
-          if (ids) {
-            const cryptoResponse = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`);
-            const cryptoData = await cryptoResponse.json();
-
-            cryptoTickers.forEach(ticker => {
-              const id = cryptoMap[ticker.toUpperCase()];
-              if (cryptoData[id]) {
-                newPrices[ticker] = {
-                  price: cryptoData[id].usd || 0,
-                  change: cryptoData[id].usd_24h_change || 0
-                };
-              }
-            });
-          }
-        }
-
-        // Fetch stock prices from backend
-        if (stockTickers.length > 0) {
-          for (const ticker of stockTickers) {
-            try {
-              const stockResponse = await fetch(`${API_URL}/api/stock/${ticker}`);
-              if (stockResponse.ok) {
-                const stockData = await stockResponse.json();
-                newPrices[ticker] = {
-                  price: stockData.price || 0,
-                  change: stockData.change || 0
-                };
-              } else {
-                newPrices[ticker] = { price: 0, change: 0 };
-              }
-            } catch (err) {
-              console.error(`Error fetching ${ticker}:`, err);
-              newPrices[ticker] = { price: 0, change: 0 };
-            }
-          }
-        }
-
-        setPrices(newPrices);
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching prices:', err);
-        setLoading(false);
-      }
-    };
-
-    fetchPrices();
-    const interval = setInterval(fetchPrices, 60000); // Update every minute
-    return () => clearInterval(interval);
-  }, [watchList]);
-
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(price);
-  };
-
-  const formatChange = (change) => {
-    const sign = change >= 0 ? '+' : '';
-    return `${sign}${change.toFixed(2)}%`;
-  };
-
-  const handleAddTicker = () => {
-    const ticker = newTicker.trim().toUpperCase();
-    if (ticker && !watchList.includes(ticker)) {
-      setWatchList([...watchList, ticker]);
-      setNewTicker('');
-      setShowAddTicker(false);
-    }
-  };
-
-  const handleRemoveTicker = (ticker) => {
-    setWatchList(watchList.filter(t => t !== ticker));
-  };
-
-  return (
-    <div style={{
-      background: 'rgba(20,20,20,0.5)',
-      border: '1px solid #222',
-      padding: '20px',
-      backdropFilter: 'blur(10px)'
-    }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: '20px',
-        paddingBottom: '15px',
-        borderBottom: '1px solid #333'
-      }}>
-        <span style={{ fontSize: '12px', fontWeight: 600, color: '#fff' }}>MARKET WATCH</span>
-        <button
-          onClick={() => setShowAddTicker(!showAddTicker)}
-          style={{
-            background: 'none',
-            border: '1px solid #333',
-            color: '#fff',
-            padding: '4px 8px',
-            fontSize: '12px',
-            cursor: 'pointer',
-            borderRadius: '3px',
-            transition: 'all 0.2s'
-          }}
-          onMouseEnter={(e) => e.target.style.borderColor = '#666'}
-          onMouseLeave={(e) => e.target.style.borderColor = '#333'}
-        >
-          {showAddTicker ? '✕' : '+'}
-        </button>
-      </div>
-
-      {showAddTicker && (
-        <div style={{ marginBottom: '15px' }}>
-          <input
-            type="text"
-            value={newTicker}
-            onChange={(e) => setNewTicker(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleAddTicker()}
-            placeholder="Enter ticker (e.g., BTC, AAPL)"
-            style={{
-              width: '100%',
-              padding: '8px',
-              background: 'rgba(0,0,0,0.3)',
-              border: '1px solid #333',
-              color: '#fff',
-              fontSize: '13px',
-              borderRadius: '3px',
-              marginBottom: '8px',
-              outline: 'none'
-            }}
-          />
-          <button
-            onClick={handleAddTicker}
-            style={{
-              width: '100%',
-              padding: '8px',
-              background: '#0066ff',
-              border: 'none',
-              color: '#fff',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              borderRadius: '3px'
-            }}
-          >
-            Add Ticker
-          </button>
-        </div>
-      )}
-
-      {loading ? (
-        <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
-          Loading prices...
-        </div>
-      ) : (
-        <div>
-          {watchList.map((symbol) => {
-            const data = prices[symbol] || { price: 0, change: 0 };
-            return (
-              <div key={symbol} style={{
-                marginBottom: '20px',
-                paddingBottom: '15px',
-                borderBottom: '1px solid #222',
-                position: 'relative'
-              }}>
-                <button
-                  onClick={() => handleRemoveTicker(symbol)}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    right: 0,
-                    background: 'none',
-                    border: 'none',
-                    color: '#666',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    padding: '2px 4px'
-                  }}
-                  onMouseEnter={(e) => e.target.style.color = '#ff4444'}
-                  onMouseLeave={(e) => e.target.style.color = '#666'}
-                >
-                  ✕
-                </button>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '20px' }}>
-                  <div>
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
-                      {symbol}
-                    </div>
-                    <div style={{ fontSize: '18px', color: '#fff', fontFamily: theme.fonts.mono }}>
-                      {data.price > 0 ? formatPrice(data.price) : '—'}
-                    </div>
-                  </div>
-                  {data.price > 0 && (
-                    <div style={{
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      color: data.change >= 0 ? '#00ff88' : '#ff4444',
-                      fontFamily: theme.fonts.mono
-                    }}>
-                      {formatChange(data.change)}
-                    </div>
-                  )}
-                </div>
-              </div>
+                  alignItems: 'center',
+                  gap: '10px',
+                  textAlign: 'left',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = selected ? 'rgba(0,255,136,0.15)' : 'rgba(255,255,255,0.08)';
+                  e.currentTarget.style.color = selected ? NAV_GREEN : 'white';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = selected ? 'rgba(0,255,136,0.08)' : 'transparent';
+                  e.currentTarget.style.color = selected ? NAV_GREEN : '#aaa';
+                }}
+              >
+                <ItemIcon size={14} color={selected ? NAV_GREEN : accent} />
+                {itemLabel}
+              </button>
             );
           })}
         </div>
@@ -3582,306 +419,1195 @@ function MarketWatch() {
   );
 }
 
-// Entity info database
-const entityInfo = {
-  'GPT-4o': {
-    name: 'GPT-4o',
-    developer: 'OpenAI',
-    type: 'Multimodal frontier model',
-    strengths: 'Fast reasoning, audio-native capabilities, strong coding + agent performance, robust real-time vision/audio.',
-    useCases: 'Agents, coding copilots, high-context chat, real-time multimodal apps.',
-    notes: 'Best all-around model for speed + breadth; strong API cost/performance.'
-  },
-  'Gemini 3 Pro': {
-    name: 'Gemini 3 Pro',
-    developer: 'Google DeepMind',
-    type: 'Multimodal generalist model',
-    strengths: 'Extremely strong reasoning on complex tasks, native video & long-context strengths, great math/science.',
-    useCases: 'Research, problem-solving, long document QA, multimodal pipelines.',
-    notes: 'Strong competitor to Opus/4o for reasoning workloads.'
-  },
-  'Claude 3.5 Opus': {
-    name: 'Claude 3.5 Opus',
-    developer: 'Anthropic',
-    type: 'Frontier reasoning & aligned LLM',
-    strengths: 'Best-in-class safety/alignment, exceptional writing, formal reasoning, and long-context coherence.',
-    useCases: 'Legal, policy, strategic planning, long-form writing, analysis.',
-    notes: 'Performs extremely well on tasks requiring nuance and deep clarity.'
-  },
-  'Llama 3.1 405B': {
-    name: 'Llama 3.1 405B',
-    developer: 'Meta',
-    type: 'Open-weight frontier model',
-    strengths: 'Huge context, excellent multilingual ability, competitive with commercial models in open-weight form.',
-    useCases: 'Self-hosted agents, enterprise deployments, research.',
-    notes: 'Ideal for DGX/cluster setups; unmatched flexibility for on-prem ops.'
-  },
-  'Qwen 2.5-72B': {
-    name: 'Qwen 2.5-72B',
-    developer: 'Alibaba',
-    type: 'Open-weight flagship model',
-    strengths: 'Great coding, multilingual proficiency, competitive reasoning at a fraction of compute.',
-    useCases: 'Cost-efficient reasoning, code assistants, enterprise internal workloads.',
-    notes: 'Often overperforms relative to size; extremely efficient at inference.'
-  },
-  'Mistral Large 2': {
-    name: 'Mistral Large 2',
-    developer: 'Mistral AI',
-    type: 'High-efficiency flagship model',
-    strengths: 'Extremely fast, highly optimized, great for structured reasoning and enterprise tasks.',
-    useCases: 'Fast agents, financial workflows, retrieval-heavy pipelines.',
-    notes: 'Known for speed + efficiency with strong reasoning balance.'
-  },
-  'GPT-4o mini': {
-    name: 'GPT-4o mini',
-    developer: 'OpenAI',
-    type: 'Small multimodal intelligence model',
-    strengths: 'Very fast, very cheap, surprisingly high quality for size; good for lightweight reasoning + agents.',
-    useCases: 'Bots, automation, embedded AI inside products.',
-    notes: 'Highest "cost-to-performance" ratio in OpenAI\'s lineup.'
-  },
-  'DeepSeek-V3': {
-    name: 'DeepSeek-V3',
-    developer: 'DeepSeek',
-    type: 'Advanced open-weight transformer',
-    strengths: 'Strong analytical reasoning, efficient architecture, highly competitive coding ability.',
-    useCases: 'Research setups, on-prem deployments, cost-optimized clusters.',
-    notes: 'Known for efficiency and outperforming Western models in many benchmarks.'
-  },
-  'Gemma 2-27B': {
-    name: 'Gemma 2-27B',
-    developer: 'Google',
-    type: 'Open-weight model (mid-size)',
-    strengths: 'Great safety, stable performance, ideal for fine-tuning, strong for resource-constrained self-hosting.',
-    useCases: 'Custom fine-tuned systems, mid-tier local agents, domain-specific LLMs.',
-    notes: 'Part of a reliable open-source ecosystem with clean training pipeline.'
-  },
-  'Phi-4': {
-    name: 'Phi-4',
-    developer: 'Microsoft Research',
-    type: 'Small reasoning model',
-    strengths: 'Shockingly strong reasoning for size, efficient and cheap to run, top-tier for lightweight cognitive tasks.',
-    useCases: 'On-device AI, fast agents, embedded reasoning tools.',
-    notes: 'The "small model that punches above its weight"—highly flexible for local or product use.'
-  },
-  'Gemini 3 Pro Preview': {
-    name: 'Gemini 3 Pro Preview',
-    developer: 'Google',
-    type: 'Next-gen multimodal frontier',
-    contextWindow: '1M tokens',
-    aaiIndex: '73',
-    critPt: '9%',
-    mmmuPro: '80%',
-    price: '$4.50 / 1M tokens',
-    speed: 'TBD',
-    latency: 'TBD',
-    strengths: 'Leading visual reasoning (80% MMMU Pro), massive context window, strong physics understanding (9% CritPt).',
-    useCases: 'Long-context research, scientific analysis, visual understanding tasks.',
-    notes: 'Highest AAI Index (73) and MMMU Pro score in current lineup; ideal for complex multimodal reasoning.'
-  },
-  'GPT-5.1 (High)': {
-    name: 'GPT-5.1 (High)',
-    developer: 'OpenAI',
-    type: 'Frontier reasoning model',
-    contextWindow: '400k tokens',
-    aaiIndex: '70',
-    critPt: '5%',
-    mmmuPro: '76%',
-    price: '$3.44 / 1M tokens',
-    speed: '152 tokens/s',
-    latency: '29.80s',
-    strengths: 'High AAI index (70), strong visual reasoning (76% MMMU Pro), fast inference at 152 tok/s.',
-    useCases: 'Production AI apps, agents, advanced reasoning tasks.',
-    notes: 'Balanced performance/cost; excellent for high-throughput workloads.'
-  },
-  'GPT-5 Codex (High)': {
-    name: 'GPT-5 Codex (High)',
-    developer: 'OpenAI',
-    type: 'Code-specialized model',
-    contextWindow: '400k tokens',
-    aaiIndex: '68',
-    price: '$3.44 / 1M tokens',
-    speed: '123 tokens/s',
-    latency: '20.80s',
-    strengths: 'Optimized for coding tasks, AAI 68, strong inference speed at 123 tok/s.',
-    useCases: 'Code generation, software engineering copilots, technical documentation.',
-    notes: 'Specialized variant of GPT-5 for software development workflows.'
-  },
-  'GPT-5 (High)': {
-    name: 'GPT-5 (High)',
-    developer: 'OpenAI',
-    type: 'Frontier general-purpose model',
-    contextWindow: '400k tokens',
-    aaiIndex: '68',
-    critPt: '6%',
-    mmmuPro: '74%',
-    price: '$3.44 / 1M tokens',
-    strengths: 'Strong general reasoning (AAI 68), solid physics performance (6% CritPt), 74% MMMU Pro.',
-    useCases: 'General AI tasks, research, content creation.',
-    notes: 'Flagship GPT-5 tier; reliable for broad use cases.'
-  },
-  'Kimi K2 Thinking': {
-    name: 'Kimi K2 Thinking',
-    developer: 'Moonshot AI',
-    type: 'Reasoning-focused model',
-    contextWindow: '256k tokens',
-    aaiIndex: '67',
-    critPt: '3%',
-    price: '$1.07 / 1M tokens',
-    speed: '77 tokens/s',
-    latency: '0.79s',
-    strengths: 'Excellent cost-to-performance ($1.07/1M tokens), AAI 67, ultra-low latency (0.79s).',
-    useCases: 'Cost-sensitive deployments, real-time apps, high-frequency inference.',
-    notes: 'Best value in AAI 67+ tier; ideal for budget-conscious production use.'
-  },
-  'GPT-5 (Medium)': {
-    name: 'GPT-5 (Medium)',
-    developer: 'OpenAI',
-    type: 'Mid-tier general model',
-    contextWindow: '400k tokens',
-    aaiIndex: '66',
-    mmmuPro: '74%',
-    price: '$3.44 / 1M tokens',
-    strengths: 'AAI 66, strong visual reasoning (74% MMMU Pro), same pricing as High tier.',
-    useCases: 'Balanced workloads, cost-conscious general tasks.',
-    notes: 'Slight performance tradeoff vs High tier; same cost structure.'
-  },
-  'o3': {
-    name: 'o3',
-    developer: 'OpenAI',
-    type: 'Reasoning model',
-    contextWindow: '200k tokens',
-    aaiIndex: '65',
-    mmmuPro: '70%',
-    price: '$3.50 / 1M tokens',
-    speed: '207 tokens/s',
-    latency: '12.97s',
-    strengths: 'Fastest inference (207 tok/s), AAI 65, low latency (12.97s).',
-    useCases: 'Real-time applications, high-throughput systems.',
-    notes: 'Speed-optimized variant; ideal when latency matters most.'
-  },
-  'Grok 4': {
-    name: 'Grok 4',
-    developer: 'xAI',
-    type: 'Frontier model',
-    contextWindow: '256k tokens',
-    aaiIndex: '65',
-    critPt: '2%',
-    mmmuPro: '69%',
-    price: '$6.00 / 1M tokens',
-    speed: '39 tokens/s',
-    latency: '8.93s',
-    strengths: 'AAI 65, low latency (8.93s), competitive visual reasoning (69% MMMU Pro).',
-    useCases: 'xAI ecosystem integration, multimodal tasks.',
-    notes: 'Premium pricing ($6/1M tokens); strong for physics and visual tasks.'
-  },
-  'GPT-5 Mini (High)': {
-    name: 'GPT-5 Mini (High)',
-    developer: 'OpenAI',
-    type: 'Efficient small model',
-    contextWindow: '400k tokens',
-    aaiIndex: '64',
-    mmmuPro: '70%',
-    price: '$0.69 / 1M tokens',
-    strengths: 'Excellent cost-to-performance ($0.69/1M), AAI 64, strong visual reasoning (70%).',
-    useCases: 'High-volume inference, embedded AI, cost-sensitive production.',
-    notes: 'Best price/performance in GPT-5 family; ideal for scale.'
-  },
-  'Grok 4.1 Fast': {
-    name: 'Grok 4.1 Fast',
-    developer: 'xAI',
-    type: 'Ultra-fast inference model',
-    contextWindow: '2M tokens',
-    aaiIndex: '64',
-    critPt: '3%',
-    mmmuPro: '63%',
-    price: '$0.28 / 1M tokens',
-    speed: '76 tokens/s',
-    latency: '13.61s',
-    strengths: 'Massive 2M context, cheapest option ($0.28/1M), AAI 64, decent speed (76 tok/s).',
-    useCases: 'Ultra-long context tasks, cost-sensitive large-scale deployments.',
-    notes: 'Unmatched context length; exceptional value for document-heavy workloads.'
+// --- Product Explainer (the backpack) ---
+
+function Eyebrow({ children }) {
+  return (
+    <div style={{
+      fontSize: '12px',
+      color: '#00ff88',
+      letterSpacing: '2px',
+      textTransform: 'uppercase',
+      fontFamily: theme.fonts.mono,
+      marginBottom: '18px',
+      opacity: 0.8
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function CodeBlock({ children }) {
+  return (
+    <pre style={{
+      background: '#0a0a0a',
+      border: '1px solid #1e1e1e',
+      borderRadius: '10px',
+      padding: '18px 20px',
+      margin: 0,
+      fontFamily: theme.fonts.mono,
+      fontSize: '13px',
+      lineHeight: '1.7',
+      color: '#d0d0d0',
+      overflowX: 'auto',
+      whiteSpace: 'pre'
+    }}>
+      {children}
+    </pre>
+  );
+}
+
+function ProductExplainer({ isMobile }) {
+  const [email, setEmail] = useState('');
+
+  const sectionGap = isMobile ? '64px' : '96px';
+  const heading = {
+    fontSize: isMobile ? '26px' : 'clamp(28px, 3.4vw, 40px)',
+    color: '#fff',
+    fontWeight: 800,
+    lineHeight: 1.1,
+    margin: '0 0 20px 0',
+    letterSpacing: '-0.02em',
+    fontFamily: theme.fonts.main
+  };
+  const body = {
+    color: '#8a8a8a',
+    fontSize: isMobile ? '15px' : '17px',
+    lineHeight: 1.7,
+    maxWidth: '640px',
+    margin: 0,
+    fontFamily: theme.fonts.main
+  };
+  const card = {
+    background: 'rgba(0,0,0,0.3)',
+    border: '1px solid #222',
+    borderRadius: '14px',
+    padding: '24px'
+  };
+
+  const joinWaitlist = () => {
+    const subject = encodeURIComponent('Backpack — hosted waitlist');
+    const bodyText = encodeURIComponent(`Add me to the hosted backpack waitlist.\n\nEmail: ${email || '(your email)'}\n`);
+    window.location.href = `mailto:${WAITLIST_EMAIL}?subject=${subject}&body=${bodyText}`;
+  };
+
+  const steps = [
+    {
+      icon: Search,
+      verb: 'search()',
+      title: 'Ask before you research',
+      text: 'Query the backpack first. If the answer is already known, your agent gets it back in a fraction of the tokens — no re-derivation.'
+    },
+    {
+      icon: Database,
+      verb: 'deposit()',
+      title: 'Write back what you learned',
+      text: 'Findings go into the shared memory with their source attached, so the next agent — yours or a teammate’s — never starts cold.'
+    },
+    {
+      icon: Shield,
+      verb: 'confidence',
+      title: 'Trust what you retrieve',
+      text: 'Every entry carries a confidence and freshness signal, so agents know what to rely on and what to re-verify.'
+    }
+  ];
+
+  return (
+    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+
+      {/* 1 — What it is */}
+      <section style={{ marginBottom: sectionGap }}>
+        <Eyebrow>What it is</Eyebrow>
+        <h2 style={{ ...heading, fontSize: isMobile ? '30px' : 'clamp(32px, 4.2vw, 52px)', maxWidth: '820px' }}>
+          A shared, verified memory so AI agents search once and reuse forever, instead of re-deriving the same knowledge from scratch.
+        </h2>
+        <p style={{ ...body, maxWidth: '680px' }}>
+          The backpack is a context-pack engine: a search-and-deposit memory your agents read from
+          before they work and write back to when they&rsquo;re done. One corpus, many agents, no cold starts.
+        </p>
+      </section>
+
+      {/* 2 — The problem */}
+      <section style={{ marginBottom: sectionGap }}>
+        <Eyebrow>The problem</Eyebrow>
+        <h2 style={heading}>Every agent starts cold, re-deriving what your team already knows.</h2>
+        <p style={body}>
+          Every agent starts cold. There&rsquo;s no shared, trustworthy memory between runs, between tools,
+          or between teammates — so the same research gets done again and again, and you pay for it every time.
+          The knowledge exists; it just isn&rsquo;t anywhere the next agent can reach.
+        </p>
+      </section>
+
+      {/* 3 — How it works */}
+      <section style={{ marginBottom: sectionGap }}>
+        <Eyebrow>How it works</Eyebrow>
+        <h2 style={heading}>Two verbs, one shared memory.</h2>
+        <p style={{ ...body, marginBottom: '36px' }}>
+          Agents <strong style={{ color: '#ccc', fontWeight: 600 }}>search</strong> the backpack before
+          researching and <strong style={{ color: '#ccc', fontWeight: 600 }}>deposit</strong> what they
+          learn after. Confidence and freshness ride along so retrieval stays trustworthy.
+        </p>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+          gap: '16px',
+          marginBottom: '28px'
+        }}>
+          {steps.map(({ icon: Icon, verb, title, text }) => (
+            <div key={verb} style={card}>
+              <Icon size={20} color="#00ff88" style={{ marginBottom: '16px' }} />
+              <div style={{ fontFamily: theme.fonts.mono, fontSize: '13px', color: '#00ff88', marginBottom: '10px' }}>{verb}</div>
+              <div style={{ color: '#fff', fontSize: '15px', fontWeight: 600, marginBottom: '10px' }}>{title}</div>
+              <div style={{ color: '#7a7a7a', fontSize: '13px', lineHeight: 1.6 }}>{text}</div>
+            </div>
+          ))}
+        </div>
+        <CodeBlock>{`search("H100 vs MI300X inference throughput")
+  → hit · confidence 0.91 · fresh 3d · 1.2k tokens
+
+deposit(finding, source, confidence)
+  → stored · now warm for the next agent`}</CodeBlock>
+      </section>
+
+      {/* 4 — Why it's useful */}
+      <section style={{ marginBottom: sectionGap }}>
+        <Eyebrow>Why it&rsquo;s useful</Eyebrow>
+        <h2 style={heading}>One verified answer, reused — instead of a fresh guess each run.</h2>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+          gap: '16px',
+          marginBottom: '20px'
+        }}>
+          <div style={{ ...card, padding: '32px' }}>
+            <div style={{ color: '#fff', fontSize: '16px', fontWeight: 700, marginBottom: '10px' }}>Consistent, cited answers</div>
+            <div style={{ color: '#7a7a7a', fontSize: '14px', lineHeight: 1.6 }}>
+              Agents retrieve the same verified, sourced answer every time — not a new derivation that
+              drifts or contradicts the last one.
+            </div>
+          </div>
+          <div style={{ ...card, padding: '32px' }}>
+            <div style={{ color: '#fff', fontSize: '16px', fontWeight: 700, marginBottom: '10px' }}>Provenance you can audit</div>
+            <div style={{ color: '#7a7a7a', fontSize: '14px', lineHeight: 1.6 }}>
+              Every entry carries its source, confidence, and freshness — so answers are traceable and
+              governable, not black-box.
+            </div>
+          </div>
+        </div>
+        <p style={{ ...body, fontSize: '14px', color: '#666' }}>
+          In early tests, reusing an answer costs a fraction of re-deriving it — roughly ~90% cheaper per
+          reused answer. We hold aggregate savings claims until a pilot on real traffic earns them.
+        </p>
+      </section>
+
+      {/* 5 — How to connect */}
+      <section style={{ marginBottom: sectionGap }}>
+        <Eyebrow>How to connect</Eyebrow>
+        <h2 style={heading}>It&rsquo;s an MCP server. Point your agents at it.</h2>
+        <p style={{ ...body, marginBottom: '36px' }}>
+          The backpack speaks the Model Context Protocol, so any MCP-capable agent — Claude Code,
+          Claude Desktop, your own runner — gets <code style={{ fontFamily: theme.fonts.mono, color: '#00ff88', fontSize: '0.9em' }}>search</code> and <code style={{ fontFamily: theme.fonts.mono, color: '#00ff88', fontSize: '0.9em' }}>deposit</code> as tools.
+          The engine ships as <code style={{ fontFamily: theme.fonts.mono, color: '#00ff88', fontSize: '0.9em' }}>rrsrch</code> — that&rsquo;s the server name and CLI you&rsquo;ll see below.
+        </p>
+
+        {/* Self-host (today) */}
+        <div style={{ ...card, marginBottom: '16px', padding: isMobile ? '20px' : '28px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <TerminalIcon size={18} color="#00ff88" />
+            <span style={{ color: '#fff', fontSize: '16px', fontWeight: 700 }}>Run it yourself</span>
+            <span style={{ fontFamily: theme.fonts.mono, fontSize: '11px', color: '#00ff88', border: '1px solid rgba(0,255,136,0.3)', borderRadius: '100px', padding: '3px 10px' }}>AVAILABLE TODAY</span>
+          </div>
+          <p style={{ color: '#7a7a7a', fontSize: '14px', lineHeight: 1.6, margin: '0 0 20px 0' }}>
+            Self-host the corpus and point your own agents at it. Cheap, private, and generating your own memory from day one.
+          </p>
+          <div style={{ display: 'grid', gap: '14px' }}>
+            <CodeBlock>{`$ git clone ${REPO_URL}.git
+$ cd RRSRCH/rrsrch
+$ make up            # Postgres + pgvector + API on :8000
+$ pip install .      # puts the rrsrch-mcp server on your PATH`}</CodeBlock>
+            <CodeBlock>{`// claude_desktop_config.json
+{
+  "mcpServers": {
+    "rrsrch": {
+      "command": "rrsrch-mcp",
+      "env": {
+        "RRSRCH_STORE": "postgres",
+        "RRSRCH_EMBEDDER": "local",
+        "RRSRCH_DATABASE_URL": "postgresql+asyncpg://rrsrch:rrsrch@localhost:5432/rrsrch"
+      }
+    }
   }
+}`}</CodeBlock>
+          </div>
+          <div style={{ display: 'flex', gap: '12px', marginTop: '22px', flexWrap: 'wrap' }}>
+            <a href={REPO_URL} target="_blank" rel="noreferrer" style={{
+              display: 'inline-flex', alignItems: 'center', gap: '8px',
+              background: '#fff', color: '#000', textDecoration: 'none',
+              padding: '11px 20px', borderRadius: '8px', fontSize: '14px', fontWeight: 700
+            }}>
+              <Github size={16} /> Clone the repo
+            </a>
+            <a href={`${REPO_URL}#readme`} target="_blank" rel="noreferrer" style={{
+              display: 'inline-flex', alignItems: 'center', gap: '8px',
+              background: 'transparent', color: '#ccc', textDecoration: 'none',
+              padding: '11px 20px', borderRadius: '8px', fontSize: '14px', fontWeight: 600,
+              border: '1px solid #333'
+            }}>
+              Read the docs <ArrowRight size={15} />
+            </a>
+          </div>
+        </div>
+
+        {/* Hosted (waitlist) */}
+        <div style={{ ...card, padding: isMobile ? '20px' : '28px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <Clock size={18} color="#888" />
+            <span style={{ color: '#fff', fontSize: '16px', fontWeight: 700 }}>Hosted corpus</span>
+            <span style={{ fontFamily: theme.fonts.mono, fontSize: '11px', color: '#888', border: '1px solid #333', borderRadius: '100px', padding: '3px 10px' }}>COMING SOON</span>
+          </div>
+          <p style={{ color: '#7a7a7a', fontSize: '14px', lineHeight: 1.6, margin: '0 0 20px 0' }}>
+            A shared, multi-tenant corpus with attestation — so you can trust memory your own agents didn&rsquo;t write. Join the waitlist and we&rsquo;ll reach out.
+          </p>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@company.com"
+              onKeyDown={(e) => { if (e.key === 'Enter') joinWaitlist(); }}
+              style={{
+                flex: 1, minWidth: isMobile ? '100%' : '220px',
+                background: '#0a0a0a', border: '1px solid #333', borderRadius: '8px',
+                padding: '12px 14px', color: '#fff', fontSize: '14px', outline: 'none',
+                fontFamily: theme.fonts.mono
+              }}
+            />
+            <button onClick={joinWaitlist} style={{
+              background: 'transparent', color: '#00ff88', border: '1px solid rgba(0,255,136,0.4)',
+              borderRadius: '8px', padding: '12px 22px', fontSize: '14px', fontWeight: 700,
+              cursor: 'pointer', whiteSpace: 'nowrap', width: isMobile ? '100%' : 'auto'
+            }}>
+              Notify me
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* 6 — Who it's for / trust */}
+      <section>
+        <Eyebrow>Who it&rsquo;s for</Eyebrow>
+        <h2 style={heading}>Built for agents — and the developers who point them.</h2>
+        <p style={{ ...body, marginBottom: '28px' }}>
+          The users here aren&rsquo;t people browsing; they&rsquo;re agents and their operators. That changes
+          what &ldquo;trustworthy&rdquo; has to mean — memory you didn&rsquo;t write yourself still has to be safe to act on.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px' }}>
+          <div style={card}>
+            <Zap size={20} color="#00ff88" style={{ marginBottom: '14px' }} />
+            <div style={{ color: '#fff', fontSize: '15px', fontWeight: 600, marginBottom: '8px' }}>Freshness, not just recall</div>
+            <div style={{ color: '#7a7a7a', fontSize: '13px', lineHeight: 1.6 }}>Entries are timestamped and freshness-scored, so agents re-verify stale facts instead of trusting them blindly.</div>
+          </div>
+          <div style={card}>
+            <Shield size={20} color="#00ff88" style={{ marginBottom: '14px' }} />
+            <div style={{ color: '#fff', fontSize: '15px', fontWeight: 600, marginBottom: '8px' }}>Attestation on the hosted corpus</div>
+            <div style={{ color: '#7a7a7a', fontSize: '13px', lineHeight: 1.6 }}>Shared memory carries provenance you can check — the difference between a cache and a corpus you can rely on.</div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  );
+}
+
+// --- Atlas (verified system graph + data-flow attestation) ---
+
+const ATLAS_ACCENT = '#7aa7e0';
+
+function AtlasExplainer({ isMobile }) {
+  const heading = {
+    fontSize: isMobile ? '26px' : 'clamp(28px, 3.4vw, 40px)',
+    color: '#fff', fontWeight: 800, lineHeight: 1.1, margin: '0 0 20px 0',
+    letterSpacing: '-0.02em', fontFamily: theme.fonts.main
+  };
+  const body = {
+    color: '#8a8a8a', fontSize: isMobile ? '15px' : '17px', lineHeight: 1.7,
+    maxWidth: '640px', margin: 0, fontFamily: theme.fonts.main
+  };
+  const card = {
+    background: 'rgba(0,0,0,0.3)', border: '1px solid #222',
+    borderRadius: '14px', padding: '24px'
+  };
+  const sectionGap = isMobile ? '64px' : '96px';
+  const mono = { fontFamily: theme.fonts.mono };
+
+  // the five provenance classes — same definitions as the attestation artifact
+  const classes = [
+    ['confirmed', '#5da862', 'declared in config AND observed in runtime evidence'],
+    ['phantom', '#e07070', 'declared, observable, and absent — documented but not real (drift)'],
+    ['shadow', '#dd9159', 'observed at runtime but declared nowhere — real but undocumented (drift)'],
+    ['undecidable', ATLAS_ACCENT, 'declared, but no connected source can observe it — evidence gap, not drift'],
+    ['hypothesis', '#84847e', 'inferred from code only'],
+  ];
+
+  return (
+    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+      <section style={{ marginBottom: sectionGap }}>
+        <div style={{ fontSize: '12px', color: ATLAS_ACCENT, letterSpacing: '2px', textTransform: 'uppercase', ...mono, marginBottom: '18px', opacity: 0.9 }}>Atlas — what it is</div>
+        <h2 style={{ ...heading, fontSize: isMobile ? '30px' : 'clamp(32px, 4.2vw, 52px)', maxWidth: '820px' }}>
+          A verified map of your system — every data flow reconciled against what config declares, code implies, and runtime proves.
+        </h2>
+        <p style={{ ...body, maxWidth: '680px' }}>
+          Atlas builds a system graph from three independent evidence classes — declared (config/IaC),
+          inferred (static analysis), observed (genuine runtime signal) — and reconciles them
+          deterministically. The output is a data-flow attestation: every edge on the map traces to a
+          source you can check.
+        </p>
+      </section>
+
+      <section style={{ marginBottom: sectionGap }}>
+        <div style={{ fontSize: '12px', color: ATLAS_ACCENT, letterSpacing: '2px', textTransform: 'uppercase', ...mono, marginBottom: '18px', opacity: 0.9 }}>The drift value</div>
+        <h2 style={heading}>Where documented ≠ real, Atlas shows you — with the evidence.</h2>
+        <p style={{ ...body, marginBottom: '28px' }}>
+          A <strong style={{ color: '#e07070' }}>phantom</strong> edge is declared but absent at runtime
+          despite an observing source. A <strong style={{ color: '#dd9159' }}>shadow</strong> edge is
+          running in production but documented nowhere. Both are the findings an audit cares about —
+          and an honest map refuses to call anything drift that is merely unobservable.
+        </p>
+        <div style={{ ...card, padding: isMobile ? '18px' : '24px' }}>
+          {classes.map(([name, color, def]) => (
+            <div key={name} style={{ display: 'flex', gap: '14px', alignItems: 'baseline', padding: '7px 0', borderBottom: '1px solid #1c1c1c', fontSize: '13.5px' }}>
+              <span style={{ ...mono, color, minWidth: '105px', fontWeight: 700 }}>{name}</span>
+              <span style={{ color: '#9a9a9a', lineHeight: 1.5 }}>{def}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section style={{ marginBottom: sectionGap }}>
+        <div style={{ fontSize: '12px', color: ATLAS_ACCENT, letterSpacing: '2px', textTransform: 'uppercase', ...mono, marginBottom: '18px', opacity: 0.9 }}>Proven on our own stack</div>
+        <h2 style={heading}>First attestation: our production app, real evidence, one real drift.</h2>
+        <p style={{ ...body, marginBottom: '28px' }}>
+          We ran the reconciliation probe against our own production stack (Vercel + Supabase + Stripe):
+          15 components resolved 1:1, 16 edges, every one source-backed. Result: 13 confirmed,
+          1 phantom — a declared migration path that never ran — and 2 honestly marked undecidable
+          pending provider-log connectors. That artifact, drift finding and evidence appendix included,
+          is the deliverable.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: '14px' }}>
+          {[['13', 'confirmed edges', '#5da862'], ['1', 'phantom (real drift)', '#e07070'],
+            ['2', 'undecidable (honest)', ATLAS_ACCENT], ['16/16', 'edges source-backed', '#ccc']]
+            .map(([v, l, c]) => (
+            <div key={l} style={{ ...card, textAlign: 'center', padding: '20px 12px' }}>
+              <div style={{ fontSize: '26px', fontWeight: 800, color: c }}>{v}</div>
+              <div style={{ fontSize: '12px', color: '#7a7a7a', marginTop: '4px' }}>{l}</div>
+            </div>
+          ))}
+        </div>
+        <p style={{ ...body, fontSize: '13px', color: '#666', marginTop: '18px' }}>
+          Numbers above are from that single validation probe on our own infrastructure — one stack,
+          measured, not extrapolated. Want the same attestation of your stack? That&rsquo;s the pilot.
+        </p>
+      </section>
+
+      <section>
+        <div style={{ fontSize: '12px', color: ATLAS_ACCENT, letterSpacing: '2px', textTransform: 'uppercase', ...mono, marginBottom: '18px', opacity: 0.9 }}>Status</div>
+        <h2 style={heading}>Early. Validated probe, pilot next.</h2>
+        <p style={{ ...body, marginBottom: '24px' }}>
+          The reconciliation engine and the attestation artifact exist and passed their validation gates
+          on a real stack. Connectors beyond Vercel/Supabase/Stripe (provider request logs — the thing
+          that turns &ldquo;undecidable&rdquo; into an answer) are the v1 build. If you want your
+          infra mapped with evidence, get in touch.
+        </p>
+        <a href={`mailto:${WAITLIST_EMAIL}?subject=${encodeURIComponent('Atlas pilot')}`} style={{
+          display: 'inline-flex', alignItems: 'center', gap: '8px', background: ATLAS_ACCENT,
+          color: '#000', textDecoration: 'none', padding: '12px 22px', borderRadius: '8px',
+          fontSize: '14px', fontWeight: 700
+        }}>
+          Ask about the pilot <ArrowRight size={15} />
+        </a>
+      </section>
+    </div>
+  );
+}
+
+// --- Account: sign in / create account + the dashboard ---
+
+const TOKEN_KEY = 'rrsrch_token';
+
+function Field({ label, type, value, onChange, autoComplete }) {
+  return (
+    <label style={{ display: 'block', marginBottom: '14px' }}>
+      <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', fontFamily: theme.fonts.mono, marginBottom: '6px' }}>{label}</div>
+      <input
+        type={type}
+        value={value}
+        autoComplete={autoComplete}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          width: '100%', background: '#0a0a0a', border: '1px solid #333', borderRadius: '8px',
+          padding: '12px 14px', color: '#fff', fontSize: '14px', outline: 'none',
+          fontFamily: theme.fonts.main, boxSizing: 'border-box'
+        }}
+      />
+    </label>
+  );
+}
+
+function ConnectionDocs({ isMobile }) {
+  const card = {
+    background: 'rgba(0,0,0,0.3)', border: '1px solid #222',
+    borderRadius: '14px', padding: isMobile ? '20px' : '28px', marginBottom: '16px'
+  };
+  const scopeNote = { fontSize: '12px', color: '#666', margin: '14px 0 6px', fontFamily: theme.fonts.mono, textTransform: 'uppercase', letterSpacing: '1px' };
+  return (
+    <>
+      <div style={card}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+          <Database size={18} color="#00ff88" />
+          <span style={{ color: '#fff', fontSize: '16px', fontWeight: 700 }}>rrsrch — the Backpack server</span>
+          <span style={{ fontFamily: theme.fonts.mono, fontSize: '11px', color: '#00ff88', border: '1px solid rgba(0,255,136,0.3)', borderRadius: '100px', padding: '3px 10px' }}>SELF-HOST TODAY</span>
+        </div>
+        <p style={{ color: '#7a7a7a', fontSize: '14px', lineHeight: 1.6, margin: '0 0 14px 0' }}>
+          Gives any MCP-capable agent <code style={{ fontFamily: theme.fonts.mono, color: '#00ff88' }}>search</code> / <code style={{ fontFamily: theme.fonts.mono, color: '#00ff88' }}>deposit</code> (+ corroborate, recalls) against your corpus.
+        </p>
+        <div style={scopeNote}>user scope — your machine, every project (Claude Code)</div>
+        <CodeBlock>{`$ claude mcp add rrsrch --scope user \\
+    --env RRSRCH_STORE=postgres \\
+    --env RRSRCH_DATABASE_URL=postgresql+asyncpg://rrsrch:rrsrch@localhost:5432/rrsrch \\
+    -- rrsrch-mcp`}</CodeBlock>
+        <div style={scopeNote}>project scope — shared with your team via .mcp.json</div>
+        <CodeBlock>{`// .mcp.json (checked into the repo)
+{
+  "mcpServers": {
+    "rrsrch": {
+      "command": "rrsrch-mcp",
+      "env": { "RRSRCH_STORE": "postgres",
+               "RRSRCH_DATABASE_URL": "postgresql+asyncpg://..." }
+    }
+  }
+}`}</CodeBlock>
+        <div style={scopeNote}>org scope — managed settings (admins)</div>
+        <p style={{ color: '#7a7a7a', fontSize: '13px', lineHeight: 1.6, margin: 0 }}>
+          Distribute the same server block through managed settings so every seat gets the corpus
+          without per-user setup. Point RRSRCH_DATABASE_URL at the org&rsquo;s shared Postgres.
+        </p>
+      </div>
+      <div style={card}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+          <Shield size={18} color={ATLAS_ACCENT} />
+          <span style={{ color: '#fff', fontSize: '16px', fontWeight: 700 }}>atlas-mcp — the Atlas server</span>
+          <span style={{ fontFamily: theme.fonts.mono, fontSize: '11px', color: ATLAS_ACCENT, border: `1px solid ${ATLAS_ACCENT}55`, borderRadius: '100px', padding: '3px 10px' }}>SHIPS WITH THE PILOT</span>
+        </div>
+        <p style={{ color: '#7a7a7a', fontSize: '14px', lineHeight: 1.6, margin: '0 0 14px 0' }}>
+          Will expose the reconciled graph to agents: query edges and provenance, check blast radius
+          before a change, fetch the attestation. Preview config — the server ships with the pilot.
+        </p>
+        <CodeBlock>{`// preview — final flags may change with the pilot
+{
+  "mcpServers": {
+    "atlas": {
+      "command": "atlas-mcp",
+      "env": { "ATLAS_GRAPH": "/path/to/atlas_graph.json" }
+    }
+  }
+}`}</CodeBlock>
+      </div>
+    </>
+  );
+}
+
+
+// --- Live dashboard panels: the browser polls YOUR local instances directly ---
+// (CORS-enabled read-only endpoints; data never leaves the operator's machine)
+
+const agoShort = (iso) => {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (!isFinite(s)) return '';
+  if (s < 60) return `${Math.max(1, Math.floor(s))}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
 };
+
+function StatusDot({ ok }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: ok ? '#00ff88' : '#e07070', boxShadow: ok ? '0 0 6px #00ff88' : 'none' }} />
+      <span style={{ fontFamily: theme.fonts.mono, fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>{ok ? 'live' : 'not connected'}</span>
+    </div>
+  );
+}
+
+function StatTile({ label, value, sub, color }) {
+  return (
+    <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid #222', borderRadius: '12px', padding: '16px' }}>
+      <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', fontFamily: theme.fonts.mono }}>{label}</div>
+      <div style={{ fontSize: '26px', fontWeight: 800, color: color || '#fff', marginTop: '4px' }}>{value}</div>
+      {sub && <div style={{ fontSize: '11px', color: '#666', marginTop: '4px', lineHeight: 1.5 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function NotConnected({ what, endpoint, hint }) {
+  return (
+    <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid #222', borderRadius: '12px', padding: '24px' }}>
+      <div style={{ color: '#fff', fontWeight: 700, marginBottom: '8px' }}>
+        {endpoint ? `No response from ${endpoint}` : 'No endpoint set for this project'}
+      </div>
+      <div style={{ color: '#7a7a7a', fontSize: '13px', lineHeight: 1.7 }}>
+        This panel reads your local {what} directly from your browser — nothing is uploaded.
+        Start it and this page picks it up within a few seconds:
+      </div>
+      <div style={{ color: '#7a7a7a', fontSize: '12px', lineHeight: 1.7, margin: '10px 0 0' }}>
+        Already running? Chrome asks once for permission to reach your local network —
+        click <strong style={{ color: '#ccc' }}>Allow</strong>. If you dismissed it, re-enable it
+        under the padlock icon → Site settings → Local network access.
+      </div>
+      <CodeBlock>{hint}</CodeBlock>
+    </div>
+  );
+}
+
+const OUTCOME_STYLE = {
+  hit: ['#00ff88', 'reused'], stale: ['#fab219', 'stale'], miss: ['#888', 'miss'],
+  agreed: ['#00ff88', 'corroborated'], disagreed: ['#e07070', 'corrected'],
+  explore: [ATLAS_ACCENT, 'spot-check'],
+};
+
+function BackpackPanel({ isMobile, accountEmail, endpoint, setEndpoint }) {
+  const [metrics, setMetrics] = useState(null);
+  const [recent, setRecent] = useState([]);
+  const [ok, setOk] = useState(false);
+  const [who, setWho] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    const poll = async () => {
+      try {
+        const [m, r, w] = await Promise.all([
+          fetch(`${endpoint}/metrics`).then((x) => x.json()),
+          fetch(`${endpoint}/recent?limit=8`).then((x) => x.json()),
+          fetch(`${endpoint}/whoami`).then((x) => x.json()).catch(() => null),
+        ]);
+        if (!alive) return;
+        setMetrics(m); setRecent(Array.isArray(r) ? r : []); setWho(w); setOk(true);
+      } catch {
+        if (alive) setOk(false);
+      }
+    };
+    poll();
+    const id = setInterval(poll, 5000);
+    return () => { alive = false; clearInterval(id); };
+  }, [endpoint]);
+
+  const c = metrics?.corpus || {};
+  return (
+    <div>
+      <StatusDot ok={ok} />
+      {!ok ? (
+        <NotConnected what="Backpack corpus (the rrsrch API)" endpoint={endpoint}
+          hint={`$ cd RRSRCH/rrsrch && make up   # Postgres + API on :8000`} />
+      ) : (
+        <>
+          {who && (
+            who.paired ? (
+              who.account_email === accountEmail ? (
+                <div style={{ fontSize: '12px', color: '#00ff88', marginBottom: '14px', fontFamily: theme.fonts.mono }}>
+                  ✓ this instance is paired to your account ({who.account_email})
+                </div>
+              ) : (
+                <div style={{ fontSize: '12px', color: '#fab219', marginBottom: '14px', fontFamily: theme.fonts.mono }}>
+                  ⚠ this instance is paired to a DIFFERENT account ({who.account_email})
+                </div>
+              )
+            ) : (
+              <div style={{ fontSize: '12px', color: '#888', marginBottom: '14px', fontFamily: theme.fonts.mono }}>
+                unpaired instance — run <span style={{ color: '#ccc' }}>rrsrch-login</span> to attribute MCP activity to your account
+              </div>
+            )
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: '12px', marginBottom: '18px' }}>
+            <StatTile label="Knowledge stored" value={c.live_deposits ?? '–'}
+              sub={`${c.distinct_questions ?? 0} distinct questions`} />
+            <StatTile label="Reuse rate" value={metrics.total_queries ? `${Math.round(metrics.hit_rate * 100)}%` : '–'}
+              sub={`${metrics.hits} served of ${metrics.total_queries} queries`} />
+            <StatTile label="Queries handled" value={metrics.total_queries}
+              sub={`${metrics.hits} hits · ${metrics.stale} stale · ${metrics.misses} misses`} />
+            <StatTile label="Tokens saved (measured)"
+              value={(metrics.tokens_saved_measured ?? 0).toLocaleString()}
+              sub={(metrics.hits_measured_basis ?? 0) > 0
+                ? `from ${metrics.hits_measured_basis} hit${metrics.hits_measured_basis === 1 ? '' : 's'} with recorded research cost${(metrics.hits_estimated_basis ?? 0) > 0 ? ` · ${metrics.hits_estimated_basis} hit(s) without a recorded cost credited zero` : ''}`
+                : 'no hits with a recorded research cost yet — pass derivation_tokens on deposit()'} />
+          </div>
+          <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', fontFamily: theme.fonts.mono, marginBottom: '10px' }}>Live MCP activity — newest first</div>
+          {recent.length === 0 && <div style={{ color: '#666', fontSize: '13px' }}>No queries yet — search via MCP and watch this fill in.</div>}
+          {recent.map((e, i) => {
+            const [color, label] = OUTCOME_STYLE[e.outcome] || ['#888', e.outcome];
+            return (
+              <div key={`${e.ts}-${i}`} style={{ border: '1px solid #1e1e1e', borderRadius: '10px', padding: '10px 14px', marginBottom: '8px', background: 'rgba(0,0,0,0.25)' }}>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'baseline', flexWrap: 'wrap' }}>
+                  <span style={{ color, fontSize: '11px', fontWeight: 700, fontFamily: theme.fonts.mono, textTransform: 'uppercase' }}>{label}</span>
+                  <span style={{ color: '#ddd', fontSize: '13px', fontWeight: 600, overflowWrap: 'anywhere' }}>{e.query}</span>
+                  <span style={{ color: '#555', fontSize: '11px', marginLeft: 'auto', whiteSpace: 'nowrap' }}>{agoShort(e.ts)}</span>
+                </div>
+                {(e.outcome === 'hit' || e.outcome === 'stale') && e.claim && (
+                  <div style={{ color: '#8a8a8a', fontSize: '12px', marginTop: '6px', overflowWrap: 'anywhere' }}>→ {e.claim}</div>
+                )}
+                {e.confidence != null && (
+                  <div style={{ color: '#666', fontSize: '11px', marginTop: '6px', fontFamily: theme.fonts.mono }}>
+                    confidence {Number(e.confidence).toFixed(2)}
+                    {e.source_urls?.length ? ` · ${e.source_urls.length} source${e.source_urls.length > 1 ? 's' : ''}` : ''}
+                    {e.depositor ? ` · by ${e.depositor}` : ''}
+                    {e.age_seconds != null ? ` · answer ${agoShort(new Date(Date.now() - e.age_seconds * 1000).toISOString()).replace(' ago', ' old')}` : ''}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
+    </div>
+  );
+}
+
+const ATLAS_STATE_COLORS = {
+  confirmed: '#5da862', phantom: '#e07070', shadow: '#dd9159',
+  undecidable: ATLAS_ACCENT, hypothesis: '#84847e',
+};
+
+function AtlasPanel({ isMobile, projectName }) {
+  const [graph, setGraph] = useState(null);
+  const [status, setStatus] = useState('loading'); // loading | none | ok
+  const [published, setPublished] = useState([]);  // slugs already on the account
+  // same slug rule as probe.py + the server: kebab-cased target name
+  const slug = (projectName || 'your-project').toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+  const probeRecipe = `# one-time on the machine with the code — pair it to this account
+$ rrsrch-login
+
+# attest the project FROM ITS OWN REPO (read-only; discovers the stack)
+$ cd ~/code/${slug} && atlas-probe
+
+# it publishes to this dashboard automatically — nothing to host, nothing local`;
+
+  useEffect(() => {
+    let alive = true;
+    const auth = { Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY)}` };
+    const poll = async () => {
+      try {
+        const r = await fetch(`/api/account/atlas/${slug}`, { headers: auth });
+        if (!alive) return;
+        if (r.ok) { setGraph(await r.json()); setStatus('ok'); return; }
+        setStatus('none');
+        const l = await fetch('/api/account/atlas', { headers: auth });
+        if (alive && l.ok) setPublished(Object.keys((await l.json()).targets || {}).sort());
+      } catch {
+        if (alive) setStatus('none');
+      }
+    };
+    poll();
+    const id = setInterval(poll, 15000);
+    return () => { alive = false; clearInterval(id); };
+  }, [slug]);
+
+  if (status === 'loading') {
+    return <div style={{ color: '#666', fontSize: '13px', padding: '24px 0' }}>Loading attestation…</div>;
+  }
+  if (status === 'none') {
+    return (
+      <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid #222', borderRadius: '12px', padding: '24px' }}>
+        <div style={{ color: '#fff', fontWeight: 700, marginBottom: '8px' }}>
+          No attestation published for &ldquo;{slug}&rdquo;
+        </div>
+        <div style={{ color: '#7a7a7a', fontSize: '13px', lineHeight: 1.7 }}>
+          Atlas attestations are produced by the probe and published to your account —
+          the dashboard reads them from here, not from your machine.
+        </div>
+        <CodeBlock>{probeRecipe}</CodeBlock>
+        {published.length > 0 && (
+          <div style={{ color: '#7a7a7a', fontSize: '12px', lineHeight: 1.7, marginTop: '12px' }}>
+            Published on this account:{' '}
+            {published.map((p) => (
+              <span key={p} style={{ fontFamily: theme.fonts.mono, color: '#ccc', marginRight: '8px' }}>{p}</span>
+            ))}
+            <br />The probe names a target from its package.json / directory — rename this
+            project to match, or probe the right repo.
+          </div>
+        )}
+      </div>
+    );
+  }
+  if ((graph?.edges || []).length === 0) {
+    return (
+      <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid #222', borderRadius: '12px', padding: '24px' }}>
+        <div style={{ color: '#fff', fontWeight: 700, marginBottom: '8px' }}>
+          Attestation is empty — the probe found no declared stack
+        </div>
+        <div style={{ color: '#7a7a7a', fontSize: '13px', lineHeight: 1.7 }}>
+          The probe attests whatever directory it runs from. An empty graph usually means it
+          ran somewhere without manifests (package.json, docker-compose, env files). Re-run it
+          from the project&rsquo;s real code repo:
+        </div>
+        <CodeBlock>{probeRecipe}</CodeBlock>
+      </div>
+    );
+  }
+  return <AtlasAttestation graph={graph} isMobile={isMobile} />;
+}
+
+function AccountPage({ isMobile }) {
+  const [user, setUser] = useState(null);
+  const [checking, setChecking] = useState(true);
+  const [mode, setMode] = useState('signin');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState('backpack');
+  const [devices, setDevices] = useState([]);
+  const DEFAULT_PROJECT = {
+    id: 'default', name: 'bouncr (local)',
+    backpack_url: 'http://localhost:8000', atlas_url: 'http://localhost:8100',
+  };
+  const [projects, setProjects] = useState([DEFAULT_PROJECT]);
+  const [activeId, setActiveId] = useState('default');
+  const saveTimer = useRef(null);
+  const persistProjects = (nextProjects, nextActive) => {
+    setProjects(nextProjects);
+    setActiveId(nextActive);
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      fetch('/api/account/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json',
+                   Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY)}` },
+        body: JSON.stringify({ projects: nextProjects, active_project_id: nextActive }),
+      }).catch(() => {});
+    }, 700);
+  };
+  const active = projects.find((pr) => pr.id === activeId) || projects[0];
+  const updateActive = (patch) => {
+    persistProjects(projects.map((pr) => (pr.id === active.id ? { ...pr, ...patch } : pr)),
+                    active.id);
+  };
+  const BLANK_NEW_PROJECT = {
+    name: '', backpack_url: 'http://localhost:8000', atlas_url: 'http://localhost:8100',
+  };
+  const [creating, setCreating] = useState(false);
+  const [newProject, setNewProject] = useState(BLANK_NEW_PROJECT);
+  const createProject = () => {
+    const cleanName = newProject.name.trim();
+    if (!cleanName) return;
+    const pr = { id: `p-${Date.now().toString(36)}`, name: cleanName.slice(0, 60),
+                 backpack_url: newProject.backpack_url.trim(),
+                 atlas_url: newProject.atlas_url.trim() };
+    persistProjects([...projects, pr], pr.id);
+    setCreating(false);
+    setNewProject(BLANK_NEW_PROJECT);
+  };
+  const deleteActive = () => {
+    if (projects.length <= 1) return;
+    if (!window.confirm(`Delete project "${active.name}"? (Only the saved endpoints — no data is touched.)`)) return;
+    const rest = projects.filter((pr) => pr.id !== active.id);
+    persistProjects(rest, rest[0].id);
+  };
+  const pairFromUrl = (window.location.hash.split('?')[1] || '')
+    .split('&').map((kv) => kv.split('=')).find(([k]) => k === 'pair')?.[1] || '';
+  const [pairCode, setPairCode] = useState(decodeURIComponent(pairFromUrl));
+  const [pairMsg, setPairMsg] = useState('');
+
+  const approvePair = async () => {
+    setPairMsg('');
+    try {
+      const r = await fetch('/api/device/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json',
+                   Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY)}` },
+        body: JSON.stringify({ user_code: pairCode }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Approval failed.');
+      setPairMsg(`✓ Paired "${d.device_name}" — the terminal picks it up within seconds.`);
+      setPairCode('');
+      refreshDevices();
+    } catch (e) {
+      setPairMsg(`✗ ${e.message}`);
+    }
+  };
+
+  const refreshDevices = () => {
+    fetch('/api/account/me', { headers: { Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY)}` } })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setDevices(d.devices || []))
+      .catch(() => {});
+  };
+
+  const revokeDevice = async (id) => {
+    await fetch(`/api/device/${id}`, { method: 'DELETE',
+      headers: { Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY)}` } });
+    refreshDevices();
+  };
+
+  const heading = {
+    fontSize: isMobile ? '26px' : 'clamp(28px, 3.4vw, 40px)', color: '#fff',
+    fontWeight: 800, lineHeight: 1.1, margin: '0 0 20px 0',
+    letterSpacing: '-0.02em', fontFamily: theme.fonts.main
+  };
+  const body = {
+    color: '#8a8a8a', fontSize: isMobile ? '15px' : '16px', lineHeight: 1.7,
+    maxWidth: '640px', margin: 0, fontFamily: theme.fonts.main
+  };
+  const card = {
+    background: 'rgba(0,0,0,0.3)', border: '1px solid #222',
+    borderRadius: '14px', padding: isMobile ? '20px' : '28px', marginBottom: '16px'
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) { setChecking(false); return; }
+    fetch('/api/account/me', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => {
+        setUser(d.user); setDevices(d.devices || []);
+        if (d.projects && d.projects.length) {
+          setProjects(d.projects);
+          setActiveId(d.active_project_id || d.projects[0].id);
+        }
+      })
+      .catch(() => localStorage.removeItem(TOKEN_KEY))
+      .finally(() => setChecking(false));
+  }, []);
+
+  const submit = async () => {
+    if (busy) return;
+    setBusy(true); setErr('');
+    try {
+      const r = await fetch(`/api/account/${mode === 'signin' ? 'login' : 'signup'}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mode === 'signin' ? { email, password } : { name, email, password })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Something went wrong.');
+      localStorage.setItem(TOKEN_KEY, d.token);
+      setUser(d.user);
+      setPassword('');
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const signOut = () => { localStorage.removeItem(TOKEN_KEY); setUser(null); };
+
+  const deleteAccount = async () => {
+    if (!window.confirm('Delete your account? This cannot be undone.')) return;
+    const token = localStorage.getItem(TOKEN_KEY);
+    await fetch('/api/account/me', { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    signOut();
+  };
+
+  if (checking) {
+    return <div style={{ maxWidth: '900px', margin: '0 auto', color: '#666' }}>Checking session…</div>;
+  }
+
+  if (!user) {
+    return (
+      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+        <Eyebrow>Account</Eyebrow>
+        <h2 style={heading}>{mode === 'signin' ? 'Sign in.' : 'Create your account.'}</h2>
+        <p style={{ ...body, marginBottom: '28px' }}>
+          Your account is where the dashboard lives: connection setup for both MCP servers now,
+          usage and keys as the hosted pilot lands. No spam, no card — just an email and a password.
+        </p>
+        <div style={{ ...card, maxWidth: '440px' }}>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '22px' }}>
+            {[['signin', 'Sign in'], ['signup', 'Create account']].map(([m, label]) => (
+              <button key={m} onClick={() => { setMode(m); setErr(''); }} style={{
+                flex: 1, padding: '9px 0', borderRadius: '8px', cursor: 'pointer',
+                fontFamily: theme.fonts.main, fontSize: '13px', fontWeight: 700,
+                background: mode === m ? '#fff' : 'transparent',
+                color: mode === m ? '#000' : '#888',
+                border: mode === m ? '1px solid #fff' : '1px solid #333'
+              }}>{label}</button>
+            ))}
+          </div>
+          {mode === 'signup' && (
+            <Field label="Name" type="text" value={name} onChange={setName} autoComplete="name" />
+          )}
+          <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
+          <Field label={mode === 'signup' ? 'Password (8+ characters)' : 'Password'} type="password"
+                 value={password} onChange={setPassword}
+                 autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} />
+          {err && <div style={{ color: '#e07070', fontSize: '13px', marginBottom: '14px' }}>{err}</div>}
+          <button onClick={submit} disabled={busy} style={{
+            width: '100%', background: '#00ff88', color: '#000', border: 'none',
+            borderRadius: '8px', padding: '13px 0', fontSize: '14px', fontWeight: 800,
+            cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1,
+            fontFamily: theme.fonts.main
+          }}>
+            {busy ? 'Working…' : (mode === 'signin' ? 'Sign in' : 'Create account')}
+          </button>
+        </div>
+        <p style={{ ...body, fontSize: '12px', color: '#555', maxWidth: '440px' }}>
+          Early accounts: profile + connection setup today; usage metering arrives with the hosted
+          pilot. Passwords are stored as bcrypt hashes only.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+      <Eyebrow>Dashboard</Eyebrow>
+      <h2 style={heading}>Welcome, {user.name}.</h2>
+      <p style={{ ...body, marginBottom: '28px' }}>
+        Signed in as <span style={{ color: '#ccc' }}>{user.email}</span> · member since{' '}
+        {new Date(user.created_at).toLocaleDateString()}
+      </p>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
+        <span style={{ fontFamily: theme.fonts.mono, fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>Project</span>
+        <select value={active.id} onChange={(e) => persistProjects(projects, e.target.value)}
+          style={{ background: 'rgba(0,255,136,0.08)', color: NAV_GREEN,
+                   border: '1px solid rgba(0,255,136,0.45)', borderRadius: '8px',
+                   padding: '8px 12px', font: 'inherit', fontSize: '13px', fontWeight: 600,
+                   cursor: 'pointer', outline: 'none' }}>
+          {projects.map((pr) => (
+            <option key={pr.id} value={pr.id} style={{ background: '#0a0a0a', color: '#fff' }}>
+              {pr.name}
+            </option>
+          ))}
+        </select>
+        <button onClick={() => setCreating(!creating)} style={{
+          background: creating ? '#fff' : 'none', border: creating ? '1px solid #fff' : '1px solid #333',
+          borderRadius: '8px', color: creating ? '#000' : '#ccc', fontSize: '12px', padding: '8px 14px',
+          cursor: 'pointer', fontFamily: theme.fonts.main }}>{creating ? 'Cancel' : '＋ New project'}</button>
+        {projects.length > 1 && (
+          <button onClick={deleteActive} style={{ background: 'none', border: 'none',
+            color: '#555', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline',
+            fontFamily: theme.fonts.main }}>delete</button>
+        )}
+      </div>
+
+      {creating && (
+        <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid #222', borderRadius: '14px',
+          padding: isMobile ? '18px' : '24px', marginBottom: '20px' }}>
+          <div style={{ color: '#fff', fontSize: '15px', fontWeight: 700, marginBottom: '4px' }}>New project</div>
+          <p style={{ ...body, fontSize: '13px', maxWidth: '560px', margin: '0 0 16px 0' }}>
+            Name it after the repo the probe will attest (its package.json / directory name).
+            The Atlas tab reads attestations published to your account; the Backpack tab reads
+            your corpus API.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+            {[
+              ['Project name', 'name', 'e.g. "acme-prod"'],
+              ['Backpack API', 'backpack_url', 'http://localhost:8000'],
+            ].map(([label, key, placeholder]) => (
+              <div key={key}>
+                <div style={{ fontFamily: theme.fonts.mono, fontSize: '10px', color: '#888',
+                  textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>{label}</div>
+                <input value={newProject[key]} placeholder={placeholder} spellCheck={false}
+                  onChange={(e) => setNewProject({ ...newProject, [key]: e.target.value })}
+                  onKeyDown={(e) => { if (e.key === 'Enter') createProject(); }}
+                  style={{ width: '100%', boxSizing: 'border-box', background: '#0a0a0a',
+                    border: '1px solid #333', borderRadius: '8px', padding: '10px 12px',
+                    color: '#fff', fontSize: '13px', fontFamily: theme.fonts.mono, outline: 'none' }} />
+              </div>
+            ))}
+          </div>
+          <button onClick={createProject} disabled={!newProject.name.trim()} style={{
+            background: newProject.name.trim() ? '#00ff88' : '#222',
+            color: newProject.name.trim() ? '#000' : '#666', border: 'none', borderRadius: '8px',
+            padding: '10px 22px', fontSize: '13px', fontWeight: 800,
+            cursor: newProject.name.trim() ? 'pointer' : 'default', fontFamily: theme.fonts.main
+          }}>Create project</button>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '22px', flexWrap: 'wrap' }}>
+        {[['backpack', 'Backpack'], ['atlas', 'Atlas'], ['connect', 'Connect agents']].map(([t, label]) => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            padding: '9px 18px', borderRadius: '8px', cursor: 'pointer',
+            fontFamily: theme.fonts.main, fontSize: '13px', fontWeight: 700,
+            background: tab === t ? '#fff' : 'transparent',
+            color: tab === t ? '#000' : '#888',
+            border: tab === t ? '1px solid #fff' : '1px solid #333'
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {(pairCode || pairMsg) && (
+        <div style={{ background: 'rgba(0,255,136,0.04)', border: '1px solid rgba(0,255,136,0.25)', borderRadius: '12px', padding: '16px 18px', marginBottom: '20px' }}>
+          <div style={{ color: '#fff', fontWeight: 700, marginBottom: '8px' }}>Pair a device</div>
+          {pairCode && (
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ color: '#8a8a8a', fontSize: '13px' }}>A terminal is asking to pair with code</span>
+              <span style={{ fontFamily: theme.fonts.mono, fontSize: '16px', fontWeight: 800, color: '#00ff88', letterSpacing: '2px' }}>{pairCode}</span>
+              <button onClick={approvePair} style={{ background: '#00ff88', color: '#000', border: 'none', borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>Approve</button>
+            </div>
+          )}
+          {pairMsg && <div style={{ color: pairMsg.startsWith('✓') ? '#00ff88' : '#e07070', fontSize: '13px', marginTop: '8px' }}>{pairMsg}</div>}
+          <div style={{ color: '#666', fontSize: '12px', marginTop: '8px' }}>
+            Only approve codes shown in a terminal you just ran <span style={{ fontFamily: theme.fonts.mono, color: '#999' }}>rrsrch-login</span> in.
+          </div>
+        </div>
+      )}
+
+      {tab === 'backpack' && (
+        <BackpackPanel isMobile={isMobile} accountEmail={user.email}
+          endpoint={active.backpack_url}
+          setEndpoint={(v) => updateActive({ backpack_url: v })} />
+      )}
+      {tab === 'atlas' && (
+        <AtlasPanel isMobile={isMobile} projectName={active.name} />
+      )}
+      {tab === 'connect' && (
+        <>
+          <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid #222', borderRadius: '14px', padding: isMobile ? '20px' : '28px', marginBottom: '16px' }}>
+            <div style={{ color: '#fff', fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>Pair this account with your MCP instance</div>
+            <p style={{ color: '#7a7a7a', fontSize: '14px', lineHeight: 1.6, margin: '0 0 14px 0' }}>
+              Like Claude Code&rsquo;s login: run <code style={{ fontFamily: theme.fonts.mono, color: '#00ff88' }}>rrsrch-login</code> on
+              the machine running the MCP server, then approve the code it prints — here. Deposits and
+              searches from that machine are then attributed to <strong style={{ color: '#ccc' }}>{user.email}</strong> on your dashboard.
+            </p>
+            <CodeBlock>{`$ rrsrch-login
+Pairing this machine with your rrsrch.com account.
+  1. Open   https://rrsrch.com/#/account?pair=XXXX-XXXX
+  2. Sign in and approve the code:  XXXX-XXXX
+Waiting for approval... ✓`}</CodeBlock>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <input value={pairCode} onChange={(e) => setPairCode(e.target.value.toUpperCase())}
+                placeholder="XXXX-XXXX" spellCheck={false}
+                style={{ background: '#0a0a0a', border: '1px solid #333', borderRadius: '8px', padding: '10px 12px', color: '#fff', fontSize: '14px', fontFamily: theme.fonts.mono, letterSpacing: '2px', width: '140px', outline: 'none' }} />
+              <button onClick={approvePair} disabled={!pairCode} style={{ background: pairCode ? '#00ff88' : '#222', color: pairCode ? '#000' : '#666', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: 800, cursor: pairCode ? 'pointer' : 'default' }}>Approve code</button>
+            </div>
+            {devices.length > 0 && (
+              <div style={{ marginTop: '20px' }}>
+                <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', fontFamily: theme.fonts.mono, marginBottom: '8px' }}>Paired devices</div>
+                {devices.map((d) => (
+                  <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0', borderTop: '1px solid #1c1c1c', fontSize: '13px' }}>
+                    <span style={{ color: '#ddd' }}>{d.name}</span>
+                    <span style={{ color: '#555', fontSize: '11px' }}>paired {new Date(d.paired_at).toLocaleDateString()}</span>
+                    <button onClick={() => revokeDevice(d.id)} style={{ marginLeft: 'auto', background: 'none', border: '1px solid #333', borderRadius: '6px', color: '#888', fontSize: '11px', padding: '4px 10px', cursor: 'pointer' }}>revoke</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <ConnectionDocs isMobile={isMobile} />
+        </>
+      )}
+
+      <div style={{ display: 'flex', gap: '14px', alignItems: 'center', marginTop: '10px' }}>
+        <button onClick={signOut} style={{
+          background: 'transparent', color: '#ccc', border: '1px solid #333',
+          borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: 600,
+          cursor: 'pointer', fontFamily: theme.fonts.main
+        }}>Sign out</button>
+        <button onClick={deleteAccount} style={{
+          background: 'none', border: 'none', color: '#555', fontSize: '12px',
+          cursor: 'pointer', textDecoration: 'underline', fontFamily: theme.fonts.main
+        }}>Delete account</button>
+      </div>
+    </div>
+  );
+}
+
+// Hero taglines per route: vague for the brand, specific once a product is chosen
+const TAGLINES = {
+  home: ['TRUST WHAT YOUR AGENTS KNOW.', 'RESEARCH, REGENERATED.'],
+  backpack: ['BACKPACK — SHARED, VERIFIED MEMORY.', 'SEARCH ONCE. REUSE FOREVER.'],
+  atlas: ['ATLAS — A VERIFIED MAP OF YOUR SYSTEM.', 'DOCUMENTED VS REAL, WITH EVIDENCE.'],
+  account: ['YOUR ACCOUNT & CONNECTIONS.', 'SIGN IN AND POINT YOUR AGENTS.'],
+};
+
+// --- Home: two product cards under the hero ---
+
+function HomeCards({ isMobile, navigate }) {
+  const card = {
+    background: 'rgba(0,0,0,0.3)', border: '1px solid #222', borderRadius: '14px',
+    padding: isMobile ? '26px' : '36px', cursor: 'pointer', transition: 'border-color .2s ease'
+  };
+  const products = [
+    {
+      route: 'backpack', accent: '#00ff88', icon: Database, name: 'Backpack',
+      tag: 'verified shared memory',
+      text: 'A search-and-deposit memory for AI agents: consistent, cited answers with confidence and freshness — instead of a fresh derivation every run. Self-host today.'
+    },
+    {
+      route: 'atlas', accent: ATLAS_ACCENT, icon: Shield, name: 'Atlas',
+      tag: 'verified system graph',
+      text: 'A data-flow attestation of your stack: declared vs inferred vs observed, reconciled deterministically. Drift surfaces with evidence; unknowns stay honest. Pilot.'
+    }
+  ];
+  return (
+    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+      <Eyebrow>Two products, one discipline</Eyebrow>
+      <h2 style={{
+        fontSize: isMobile ? '26px' : 'clamp(28px, 3.4vw, 40px)', color: '#fff',
+        fontWeight: 800, lineHeight: 1.15, margin: '0 0 14px 0',
+        letterSpacing: '-0.02em', fontFamily: theme.fonts.main
+      }}>Context agents can act on — because every claim carries its evidence.</h2>
+      <p style={{ color: '#8a8a8a', fontSize: isMobile ? '15px' : '17px', lineHeight: 1.7, maxWidth: '640px', margin: '0 0 36px 0' }}>
+        rrsrch builds verified context for AI agents: memory with provenance (Backpack) and system
+        maps with provenance (Atlas). No black-box scores, no invented edges — sources, confidence,
+        and freshness on everything.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px' }}>
+        {products.map(({ route, accent, icon: Icon, name, tag, text }) => (
+          <div key={route} style={card}
+            onClick={() => navigate(route)}
+            onMouseEnter={e => e.currentTarget.style.borderColor = accent}
+            onMouseLeave={e => e.currentTarget.style.borderColor = '#222'}>
+            <Icon size={22} color={accent} style={{ marginBottom: '16px' }} />
+            <div style={{ color: '#fff', fontSize: '20px', fontWeight: 800, marginBottom: '4px' }}>{name}</div>
+            <div style={{ fontFamily: theme.fonts.mono, fontSize: '12px', color: accent, marginBottom: '12px' }}>{tag}</div>
+            <div style={{ color: '#7a7a7a', fontSize: '14px', lineHeight: 1.65, marginBottom: '18px' }}>{text}</div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: accent, fontSize: '13px', fontWeight: 700 }}>
+              Explore {name} <ArrowRight size={14} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const [activeModal, setActiveModal] = useState(null);
-  const [menuExpanded, setMenuExpanded] = useState(false);
-  const [posts, setPosts] = useState([]);
-  const [loadingPosts, setLoadingPosts] = useState(true);
-  const [selectedPost, setSelectedPost] = useState(null);
-  const [selectedPage, setSelectedPage] = useState('NEWS');
-  const [selectedTopic, setSelectedTopic] = useState('All');
-  const [selectedSubsection, setSelectedSubsection] = useState(null);
-  const [selectedPreset, setSelectedPreset] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [hoveredEntity, setHoveredEntity] = useState(null);
-  const [selectedEntity, setSelectedEntity] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
-  const [adminPassword, setAdminPassword] = useState('');
-  const [user, setUser] = useState(null);
-  const [showUserLogin, setShowUserLogin] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const scrollRef = useRef(0);
   const scrollContainerRef = useRef(null);
 
-  const pages = ['NEWS', 'TERMINAL', 'ATLAS'];
-
-  const pageTopics = {
-    'TERMINAL': ['Markets', 'Stocks', 'Crypto', 'ETFs'],
-    'NEWS': ['All', 'AI', 'Tech', 'Science', 'Energy', 'Crypto', 'Markets', 'Policy', 'Cybersecurity', 'Hardware', 'Space'],
-    'ATLAS': ['Software', 'Hardware', 'Manufacturing', 'Robotics', 'People']
+  // hash routing — #/backpack, #/atlas, #/account; anything else is home
+  const routeFromHash = () => {
+    const h = window.location.hash.replace(/^#\/?/, '').split('?')[0];
+    return ['backpack', 'atlas', 'account'].includes(h) ? h : 'home';
   };
-
-  // Filter topics to only show those with posts (for NEWS page)
-  const getAvailableTopics = () => {
-    if (selectedPage === 'NEWS') {
-      const allTopics = pageTopics[selectedPage];
-      const topicsWithPosts = allTopics.filter(topic => {
-        if (topic === 'All') return true; // Always show 'All'
-        return posts.some(post =>
-          (post.topic && post.topic.toLowerCase() === topic.toLowerCase()) ||
-          (post.title && post.title.toLowerCase().includes(topic.toLowerCase())) ||
-          (post.excerpt && post.excerpt.toLowerCase().includes(topic.toLowerCase()))
-        );
-      });
-      return topicsWithPosts;
-    }
-    return pageTopics[selectedPage];
-  };
-
-  const currentTopics = getAvailableTopics();
-
-  // Handle admin login
-  const handleAdminLogin = async () => {
-    const API_URL = process.env.REACT_APP_API_URL || '';
-
-    try {
-      const response = await fetch(`${API_URL}/api/auth/admin`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ password: adminPassword })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.isAdmin) {
-          setIsAdmin(true);
-          setAdminPassword('');
-          setShowAdminLogin(false);
-          localStorage.setItem('rrsrch_admin', 'true');
-        }
-      } else {
-        alert('Incorrect password');
+  const [route, setRoute] = useState(routeFromHash());
+  const contentRef = useRef(null);
+  useEffect(() => {
+    const onHash = () => setRoute(routeFromHash());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  // picking a product keeps the hero and swaps the content BELOW it — so scroll
+  // the reader down to where the change happened (and back up for home)
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const t = setTimeout(() => {
+      if (route === 'home') el.scrollTo({ top: 0, behavior: 'smooth' });
+      else if (contentRef.current) {
+        el.scrollTo({ top: contentRef.current.offsetTop - 24, behavior: 'smooth' });
       }
-    } catch (err) {
-      console.error('Admin login error:', err);
-      alert('Login failed');
-    }
-  };
+    }, 60);
+    return () => clearTimeout(t);
+  }, [route]);
+  const navigate = (r) => { window.location.hash = r === 'home' ? '/' : `/${r}`; };
 
   // Handle window resize for mobile detection
   useEffect(() => {
@@ -3892,96 +1618,16 @@ function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Reset topic and preset when page changes
-  useEffect(() => {
-    if (selectedPage === 'ATLAS') {
-      setSelectedTopic('Software');
-    } else if (selectedPage === 'TERMINAL') {
-      setSelectedTopic('Markets');
-      setSelectedPreset('All');
-    } else if (selectedPage === 'NEWS') {
-      setSelectedTopic('All');
-    }
-  }, [selectedPage]);
-
-  // Reset preset when topic changes
-  useEffect(() => {
-    setSelectedPreset('All');
-  }, [selectedTopic]);
-
-  // Check for OAuth callback and restore user session
-  useEffect(() => {
-    // Check URL params for OAuth callback
-    const urlParams = new URLSearchParams(window.location.search);
-    const authSuccess = urlParams.get('auth');
-    const userData = urlParams.get('user');
-
-    if (authSuccess === 'success' && userData) {
-      try {
-        const user = JSON.parse(decodeURIComponent(userData));
-        setUser(user);
-        localStorage.setItem('rrsrch_user', JSON.stringify(user));
-        // Clean up URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-      } catch (err) {
-        console.error('Error parsing user data:', err);
-      }
-    } else {
-      // Try to restore user from localStorage
-      const savedUser = localStorage.getItem('rrsrch_user');
-      if (savedUser) {
-        try {
-          setUser(JSON.parse(savedUser));
-        } catch (err) {
-          console.error('Error restoring user:', err);
-          localStorage.removeItem('rrsrch_user');
-        }
-      }
-    }
-  }, []);
-
-  // Fetch posts from API
-  useEffect(() => {
-    const API_URL = process.env.REACT_APP_API_URL || '';
-    fetch(`${API_URL}/api/posts`)
-      .then(res => res.json())
-      .then(data => {
-        setPosts(data.posts || []);
-        setLoadingPosts(false);
-      })
-      .catch(err => {
-        console.error('Error fetching posts:', err);
-        setLoadingPosts(false);
-      });
-  }, []);
-
-  // Filter posts based on topic and search query
-  const filteredPosts = posts.filter(post => {
-    const matchesTopic = selectedTopic === 'All' ||
-      (post.topic && post.topic.toLowerCase() === selectedTopic.toLowerCase()) ||
-      (post.title && post.title.toLowerCase().includes(selectedTopic.toLowerCase())) ||
-      (post.excerpt && post.excerpt.toLowerCase().includes(selectedTopic.toLowerCase()));
-
-    const matchesSearch = !searchQuery ||
-      (post.title && post.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (post.excerpt && post.excerpt.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (post.content && post.content.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    return matchesTopic && matchesSearch;
-  });
-
   // Handle Scroll for 3D Fade effect without causing re-renders
   useEffect(() => {
     const handleScroll = () => {
       if (scrollContainerRef.current) {
         const scrollTop = scrollContainerRef.current.scrollTop;
         const windowHeight = window.innerHeight;
-        // Calculate progress: 0 at top, 1 after scrolling one screen height
         const progress = Math.min(Math.max(scrollTop / windowHeight, 0), 1);
         scrollRef.current = progress;
       }
     };
-
     const container = scrollContainerRef.current;
     if (container) {
       container.addEventListener('scroll', handleScroll);
@@ -3992,36 +1638,6 @@ function App() {
 
   const renderModalContent = () => {
     switch(activeModal) {
-      case 'subscribe':
-        return (
-          <div style={{ textAlign: 'center' }}>
-            <Mail size={40} style={{ marginBottom: '20px', color: '#fff' }} />
-            <h2 style={{ margin: '0 0 10px 0', fontSize: '20px' }}>Join the Network</h2>
-            <p style={{ color: '#888', marginBottom: '30px' }}>Receive encrypted transmissions directly to your inbox.</p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <input 
-                type="email" 
-                placeholder="email@address.com" 
-                style={{ 
-                  background: 'transparent', 
-                  border: '1px solid #333', 
-                  padding: '12px', 
-                  color: 'white',
-                  fontFamily: theme.fonts.mono,
-                  flex: 1
-                }} 
-              />
-              <button style={{ 
-                background: 'white', 
-                color: 'black', 
-                border: 'none', 
-                padding: '12px 24px', 
-                fontWeight: 'bold',
-                cursor: 'pointer' 
-              }}>CONNECT</button>
-            </div>
-          </div>
-        );
       case 'discord':
         return (
           <div style={{ textAlign: 'center' }}>
@@ -4042,335 +1658,6 @@ function App() {
             </button>
           </div>
         );
-      case 'substack':
-        return (
-          <div style={{ textAlign: 'center' }}>
-            <FileText size={40} style={{ marginBottom: '20px', color: '#FF6719' }} />
-            <h2 style={{ margin: '0 0 10px 0', fontSize: '20px' }}>Deep Dives & Reports</h2>
-            <p style={{ color: '#888', marginBottom: '30px' }}>Long-form analysis and research papers published weekly.</p>
-            <button style={{
-              background: '#FF6719',
-              color: 'white',
-              border: 'none',
-              padding: '12px 30px',
-              fontWeight: 'bold',
-              cursor: 'pointer'
-            }}>
-              READ ON SUBSTACK
-            </button>
-          </div>
-        );
-      case 'profile':
-        if (!user && !isAdmin) {
-          return (
-            <div style={{ textAlign: 'center' }}>
-              <User size={40} style={{ marginBottom: '20px', color: '#fff' }} />
-              <h2 style={{ margin: '0 0 10px 0', fontSize: '20px' }}>Profile</h2>
-              <p style={{ color: '#888', marginBottom: '30px' }}>Sign in to personalize your experience.</p>
-
-              {/* Google Sign In Button */}
-              <button
-                onClick={() => {
-                  // This will be handled by Google OAuth
-                  const API_URL = process.env.REACT_APP_API_URL || '';
-                  window.location.href = `${API_URL}/api/auth/google`;
-                }}
-                style={{
-                  background: 'white',
-                  color: 'black',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '12px 30px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  width: '100%',
-                  marginBottom: '20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '10px'
-                }}>
-                <svg width="18" height="18" viewBox="0 0 18 18">
-                  <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
-                  <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
-                  <path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/>
-                  <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
-                </svg>
-                Sign in with Google
-              </button>
-
-              {/* Divider */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                margin: '20px 0',
-                color: '#666'
-              }}>
-                <div style={{ flex: 1, height: '1px', background: '#333' }}></div>
-                <span style={{ padding: '0 15px', fontSize: '12px' }}>OR</span>
-                <div style={{ flex: 1, height: '1px', background: '#333' }}></div>
-              </div>
-
-              {/* Admin Access */}
-              {!showAdminLogin ? (
-                <button
-                  onClick={() => setShowAdminLogin(true)}
-                  style={{
-                    background: 'transparent',
-                    color: '#888',
-                    border: '1px solid #333',
-                    borderRadius: '6px',
-                    padding: '12px 30px',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    width: '100%'
-                  }}>
-                  Admin Access
-                </button>
-              ) : (
-                <div style={{ marginTop: '10px' }}>
-                  <input
-                    type="password"
-                    placeholder="Admin password"
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        handleAdminLogin();
-                      }
-                    }}
-                    style={{
-                      background: 'transparent',
-                      border: '1px solid #333',
-                      borderRadius: '6px',
-                      padding: '12px',
-                      color: 'white',
-                      fontFamily: theme.fonts.mono,
-                      width: '100%',
-                      marginBottom: '10px'
-                    }}
-                  />
-                  <button
-                    onClick={handleAdminLogin}
-                    style={{
-                      background: '#ff4444',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      padding: '12px 30px',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      width: '100%'
-                    }}>
-                    ADMIN LOGIN
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        } else if (user && !isAdmin) {
-          return (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{
-                width: '80px',
-                height: '80px',
-                borderRadius: '50%',
-                background: '#222',
-                margin: '0 auto 20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '32px',
-                color: '#fff',
-                backgroundImage: user.picture ? `url(${user.picture})` : 'none',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center'
-              }}>
-                {!user.picture && user.name?.charAt(0)}
-              </div>
-              <h2 style={{ margin: '0 0 5px 0', fontSize: '20px' }}>{user.name}</h2>
-              <p style={{ color: '#888', marginBottom: '30px', fontSize: '14px' }}>{user.email}</p>
-
-              <div style={{
-                background: 'rgba(0,0,0,0.3)',
-                border: '1px solid #333',
-                borderRadius: '8px',
-                padding: '20px',
-                marginBottom: '20px',
-                textAlign: 'left'
-              }}>
-                <h3 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#aaa' }}>Account Settings</h3>
-                <div style={{ fontSize: '13px', color: '#666', lineHeight: '1.8' }}>
-                  <div style={{ marginBottom: '10px' }}>
-                    <span style={{ color: '#888' }}>Member since:</span> {new Date().toLocaleDateString()}
-                  </div>
-                  <div>
-                    <span style={{ color: '#888' }}>Account type:</span> Standard
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => {
-                  setUser(null);
-                  localStorage.removeItem('rrsrch_user');
-                  setActiveModal(null);
-                }}
-                style={{
-                  background: 'transparent',
-                  color: '#ff4444',
-                  border: '1px solid #ff4444',
-                  borderRadius: '6px',
-                  padding: '12px 30px',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  width: '100%'
-                }}>
-                SIGN OUT
-              </button>
-            </div>
-          );
-        } else if (isAdmin) {
-          return (
-            <div style={{ maxWidth: '600px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-                <h2 style={{ margin: 0, fontSize: '20px' }}>Admin Panel</h2>
-                <button
-                  onClick={() => {
-                    setIsAdmin(false);
-                    setActiveModal(null);
-                  }}
-                  style={{
-                    background: 'transparent',
-                    color: '#ff4444',
-                    border: '1px solid #ff4444',
-                    borderRadius: '6px',
-                    padding: '8px 16px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer'
-                  }}>
-                  LOGOUT
-                </button>
-              </div>
-
-              <div style={{
-                background: 'rgba(0,0,0,0.3)',
-                border: '1px solid #333',
-                borderRadius: '8px',
-                padding: '20px',
-                marginBottom: '20px'
-              }}>
-                <h3 style={{ fontSize: '14px', color: '#888', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '1px' }}>Post Management</h3>
-                <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                  {posts.map((post) => (
-                    <div key={post.id} style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '12px',
-                      borderBottom: '1px solid #222',
-                      fontSize: '13px'
-                    }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ color: '#fff', marginBottom: '4px' }}>{post.title}</div>
-                        <div style={{ color: '#666', fontSize: '11px', fontFamily: theme.fonts.mono }}>
-                          {new Date(post.date).toLocaleDateString()}
-                        </div>
-                      </div>
-                      <button
-                        onClick={async () => {
-                          if (window.confirm(`Delete "${post.title}"?`)) {
-                            try {
-                              const API_URL = process.env.REACT_APP_API_URL || '';
-                              const response = await fetch(`${API_URL}/api/posts/${post.id}`, {
-                                method: 'DELETE',
-                                headers: {
-                                  'x-api-key': '75e2278ae36e07077bd7341bffaa758c735608e586962ec343d9470c0ca40e30'
-                                }
-                              });
-
-                              if (response.ok) {
-                                setPosts(posts.filter(p => p.id !== post.id));
-                              } else {
-                                alert('Failed to delete post');
-                              }
-                            } catch (error) {
-                              console.error('Error deleting post:', error);
-                              alert('Error deleting post');
-                            }
-                          }
-                        }}
-                        style={{
-                          background: 'transparent',
-                          border: '1px solid #ff4444',
-                          borderRadius: '4px',
-                          color: '#ff4444',
-                          padding: '6px 12px',
-                          fontSize: '11px',
-                          cursor: 'pointer',
-                          fontWeight: 600
-                        }}>
-                        DELETE
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{
-                background: 'rgba(0,0,0,0.3)',
-                border: '1px solid #333',
-                borderRadius: '8px',
-                padding: '20px'
-              }}>
-                <h3 style={{ fontSize: '14px', color: '#888', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '1px' }}>ATLAS Rankings</h3>
-                <p style={{ color: '#666', fontSize: '12px', marginBottom: '15px' }}>
-                  Rankings order managed in code. Future: drag-and-drop reordering.
-                </p>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  <div style={{
-                    background: 'rgba(0,136,255,0.1)',
-                    border: '1px solid rgba(0,136,255,0.3)',
-                    borderRadius: '6px',
-                    padding: '8px 12px',
-                    fontSize: '11px',
-                    color: '#0088ff',
-                    fontWeight: 600
-                  }}>Software</div>
-                  <div style={{
-                    background: 'rgba(0,255,136,0.1)',
-                    border: '1px solid rgba(0,255,136,0.3)',
-                    borderRadius: '6px',
-                    padding: '8px 12px',
-                    fontSize: '11px',
-                    color: '#00ff88',
-                    fontWeight: 600
-                  }}>Hardware</div>
-                  <div style={{
-                    background: 'rgba(255,136,0,0.1)',
-                    border: '1px solid rgba(255,136,0,0.3)',
-                    borderRadius: '6px',
-                    padding: '8px 12px',
-                    fontSize: '11px',
-                    color: '#ff8800',
-                    fontWeight: 600
-                  }}>Manufacturing</div>
-                  <div style={{
-                    background: 'rgba(255,0,136,0.1)',
-                    border: '1px solid rgba(255,0,136,0.3)',
-                    borderRadius: '6px',
-                    padding: '8px 12px',
-                    fontSize: '11px',
-                    color: '#ff0088',
-                    fontWeight: 600
-                  }}>Robotics</div>
-                </div>
-              </div>
-            </div>
-          );
-        }
       case 'disclaimer':
         return (
           <div style={{ maxWidth: '700px', textAlign: 'left', maxHeight: '70vh', overflowY: 'auto' }}>
@@ -4424,51 +1711,41 @@ function App() {
           scrollBehavior: 'smooth'
         }}
       >
-        {/* Profile Button (Top-left of page, scrolls with content) */}
-        <div style={{
-          position: 'absolute',
-          top: isMobile ? '20px' : '40px',
-          left: isMobile ? '20px' : '40px',
-          zIndex: 10
-        }}>
-          <NavButton onClick={() => setActiveModal('profile')} icon={User} label="Profile" />
-        </div>
-
-        {/* Top Navigation (Fixed position) */}
+        {/* Top bar: brand + nav on one line */}
         <div style={{
           position: 'fixed',
-          top: isMobile ? '20px' : '40px',
-          right: isMobile ? '20px' : '40px',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 10,
           display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-end',
-          gap: '10px',
-          zIndex: 10
+          alignItems: 'center',
+          gap: isMobile ? '8px' : '14px',
+          padding: isMobile ? '12px 16px' : '20px 40px'
         }}>
-          {/* More button */}
-          <NavButton
-            onClick={() => setMenuExpanded(!menuExpanded)}
-            icon={ArrowRight}
-            label={menuExpanded ? "Close" : "More"}
-          />
+          <button onClick={() => navigate('home')} style={{
+            background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer',
+            fontFamily: theme.fonts.main, fontWeight: 800, fontSize: '16px',
+            letterSpacing: '-0.05em', padding: '8px 6px'
+          }}>RRSRCH</button>
 
-          {/* Expanded menu */}
-          {menuExpanded && (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px',
-              animation: 'slideIn 0.2s ease-out'
-            }}>
-              <NavButton onClick={() => { setActiveModal('subscribe'); setMenuExpanded(false); }} icon={Mail} label="Subscribe" />
-              <NavButton onClick={() => { setActiveModal('discord'); setMenuExpanded(false); }} icon={MessageCircle} label="Discord" />
-              <NavButton onClick={() => { window.open('https://substack.com/@rrsrch', '_blank'); setMenuExpanded(false); }} icon={FileText} label="Substack" />
-              <NavButton onClick={() => { window.open('https://x.com/rrsrch', '_blank'); setMenuExpanded(false); }} icon={Twitter} label="X" />
-            </div>
-          )}
+          <NavDropdown
+            label={route === 'backpack' ? 'Backpack' : route === 'atlas' ? 'Atlas' : 'Products'}
+            active={route === 'backpack' || route === 'atlas'}
+            selectedLabel={route === 'backpack' ? 'Backpack' : route === 'atlas' ? 'Atlas' : null}
+            items={[
+              { label: 'Backpack', icon: Database, accent: '#00ff88', onClick: () => navigate('backpack') },
+              { label: 'Atlas', icon: Shield, accent: '#7aa7e0', onClick: () => navigate('atlas') },
+            ]} />
+          <NavButton onClick={() => navigate('account')} icon={TerminalIcon} label="Agents"
+            active={route === 'account'} />
+
+          <div style={{ marginLeft: 'auto' }}>
+            <NavButton onClick={() => window.open('https://x.com/rrsrch', '_blank')} icon={Twitter} label="X" />
+          </div>
         </div>
 
-        {/* Hero Section - Full Screen */}
+        {/* Hero Section - Full Screen (all routes; tagline follows the route) */}
         <div style={{
           height: '100vh',
           display: 'flex',
@@ -4495,7 +1772,7 @@ function App() {
 
           <div style={{ display: 'inline-block' }}>
             <p style={{ color: 'white', margin: '0 0 4px 0', fontSize: '13px', lineHeight: '1.5', fontWeight: 'bold', fontFamily: theme.fonts.main, textAlign: 'right' }}>
-            : INTELLIGENCE / RESEARCH
+            : REGENERATIVE RESEARCH
             </p>
             <h1 style={{
               fontSize: 'clamp(40px, 6vw, 80px)',
@@ -4510,9 +1787,9 @@ function App() {
             </h1>
           </div>
 
-          <p style={{ color: '#666', marginTop: '18px', fontSize: '18px', maxWidth: '450px', lineHeight: '1.5', fontWeight: 'bold', fontFamily: theme.fonts.main }}>
-          INNOVATING NEWS FOR <br />
-          THE COMING WORLD.
+          <p style={{ color: '#666', marginTop: '18px', fontSize: '18px', maxWidth: '520px', lineHeight: '1.5', fontWeight: 'bold', fontFamily: theme.fonts.main }}>
+          {TAGLINES[route][0]} <br />
+          {TAGLINES[route][1]}
           </p>
         </div>
 
@@ -4520,7 +1797,7 @@ function App() {
         <div style={{ height: '13vh' }}></div>
 
         {/* Main Content Layout with Background Panel */}
-        <div style={{
+        <div ref={contentRef} style={{
           maxWidth: '1200px',
           width: '100%',
           margin: '0 auto',
@@ -4535,442 +1812,10 @@ function App() {
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
         }}>
 
-          {selectedPost ? (
-            <ArticleView
-              post={selectedPost}
-              onBack={() => setSelectedPost(null)}
-              relatedPosts={posts.filter(p => p.id !== selectedPost.id).slice(0, 3)}
-              onSelectPost={setSelectedPost}
-            />
-          ) : (
-            <>
-              {/* Search Bar - Full Width */}
-              <div style={{
-                marginBottom: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                background: 'rgba(0,0,0,0.3)',
-                border: '1px solid #333',
-                borderRadius: '8px',
-                padding: '10px 15px'
-              }}>
-                <Search size={16} color="#666" />
-                <input
-                  type="text"
-                  placeholder="Search transmissions..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{
-                    flex: 1,
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#fff',
-                    fontSize: '14px',
-                    outline: 'none',
-                    fontFamily: theme.fonts.main
-                  }}
-                />
-              </div>
-
-              {/* Pages Bar - Full Width */}
-              <div style={{
-                display: 'flex',
-                gap: '15px',
-                marginBottom: '20px',
-                paddingBottom: '15px',
-                borderBottom: '2px solid #222'
-              }}>
-                {pages.map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => setSelectedPage(page)}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: selectedPage === page ? '#fff' : '#555',
-                      padding: '0 0 5px 0',
-                      cursor: 'pointer',
-                      fontSize: '16px',
-                      fontFamily: theme.fonts.main,
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      letterSpacing: '1px',
-                      borderBottom: selectedPage === page ? '2px solid #fff' : '2px solid transparent',
-                      marginBottom: '-17px',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (selectedPage !== page) {
-                        e.currentTarget.style.color = '#aaa';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (selectedPage !== page) {
-                        e.currentTarget.style.color = '#555';
-                      }
-                    }}
-                  >
-                    {page}
-                  </button>
-                ))}
-              </div>
-
-              {/* Topics Bar - Full Width */}
-              <div style={{
-                display: 'flex',
-                gap: '10px',
-                marginBottom: '30px',
-                overflowX: 'auto',
-                paddingBottom: '10px',
-                borderBottom: '1px solid #222'
-              }}>
-                {currentTopics.map((topic) => (
-                  <button
-                    key={topic}
-                    onClick={() => setSelectedTopic(topic)}
-                    style={{
-                      background: selectedTopic === topic ? 'rgba(255,255,255,0.1)' : 'transparent',
-                      border: selectedTopic === topic ? '1px solid rgba(255,255,255,0.2)' : '1px solid #333',
-                      borderRadius: '20px',
-                      color: selectedTopic === topic ? '#fff' : '#666',
-                      padding: '8px 16px',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      fontFamily: theme.fonts.main,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      whiteSpace: 'nowrap',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (selectedTopic !== topic) {
-                        e.currentTarget.style.borderColor = '#555';
-                        e.currentTarget.style.color = '#aaa';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (selectedTopic !== topic) {
-                        e.currentTarget.style.borderColor = '#333';
-                        e.currentTarget.style.color = '#666';
-                      }
-                    }}
-                  >
-                    {topic}
-                  </button>
-                ))}
-              </div>
-
-              {/* Preset Filters Row - Only show on TERMINAL page for Stocks */}
-              {selectedPage === 'TERMINAL' && (selectedTopic === 'Stocks' || selectedTopic === 'ETFs') && (
-                <div style={{
-                  display: 'flex',
-                  gap: '8px',
-                  marginBottom: '30px',
-                  overflowX: 'auto',
-                  paddingBottom: '10px'
-                }}>
-                  <span style={{
-                    fontSize: '11px',
-                    color: '#555',
-                    padding: '8px 12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    fontFamily: theme.fonts.mono,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}>
-                    Presets:
-                  </span>
-                  {['All', 'AI & Chips', 'Robotics', 'Defense', 'Energy & Power'].map((preset) => (
-                    <button
-                      key={preset}
-                      onClick={() => setSelectedPreset(preset)}
-                      style={{
-                        background: selectedPreset === preset ? 'rgba(0,255,136,0.1)' : 'transparent',
-                        border: selectedPreset === preset ? '1px solid rgba(0,255,136,0.3)' : '1px solid #222',
-                        borderRadius: '16px',
-                        color: selectedPreset === preset ? '#00ff88' : '#666',
-                        padding: '6px 14px',
-                        cursor: 'pointer',
-                        fontSize: '11px',
-                        fontFamily: theme.fonts.main,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                        whiteSpace: 'nowrap',
-                        transition: 'all 0.2s ease',
-                        fontWeight: selectedPreset === preset ? 600 : 400
-                      }}
-                      onMouseEnter={(e) => {
-                        if (selectedPreset !== preset) {
-                          e.currentTarget.style.borderColor = '#333';
-                          e.currentTarget.style.color = '#aaa';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (selectedPreset !== preset) {
-                          e.currentTarget.style.borderColor = '#222';
-                          e.currentTarget.style.color = '#666';
-                        }
-                      }}
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Two Column Layout: Content + Sidebar */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
-                gap: '60px'
-              }}>
-                {/* Left Column: Main Content */}
-                <div>
-                  {selectedPage === 'TERMINAL' ? (
-                  <>
-                    <LiveTable selectedTopic={selectedTopic} selectedPreset={selectedPreset} />
-
-                    {/* Recommended Articles Section */}
-                    <div style={{ marginTop: '60px' }}>
-                      <h3 style={{
-                        fontSize: '14px',
-                        color: '#666',
-                        marginBottom: '20px',
-                        letterSpacing: '1px',
-                        textTransform: 'uppercase',
-                        fontWeight: 600
-                      }}>
-                        Recommended Reading
-                      </h3>
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-                        gap: '20px'
-                      }}>
-                        {filteredPosts.slice(0, 3).map((post) => (
-                          <div
-                            key={post.id}
-                            onClick={() => setSelectedPost(post)}
-                            style={{
-                              background: 'rgba(0,0,0,0.3)',
-                              border: '1px solid #222',
-                              borderRadius: '8px',
-                              padding: '15px',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.borderColor = '#444';
-                              e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.borderColor = '#222';
-                              e.currentTarget.style.background = 'rgba(0,0,0,0.3)';
-                            }}
-                          >
-                            <div style={{
-                              fontSize: '11px',
-                              color: '#666',
-                              marginBottom: '8px',
-                              fontFamily: theme.fonts.mono
-                            }}>
-                              {new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')}
-                            </div>
-                            <h4 style={{
-                              fontSize: '15px',
-                              color: '#fff',
-                              margin: '0',
-                              fontWeight: 600,
-                              lineHeight: '1.4'
-                            }}>
-                              {post.title}
-                            </h4>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                ) : selectedPage === 'ATLAS' ? (
-                  <>
-                    {selectedSubsection ? (
-                      <SubsectionDetail
-                        subsectionName={selectedSubsection}
-                        domainColor={
-                          selectedTopic === 'Software' ? '#0088ff' :
-                          selectedTopic === 'Hardware' ? '#00ff88' :
-                          selectedTopic === 'Manufacturing' ? '#ff8800' :
-                          selectedTopic === 'Robotics' ? '#ff0088' :
-                          '#8800ff'
-                        }
-                        onBack={() => setSelectedSubsection(null)}
-                        items={(() => {
-                          const domainData = {
-                            'Software': {
-                              subsections: [
-                                { title: 'Models', items: ['Gemini 3 Pro Preview', 'GPT-5.1 (High)', 'GPT-5 Codex (High)', 'GPT-5 (High)', 'Kimi K2 Thinking', 'GPT-5 (Medium)', 'o3', 'Grok 4', 'GPT-5 Mini (High)', 'Grok 4.1 Fast', 'GPT-4o', 'Claude 3.5 Opus'] },
-                                { title: 'Model Families', items: ['Transformers', 'Diffusion Models', 'Mixture-of-Experts', 'State Space Models', 'Retrieval-Augmented', 'Vision Transformers', 'Multimodal Models', 'Generative Adversarial Networks'] },
-                                { title: 'AI Frameworks', items: ['PyTorch', 'JAX', 'TensorFlow', 'MLX', 'Keras', 'Hugging Face Transformers', 'LangChain', 'LlamaIndex'] },
-                                { title: 'Runtimes / Serving', items: ['vLLM', 'Ollama', 'Triton', 'TensorRT', 'llama.cpp', 'SGLang', 'Text Generation Inference', 'Mosaic ML'] },
-                                { title: 'AI Benchmarks', items: ['MMLU', 'GSM8K', 'HumanEval', 'MATH', 'MLPerf', 'GPQA', 'HellaSwag', 'TruthfulQA'] },
-                                { title: 'Core Infrastructure', items: ['Qdrant', 'Pinecone', 'Weaviate', 'Ray', 'Airflow', 'Weights & Biases', 'MLflow', 'Chroma', 'Redis', 'Milvus'] }
-                              ]
-                            },
-                            'Hardware': {
-                              subsections: [
-                                { title: 'GPUs', items: ['H100 SXM', 'B200', 'H200', 'MI300X', 'A100 80GB', 'RTX 4090', 'MI250X', 'L40S', 'H20', 'A800'] },
-                                { title: 'AI Accelerators / ASICs', items: ['TPU v5e', 'Groq LPU', 'Cerebras WSE-3', 'Trainium2', 'Inferentia2', 'SambaNova SN40L', 'Graphcore IPU'] },
-                                { title: 'Memory & Interconnect', items: ['HBM3e', 'HBM3', 'NVLink', 'PCIe Gen5', 'CXL', 'Infinity Fabric', 'NVSwitch'] },
-                                { title: 'Data Center Servers', items: ['NVIDIA DGX', 'Supermicro AI', 'Dell PowerEdge', 'HPE Cray', 'AWS Trainium Pods', 'Lambda GPU Cloud'] },
-                                { title: 'Networking', items: ['Infiniband', 'RoCE', 'Ultra Ethernet', 'Spectrum-X', 'AI Cluster Fabric', '400G Ethernet'] }
-                              ]
-                            },
-                            'Manufacturing': {
-                              subsections: [
-                                { title: 'Fabs', items: ['TSMC', 'Samsung Foundry', 'Intel Foundry', 'GlobalFoundries', 'SMIC', 'UMC', 'Tower Semiconductor', 'Rapidus', 'Hua Hong Semiconductor', 'DB HiTek'] },
-                                { title: 'Packaging & Assembly', items: ['CoWoS', 'Chiplets', '3D Stacking', 'Advanced Packaging', 'FOWLP', '2.5D Integration'] },
-                                { title: 'Component Supply', items: ['SK Hynix (HBM)', 'Micron (HBM)', 'Samsung Memory', 'TSMC CoWoS', 'ASE Technology'] },
-                                { title: 'Equipment Makers', items: ['ASML', 'Lam Research', 'Applied Materials', 'Tokyo Electron', 'KLA', 'SCREEN Holdings'] },
-                                { title: 'Supply Chain', items: ['Substrates', 'Lithography', 'Cooling Systems', 'Photoresists', 'Chemicals', 'Wafer Materials'] }
-                              ]
-                            },
-                            'Robotics': {
-                              subsections: [
-                                { title: 'Humanoid Robotics', items: ['Figure 01', 'Tesla Optimus Gen 2', 'Digit Gen 3', 'Phoenix', 'Unitree G1 Pro', 'Apollo', 'GR1', 'NEO', 'Robosapien X', 'Walker X'] },
-                                { title: 'Industrial Robotics', items: ['Fanuc', 'ABB', 'Kuka', 'Yaskawa', 'Universal Robots', 'Boston Dynamics Spot'] },
-                                { title: 'Embedded AI / Edge Chips', items: ['Jetson Orin', 'Snapdragon 8 Gen 3', 'Apple Neural Engine', 'Hailo-8', 'Edge TPU', 'RK3588'] },
-                                { title: 'Sensors & Actuators', items: ['LiDAR', 'Depth Cameras', 'IMUs', 'Force Sensors', 'Servo Motors', 'Tactile Sensors'] },
-                                { title: 'Autonomy Stacks', items: ['Tesla FSD', 'Waymo Driver', 'NVIDIA DRIVE', 'Apollo', 'Mobileye SuperVision', 'Autoware'] }
-                              ]
-                            },
-                            'People': {
-                              subsections: [
-                                { title: 'Founders', items: ['Sam Altman', 'Demis Hassabis', 'Dario Amodei', 'Elon Musk', 'Mark Zuckerberg', 'Reid Hoffman'] },
-                                { title: 'Researchers', items: ['Ilya Sutskever', 'Andrej Karpathy', 'Yann LeCun', 'Geoffrey Hinton', 'Yoshua Bengio', 'Andrew Ng'] },
-                                { title: 'Executives', items: ['Jensen Huang', 'Satya Nadella', 'Sundar Pichai', 'Lisa Su', 'Pat Gelsinger', 'Andy Jassy'] },
-                                { title: 'Investors', items: ['Marc Andreessen', 'Vinod Khosla', 'Peter Thiel', 'Daniel Gross', 'Nat Friedman', 'Elad Gil'] }
-                              ]
-                            }
-                          };
-                          const subsection = domainData[selectedTopic]?.subsections.find(s => s.title === selectedSubsection);
-                          return subsection?.items || [];
-                        })()}
-                        onEntityHover={setHoveredEntity}
-                        onEntityClick={setSelectedEntity}
-                      />
-                    ) : (
-                      <AtlasDashboard
-                        selectedTopic={selectedTopic}
-                        onEntityHover={setHoveredEntity}
-                        onSubsectionClick={setSelectedSubsection}
-                        onEntityClick={setSelectedEntity}
-                      />
-                    )}
-
-                    {/* Relevant Articles Section */}
-                    <div style={{ marginTop: selectedSubsection ? '30px' : '0' }}>
-                      <h3 style={{
-                        fontSize: '14px',
-                        color: '#666',
-                        marginBottom: '20px',
-                        letterSpacing: '1px',
-                        textTransform: 'uppercase',
-                        fontWeight: 600
-                      }}>
-                        Relevant Articles
-                      </h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-                        {filteredPosts.slice(0, 5).map((post) => (
-                          <div
-                            key={post.id}
-                            onClick={() => setSelectedPost(post)}
-                            style={{
-                              marginBottom: '20px',
-                              borderBottom: '1px solid #222',
-                              paddingBottom: '15px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <div style={{
-                              fontSize: '11px',
-                              color: '#666',
-                              marginBottom: '8px',
-                              fontFamily: theme.fonts.mono
-                            }}>
-                              {new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')}
-                            </div>
-                            <h4 style={{
-                              fontSize: '16px',
-                              color: '#fff',
-                              margin: '0',
-                              fontWeight: 400,
-                              lineHeight: '1.4'
-                            }}>
-                              {post.title}
-                            </h4>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <h2 style={{
-                      fontSize: '14px',
-                      color: '#444',
-                      borderBottom: '1px solid #222',
-                      paddingBottom: '10px',
-                      marginBottom: '30px',
-                      letterSpacing: '1px',
-                      textTransform: 'uppercase'
-                    }}>
-                      {selectedPage} {selectedTopic !== 'All' ? `/ ${selectedTopic}` : ''}
-                    </h2>
-
-                    {/* Posts from API */}
-                    {loadingPosts ? (
-                      <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '40px' }}>
-                        Loading transmissions...
-                      </div>
-                    ) : filteredPosts.length === 0 ? (
-                      <div style={{ color: '#666', fontSize: '13px', textAlign: 'center', padding: '40px' }}>
-                        No transmissions found
-                      </div>
-                    ) : (
-                      filteredPosts.map((post) => (
-                        <NewsItem
-                          key={post.id}
-                          date={new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')}
-                          title={post.title}
-                          excerpt={post.excerpt}
-                          onClick={() => setSelectedPost(post)}
-                        />
-                      ))
-                    )}
-                  </>
-                  )}
-                </div>
-
-                {/* Right Column: Sticky Sidebar */}
-                {!isMobile && (
-                  <div style={{ position: 'relative' }}>
-                    <div style={{ position: 'sticky', top: '40px' }}>
-                      {selectedPage === 'ATLAS' ? (
-                        <AtlasSidebar
-                          selectedTopic={selectedTopic}
-                          selectedSubsection={selectedSubsection}
-                          hoveredEntity={hoveredEntity}
-                        />
-                      ) : (
-                        <MarketWatch />
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+          {route === 'home' && <HomeCards isMobile={isMobile} navigate={navigate} />}
+          {route === 'backpack' && <ProductExplainer isMobile={isMobile} />}
+          {route === 'atlas' && <AtlasExplainer isMobile={isMobile} />}
+          {route === 'account' && <AccountPage isMobile={isMobile} />}
 
           {/* Footer */}
           <div style={{

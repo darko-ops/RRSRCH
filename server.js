@@ -16,7 +16,7 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));  // atlas graphs can exceed the 100kb default
 app.use(session({
   secret: process.env.SESSION_SECRET || 'rrsrch-secret-key-2025',
   resave: false,
@@ -33,23 +33,27 @@ app.use(passport.session());
 // Initialize Twitter client
 const twitterClient = new TwitterApi(process.env.TWITTER_BEARER_TOKEN);
 
-// Configure Google OAuth Strategy
-passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/api/auth/google/callback`
-  },
-  function(accessToken, refreshToken, profile, cb) {
-    // Here you would normally save the user to a database
-    // For now, we'll just return the profile
-    return cb(null, {
-      id: profile.id,
-      name: profile.displayName,
-      email: profile.emails[0].value,
-      picture: profile.photos[0].value
-    });
-  }
-));
+// Configure Google OAuth Strategy (only when credentials are configured —
+// the strategy constructor throws if clientID/clientSecret are missing).
+const googleOAuthEnabled = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+if (googleOAuthEnabled) {
+  passport.use(new GoogleStrategy({
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/api/auth/google/callback`
+    },
+    function(accessToken, refreshToken, profile, cb) {
+      // Here you would normally save the user to a database
+      // For now, we'll just return the profile
+      return cb(null, {
+        id: profile.id,
+        name: profile.displayName,
+        email: profile.emails[0].value,
+        picture: profile.photos[0].value
+      });
+    }
+  ));
+}
 
 passport.serializeUser((user, done) => {
   done(null, user);
@@ -59,15 +63,56 @@ passport.deserializeUser((user, done) => {
   done(null, user);
 });
 
-// Posts storage file
+// --- Posts storage ---
+// On Vercel the filesystem is read-only, so persist posts in Vercel Blob when a
+// BLOB_READ_WRITE_TOKEN is present. Locally (dev) fall back to a JSON file on disk.
 const POSTS_FILE = path.join(__dirname, 'posts.json');
+const BLOB_KEY = 'posts.json';
+const useBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
 
-// Initialize posts file if it doesn't exist
+async function readPosts() {
+  if (useBlob) {
+    const { list } = require('@vercel/blob');
+    const { blobs } = await list({ prefix: BLOB_KEY });
+    const match = blobs.find((b) => b.pathname === BLOB_KEY);
+    if (!match) return [];
+    const res = await fetch(match.url, { cache: 'no-store' });
+    if (!res.ok) return [];
+    return res.json();
+  }
+  try {
+    const data = await fs.readFile(POSTS_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
+}
+
+async function writePosts(posts) {
+  if (useBlob) {
+    const { put } = require('@vercel/blob');
+    await put(BLOB_KEY, JSON.stringify(posts, null, 2), {
+      access: 'public',
+      contentType: 'application/json',
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    });
+    return;
+  }
+  await fs.writeFile(POSTS_FILE, JSON.stringify(posts, null, 2));
+}
+
+// Initialize local posts file if it doesn't exist (dev only; no-op on Vercel)
 async function initPostsFile() {
+  if (useBlob) return;
   try {
     await fs.access(POSTS_FILE);
   } catch {
-    await fs.writeFile(POSTS_FILE, JSON.stringify([], null, 2));
+    try {
+      await fs.writeFile(POSTS_FILE, JSON.stringify([], null, 2));
+    } catch {
+      // read-only filesystem; reads will just return []
+    }
   }
 }
 
@@ -308,8 +353,7 @@ app.get('/api/tweets', async (req, res) => {
 // Get all posts
 app.get('/api/posts', async (req, res) => {
   try {
-    const data = await fs.readFile(POSTS_FILE, 'utf8');
-    const posts = JSON.parse(data);
+    const posts = await readPosts();
     res.json({ posts: posts.sort((a, b) => new Date(b.date) - new Date(a.date)) });
   } catch (error) {
     console.error('Error reading posts:', error);
@@ -332,8 +376,7 @@ app.post('/api/posts', async (req, res) => {
   }
 
   try {
-    const data = await fs.readFile(POSTS_FILE, 'utf8');
-    const posts = JSON.parse(data);
+    const posts = await readPosts();
 
     const newPost = {
       id: Date.now().toString(),
@@ -345,7 +388,7 @@ app.post('/api/posts', async (req, res) => {
     };
 
     posts.push(newPost);
-    await fs.writeFile(POSTS_FILE, JSON.stringify(posts, null, 2));
+    await writePosts(posts);
 
     res.json({ success: true, post: newPost });
   } catch (error) {
@@ -363,15 +406,14 @@ app.delete('/api/posts/:id', async (req, res) => {
   }
 
   try {
-    const data = await fs.readFile(POSTS_FILE, 'utf8');
-    const posts = JSON.parse(data);
+    const posts = await readPosts();
     const filteredPosts = posts.filter(p => p.id !== req.params.id);
 
     if (posts.length === filteredPosts.length) {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    await fs.writeFile(POSTS_FILE, JSON.stringify(filteredPosts, null, 2));
+    await writePosts(filteredPosts);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting post:', error);
@@ -380,18 +422,23 @@ app.delete('/api/posts/:id', async (req, res) => {
 });
 
 // Google OAuth routes
-app.get('/api/auth/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] })
-);
+app.get('/api/auth/google', (req, res, next) => {
+  if (!googleOAuthEnabled) {
+    return res.status(503).json({ error: 'Google sign-in is not configured' });
+  }
+  passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
+});
 
-app.get('/api/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/' }),
-  function(req, res) {
+app.get('/api/auth/google/callback', (req, res, next) => {
+  if (!googleOAuthEnabled) {
+    return res.status(503).json({ error: 'Google sign-in is not configured' });
+  }
+  passport.authenticate('google', { failureRedirect: '/' })(req, res, () => {
     // Successful authentication, redirect to frontend with user data
     const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
     res.redirect(`${frontendURL}?auth=success&user=${encodeURIComponent(JSON.stringify(req.user))}`);
-  }
-);
+  });
+});
 
 // Get current user
 app.get('/api/auth/user', (req, res) => {
@@ -410,6 +457,426 @@ app.get('/api/auth/logout', (req, res) => {
     }
     res.json({ success: true });
   });
+});
+
+// --- Account auth (email + password, v0) ------------------------------------
+// Serverless-safe by design: no sessions (stateless HMAC tokens verified per
+// request) and users persisted in Vercel Blob like posts are. Blob objects are
+// public-by-URL, so the user store lives at an UNGUESSABLE pathname derived
+// from AUTH_SECRET (capability URL) and holds bcrypt hashes only — never
+// plaintext. v0 tradeoffs, documented: no rate limiting, last-write-wins on
+// concurrent signups, and rotating SESSION_SECRET both invalidates tokens and
+// moves the users blob key (migrate the blob if you rotate).
+const crypto = require('crypto');
+
+const AUTH_SECRET = process.env.SESSION_SECRET || 'rrsrch-secret-key-2025';
+// Versioned writes, never overwrites: blob overwrites of the SAME pathname are
+// CDN-cached (stale reads for up to ~a minute — verified live), which is fatal
+// for an auth store. Every write lands at a NEW pathname under a secret prefix;
+// reads list the prefix and fetch the newest version's unique URL, so
+// read-after-write is consistent. Old versions are pruned best-effort.
+const USERS_PREFIX = 'users-' + crypto.createHash('sha256')
+  .update('rrsrch-users:' + AUTH_SECRET).digest('hex').slice(0, 40) + '/';
+const USERS_FILE = path.join(__dirname, 'users.json');
+
+async function latestUsersBlob() {
+  const { list } = require('@vercel/blob');
+  const { blobs } = await list({ prefix: USERS_PREFIX });
+  if (!blobs.length) return null;
+  // version filenames are zero-padded ms timestamps — lexicographic max = newest
+  return blobs.reduce((a, b) => (a.pathname > b.pathname ? a : b));
+}
+
+async function readUsers() {
+  if (useBlob) {
+    const match = await latestUsersBlob();
+    if (!match) return [];
+    const res = await fetch(match.url, { cache: 'no-store' });
+    if (!res.ok) return [];
+    return res.json();
+  }
+  try {
+    return JSON.parse(await fs.readFile(USERS_FILE, 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
+async function writeUsers(users) {
+  if (useBlob) {
+    const { put, del, list } = require('@vercel/blob');
+    const key = `${USERS_PREFIX}v-${String(Date.now()).padStart(16, '0')}.json`;
+    await put(key, JSON.stringify(users, null, 2), {
+      access: 'public',
+      contentType: 'application/json',
+      addRandomSuffix: false,
+    });
+    try {   // best-effort prune of superseded versions
+      const { blobs } = await list({ prefix: USERS_PREFIX });
+      const old = blobs.filter((b) => b.pathname < key).map((b) => b.url);
+      if (old.length) await del(old);
+    } catch (err) {
+      console.error('users prune failed (harmless):', err.message);
+    }
+    return;
+  }
+  await fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2));
+}
+
+const b64url = (buf) => Buffer.from(buf).toString('base64url');
+function signToken(payload) {
+  const body = b64url(JSON.stringify(payload));
+  const mac = crypto.createHmac('sha256', AUTH_SECRET).update(body).digest('base64url');
+  return `${body}.${mac}`;
+}
+function verifyToken(token) {
+  if (!token || !token.includes('.')) return null;
+  const [body, mac] = token.split('.');
+  const expect = crypto.createHmac('sha256', AUTH_SECRET).update(body).digest('base64url');
+  if (mac.length !== expect.length
+      || !crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expect))) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString());
+    if (!payload.exp || payload.exp < Date.now()) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+const publicUser = (u) => ({ id: u.id, name: u.name, email: u.email, created_at: u.created_at });
+const tokenFor = (u) => signToken({ sub: u.id, exp: Date.now() + 30 * 24 * 3600 * 1000 });
+
+async function requireUser(req, res) {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const payload = verifyToken(token);
+  if (!payload) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return null;
+  }
+  const user = (await readUsers()).find((u) => u.id === payload.sub);
+  if (!user) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return null;
+  }
+  // device tokens are revocable: the device must still be on the account
+  if (payload.dev && !(user.devices || []).some((d) => d.id === payload.dev)) {
+    res.status(401).json({ error: 'Device revoked' });
+    return null;
+  }
+  return user;
+}
+
+app.post('/api/account/signup', async (req, res) => {
+  try {
+    const { name, email, password } = req.body || {};
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      return res.status(400).json({ error: 'Enter a valid email address.' });
+    }
+    if (!password || String(password).length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    }
+    const users = await readUsers();
+    if (users.some((u) => u.email === cleanEmail)) {
+      return res.status(409).json({ error: 'An account with that email already exists.' });
+    }
+    const user = {
+      id: crypto.randomUUID(),
+      name: String(name || '').trim().slice(0, 80) || cleanEmail.split('@')[0],
+      email: cleanEmail,
+      password_hash: await bcrypt.hash(String(password), 10),
+      created_at: new Date().toISOString(),
+    };
+    users.push(user);
+    await writeUsers(users);
+    res.status(201).json({ token: tokenFor(user), user: publicUser(user) });
+  } catch (err) {
+    console.error('signup failed:', err);
+    res.status(500).json({ error: 'Signup failed.' });
+  }
+});
+
+app.post('/api/account/login', async (req, res) => {
+  try {
+    const cleanEmail = String((req.body || {}).email || '').trim().toLowerCase();
+    const user = (await readUsers()).find((u) => u.email === cleanEmail);
+    const ok = user && await bcrypt.compare(String((req.body || {}).password || ''),
+                                            user.password_hash);
+    if (!ok) return res.status(401).json({ error: 'Wrong email or password.' });
+    res.json({ token: tokenFor(user), user: publicUser(user) });
+  } catch (err) {
+    console.error('login failed:', err);
+    res.status(500).json({ error: 'Login failed.' });
+  }
+});
+
+app.get('/api/account/me', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (user) {
+    res.json({ user: publicUser(user), devices: user.devices || [],
+               projects: user.projects || [],
+               active_project_id: user.active_project_id || null });
+  }
+});
+
+// projects: named endpoint sets the dashboard toggles between (account-backed
+// so they follow the user across browsers/machines)
+app.post('/api/account/projects', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const { projects, active_project_id } = req.body || {};
+  if (!Array.isArray(projects) || projects.length === 0 || projects.length > 20) {
+    return res.status(400).json({ error: 'Projects must be a list of 1-20 entries.' });
+  }
+  const clean = projects.map((p) => ({
+    id: String(p.id || crypto.randomUUID()).slice(0, 40),
+    name: String(p.name || 'untitled').slice(0, 60),
+    backpack_url: String(p.backpack_url || '').slice(0, 200),
+    atlas_url: String(p.atlas_url || '').slice(0, 200),
+  }));
+  const users = await readUsers();
+  const u = users.find((x) => x.id === user.id);
+  u.projects = clean;
+  u.active_project_id = String(active_project_id || clean[0].id).slice(0, 40);
+  await writeUsers(users);
+  res.json({ projects: clean, active_project_id: u.active_project_id });
+});
+
+// ---- atlas attestations: published by `atlas-probe` from a paired machine, ----
+// ---- read back by the dashboard — so the Atlas tab never touches localhost ----
+// Same versioned-write discipline as the users store (same-pathname overwrites
+// serve stale from the CDN for ~a minute).
+const ATLAS_PREFIX = 'atlas-' + crypto.createHash('sha256')
+  .update('rrsrch-atlas:' + AUTH_SECRET).digest('hex').slice(0, 40) + '/';
+const ATLAS_DIR = path.join(__dirname, 'atlas-graphs');   // dev fallback
+
+const atlasSlug = (s) => String(s || '').toLowerCase()
+  .replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+
+async function latestAtlasBlob(userId, slug) {
+  const { list } = require('@vercel/blob');
+  const { blobs } = await list({ prefix: `${ATLAS_PREFIX}${userId}/${slug}/` });
+  if (!blobs.length) return null;
+  return blobs.reduce((a, b) => (a.pathname > b.pathname ? a : b));
+}
+
+app.post('/api/atlas', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const slug = atlasSlug((req.body || {}).target);
+  const graph = (req.body || {}).graph;
+  if (!slug || !graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
+    return res.status(400).json({ error: 'Need target (slug) + graph {nodes, edges}.' });
+  }
+  const payload = JSON.stringify(graph);
+  if (useBlob) {
+    const { put, del, list } = require('@vercel/blob');
+    const key = `${ATLAS_PREFIX}${user.id}/${slug}/v-${String(Date.now()).padStart(16, '0')}.json`;
+    await put(key, payload, { access: 'public', contentType: 'application/json',
+                              addRandomSuffix: false });
+    try {   // best-effort prune of superseded versions
+      const { blobs } = await list({ prefix: `${ATLAS_PREFIX}${user.id}/${slug}/` });
+      const old = blobs.filter((b) => b.pathname < key).map((b) => b.url);
+      if (old.length) await del(old);
+    } catch (err) {
+      console.error('atlas prune failed (harmless):', err.message);
+    }
+  } else {
+    await fs.mkdir(path.join(ATLAS_DIR, user.id), { recursive: true });
+    await fs.writeFile(path.join(ATLAS_DIR, user.id, `${slug}.json`), payload);
+  }
+  res.json({ ok: true, target: slug });
+});
+
+app.get('/api/account/atlas', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  if (useBlob) {
+    const { list } = require('@vercel/blob');
+    const { blobs } = await list({ prefix: `${ATLAS_PREFIX}${user.id}/` });
+    const targets = {};
+    for (const b of blobs) {
+      const slug = b.pathname.slice(`${ATLAS_PREFIX}${user.id}/`.length).split('/')[0];
+      const at = b.uploadedAt || null;
+      if (!targets[slug] || (at && at > targets[slug])) targets[slug] = at;
+    }
+    return res.json({ targets });
+  }
+  try {
+    const files = await fs.readdir(path.join(ATLAS_DIR, user.id));
+    return res.json({ targets: Object.fromEntries(
+      files.filter((f) => f.endsWith('.json')).map((f) => [f.slice(0, -5), null])) });
+  } catch {
+    return res.json({ targets: {} });
+  }
+});
+
+app.get('/api/account/atlas/:slug', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const slug = atlasSlug(req.params.slug);
+  if (useBlob) {
+    const match = await latestAtlasBlob(user.id, slug);
+    if (!match) return res.status(404).json({ error: 'No attestation published for this target.' });
+    const r = await fetch(match.url, { cache: 'no-store' });
+    if (!r.ok) return res.status(404).json({ error: 'No attestation published for this target.' });
+    return res.json(await r.json());
+  }
+  try {
+    return res.json(JSON.parse(
+      await fs.readFile(path.join(ATLAS_DIR, user.id, `${slug}.json`), 'utf8')));
+  } catch {
+    return res.status(404).json({ error: 'No attestation published for this target.' });
+  }
+});
+
+// self-delete (also how probe/test accounts get cleaned up)
+app.delete('/api/account/me', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const users = (await readUsers()).filter((u) => u.id !== user.id);
+  await writeUsers(users);
+  res.json({ deleted: true });
+});
+
+// --- Device pairing (the Claude Code-style login for local MCP instances) ----
+// `rrsrch-login` on the operator's machine: start -> user approves the code in
+// their signed-in dashboard -> poll returns an account-scoped device token.
+// Pending codes live in a versioned blob like users; device tokens carry a
+// device id and are revocable (requireUser checks the user's device list).
+const PAIR_PREFIX = 'pairings-' + crypto.createHash('sha256')
+  .update('rrsrch-pairings:' + AUTH_SECRET).digest('hex').slice(0, 40) + '/';
+const PAIR_FILE = path.join(__dirname, 'pairings.json');
+const PAIR_TTL_MS = 15 * 60 * 1000;
+
+async function readPairings() {
+  if (useBlob) {
+    const { list } = require('@vercel/blob');
+    const { blobs } = await list({ prefix: PAIR_PREFIX });
+    if (!blobs.length) return [];
+    const newest = blobs.reduce((a, b) => (a.pathname > b.pathname ? a : b));
+    const res = await fetch(newest.url, { cache: 'no-store' });
+    return res.ok ? res.json() : [];
+  }
+  try {
+    return JSON.parse(await fs.readFile(PAIR_FILE, 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
+async function writePairings(pairings) {
+  const live = pairings.filter((p) => p.expires_at > Date.now() - 60 * 60 * 1000);
+  if (useBlob) {
+    const { put, del, list } = require('@vercel/blob');
+    const key = `${PAIR_PREFIX}v-${String(Date.now()).padStart(16, '0')}.json`;
+    await put(key, JSON.stringify(live), {
+      access: 'public', contentType: 'application/json', addRandomSuffix: false,
+    });
+    try {
+      const { blobs } = await list({ prefix: PAIR_PREFIX });
+      const old = blobs.filter((b) => b.pathname < key).map((b) => b.url);
+      if (old.length) await del(old);
+    } catch (err) {
+      console.error('pairings prune failed (harmless):', err.message);
+    }
+    return;
+  }
+  await fs.writeFile(PAIR_FILE, JSON.stringify(live));
+}
+
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // no 0/O/1/I/L
+function userCode() {
+  const pick = () => CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)];
+  return `${pick()}${pick()}${pick()}${pick()}-${pick()}${pick()}${pick()}${pick()}`;
+}
+const deviceTokenFor = (u, deviceId) =>
+  signToken({ sub: u.id, dev: deviceId, exp: Date.now() + 365 * 24 * 3600 * 1000 });
+
+app.post('/api/device/start', async (req, res) => {
+  try {
+    const pairing = {
+      user_code: userCode(),
+      device_code: crypto.randomUUID(),
+      device_name: String((req.body || {}).device_name || 'unnamed device').slice(0, 60),
+      created_at: Date.now(),
+      expires_at: Date.now() + PAIR_TTL_MS,
+      approved_by: null,
+      consumed: false,
+    };
+    const pairings = await readPairings();
+    pairings.push(pairing);
+    await writePairings(pairings);
+    res.status(201).json({
+      user_code: pairing.user_code,
+      device_code: pairing.device_code,
+      verification_uri: `https://rrsrch.com/#/account?pair=${pairing.user_code}`,
+      expires_in: Math.floor(PAIR_TTL_MS / 1000),
+      interval: 5,
+    });
+  } catch (err) {
+    console.error('device/start failed:', err);
+    res.status(500).json({ error: 'Could not start pairing.' });
+  }
+});
+
+app.post('/api/device/approve', async (req, res) => {
+  try {
+    const user = await requireUser(req, res);
+    if (!user) return;
+    const code = String((req.body || {}).user_code || '').trim().toUpperCase();
+    const pairings = await readPairings();
+    const p = pairings.find((x) => x.user_code === code && !x.consumed);
+    if (!p || p.expires_at < Date.now()) {
+      return res.status(404).json({ error: 'Unknown or expired code.' });
+    }
+    if (p.approved_by) return res.status(409).json({ error: 'Code already approved.' });
+    p.approved_by = user.id;
+    p.device_id = crypto.randomUUID();
+    await writePairings(pairings);
+    // record the device on the account (this is also the revocation list)
+    const users = await readUsers();
+    const u = users.find((x) => x.id === user.id);
+    u.devices = [...(u.devices || []),
+      { id: p.device_id, name: p.device_name, paired_at: new Date().toISOString() }];
+    await writeUsers(users);
+    res.json({ approved: true, device_name: p.device_name });
+  } catch (err) {
+    console.error('device/approve failed:', err);
+    res.status(500).json({ error: 'Approval failed.' });
+  }
+});
+
+app.post('/api/device/poll', async (req, res) => {
+  try {
+    const dc = String((req.body || {}).device_code || '');
+    const pairings = await readPairings();
+    const p = pairings.find((x) => x.device_code === dc);
+    if (!p || (p.expires_at < Date.now() && !p.approved_by)) {
+      return res.json({ status: 'expired' });
+    }
+    if (!p.approved_by) return res.json({ status: 'pending' });
+    if (p.consumed) return res.json({ status: 'expired' });
+    p.consumed = true;
+    await writePairings(pairings);
+    const user = (await readUsers()).find((u) => u.id === p.approved_by);
+    if (!user) return res.json({ status: 'expired' });
+    res.json({ status: 'approved', token: deviceTokenFor(user, p.device_id),
+               user: publicUser(user), device_id: p.device_id });
+  } catch (err) {
+    console.error('device/poll failed:', err);
+    res.status(500).json({ error: 'Poll failed.' });
+  }
+});
+
+app.delete('/api/device/:id', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const users = await readUsers();
+  const u = users.find((x) => x.id === user.id);
+  u.devices = (u.devices || []).filter((d) => d.id !== req.params.id);
+  await writeUsers(users);
+  res.json({ revoked: true });
 });
 
 // Admin authentication endpoint
@@ -441,8 +908,14 @@ app.post('/api/auth/admin', async (req, res) => {
   }
 });
 
-initPostsFile().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+// Only start a long-running server when executed directly (local dev).
+// On Vercel the app is imported by api/index.js and invoked per-request.
+if (require.main === module) {
+  initPostsFile().then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
   });
-});
+}
+
+module.exports = app;
