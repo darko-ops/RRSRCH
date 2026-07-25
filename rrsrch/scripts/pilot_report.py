@@ -67,6 +67,26 @@ DEFAULT_MIN_REDUCTION_PCT = 20.0
 DEFAULT_MIN_PRECISION_PCT = 99.0
 
 
+VOLATILITIES = ("low", "medium", "high")
+
+
+def build_embedder_or_fail(settings: Settings):
+    """A pilot run must never silently fall back to the offline hash embedder.
+    Its paraphrase recall is a FLOOR, not production behaviour, so numbers
+    produced with it are not partner-reportable — quoting them as if they were
+    MiniLM's would overstate misses (Gate A) and understate the matcher's real
+    exposure (Gate B). If the configured model cannot load, stop."""
+    try:
+        return get_embedder(settings)
+    except Exception as e:                                   # noqa: BLE001
+        sys.exit(f"pilot_report: embedder {settings.embedder!r} failed to load "
+                 f"({type(e).__name__}: {e}).\n"
+                 f"  Refusing to fall back to the hash embedder — its recall is a "
+                 f"floor, not production behaviour.\n"
+                 f"  Fix the model/network, or run explicitly with "
+                 f"RRSRCH_EMBEDDER=hash for a NON-pilot-grade smoke run.")
+
+
 class _Clock:
     """Replays at the traces' OWN timestamps so confidence decay is real: a
     claim deposited in March is genuinely 60 days old when queried in May."""
@@ -132,10 +152,25 @@ def load_judgments(path: str) -> dict[str, bool]:
     return out
 
 
+def _judgment_volatility_mismatch(path: str, selected: str) -> str | None:
+    """Judgments are only valid for the run that produced them: a different
+    volatility can serve a different answer for the same trace."""
+    seen = set()
+    with open(path) as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                v = json.loads(line).get("volatility")
+                if v:
+                    seen.add(v)
+    off = seen - {selected}
+    return sorted(off)[0] if off and selected not in seen else None
+
+
 async def replay(traces: list[dict[str, Any]], settings: Settings,
                  default_volatility: str = "medium") -> dict[str, Any]:
     clock = _Clock()
-    corpus = Corpus(InMemoryStore(), get_embedder(settings), settings, now=clock)
+    corpus = Corpus(InMemoryStore(), build_embedder_or_fail(settings), settings, now=clock)
 
     serves: list[dict[str, Any]] = []
     hits = stale = misses = 0
@@ -183,6 +218,7 @@ async def replay(traces: list[dict[str, Any]], settings: Settings,
                 "answer_we_would_have_served": r.claim,
                 # the partner's OWN answer for this query, for the judge to compare
                 "their_actual_answer": t["answer"],
+                "volatility": default_volatility,   # judgments are tied to this run
                 "correct": None,          # <- the human fills this in, blind
             })
         else:
@@ -285,9 +321,13 @@ def gate_b(rep: dict[str, Any], judgments: dict[str, bool], floor: float) -> dic
     }
 
 
-def render(rep: dict[str, Any], a: dict[str, Any], b: dict[str, Any]) -> str:
+def render(rep: dict[str, Any], a: dict[str, Any], b: dict[str, Any],
+           sweep: list[dict[str, Any]], settings: Settings, selected: str) -> str:
+    pilot_grade = settings.embedder != "hash"
     L = [
         "=" * 66, "PILOT SHADOW REPORT", "=" * 66,
+        f"embedder {settings.embedder} @ threshold {settings.similarity_threshold} "
+        f"| volatility {selected}",
         f"traces {rep['traces']} | actors {rep['actors']} | sessions {rep['sessions']} "
         f"| span {rep['span_days']}d | workflows {rep['workflows']}",
         "",
@@ -298,6 +338,19 @@ def render(rep: dict[str, Any], a: dict[str, Any], b: dict[str, Any]) -> str:
         "",
         "REPLAY (temporal, empty corpus, no look-ahead, no re-derivation)",
         f"  hits {rep['hits']} | stale {rep['stale']} | misses {rep['misses']}",
+        "",
+        "VOLATILITY SENSITIVITY (always shown — this assumption moves the result",
+        "more than any other, so it is never reported as a single number)",
+        "  class    half-life     hits   stale   net reduction",
+    ] + [
+        f"  {s['volatility']:<8} {s['half_life']:<12} {s['hits']:>5} {s['stale']:>7}"
+        f"   {s['net_reduction_pct']:>7}%"
+        + ("   <- SELECTED" if s["volatility"] == selected else "")
+        for s in sweep
+    ] + [
+        f"  spread: {max(s['net_reduction_pct'] for s in sweep) - min(s['net_reduction_pct'] for s in sweep):.2f}"
+        f" percentage points between the best and worst class."
+        " Classify from the partner's DOMAIN, not from which number flatters the pitch.",
         "",
         "-" * 66,
         f"GATE A — ECONOMICS   (net token reduction >= {a['threshold_pct']}%)",
@@ -327,11 +380,15 @@ def render(rep: dict[str, Any], a: dict[str, Any], b: dict[str, Any]) -> str:
     overall = "PASS" if (a["verdict"] == "PASS" and b["verdict"] == "PASS") else "NOT PASSED"
     L += [
         "", "=" * 66,
-        f"OVERALL: {overall}",
+        f"OVERALL: {overall}"
+        + ("" if pilot_grade else "   [NOT PILOT-GRADE — hash embedder]"),
         "  The gates are independent and BOTH must pass. Savings do not offset a",
         "  precision failure, and an UNDETERMINED safety gate is not a pass.",
-        "=" * 66,
-    ]
+    ] + ([] if pilot_grade else [
+        "  The hash embedder is an OFFLINE FLOOR, not production behaviour: these",
+        "  numbers are a smoke test and must not be shown to a partner. Rerun with",
+        "  RRSRCH_EMBEDDER=local.",
+    ]) + ["=" * 66]
     return "\n".join(L)
 
 
@@ -356,12 +413,35 @@ async def main() -> None:
         similarity_threshold=float(os.environ.get("RRSRCH_SIMILARITY_THRESHOLD", "0.55")),
     )
     traces = load_traces(args.traces)
-    rep = await replay(traces, settings, args.volatility)
+
+    # The sweep is NOT optional. Volatility is an analyst's judgment call that
+    # swings the outcome more than any other input, so every class is replayed
+    # and printed; the selected one cannot be quoted without its neighbours
+    # visible beside it.
+    half_lives = {"low": f"{settings.half_life_low_days:g}d",
+                  "medium": f"{settings.half_life_medium_days:g}d",
+                  "high": f"{settings.half_life_high_hours:g}h"}
+    sweep, reps = [], {}
+    for vol in VOLATILITIES:
+        r = await replay(traces, settings, vol)
+        reps[vol] = r
+        sweep.append({"volatility": vol, "half_life": half_lives[vol],
+                      "hits": r["hits"], "stale": r["stale"],
+                      "net_reduction_pct": gate_a(r, settings,
+                                                  args.min_reduction)["net_reduction_pct"]})
+
+    rep = reps[args.volatility]
     judgments = load_judgments(args.judgments) if args.judgments else {}
+    if args.judgments:
+        stale_j = _judgment_volatility_mismatch(args.judgments, args.volatility)
+        if stale_j:
+            print(f"! judgments were emitted under volatility {stale_j!r} but this run "
+                  f"selected {args.volatility!r}; the served answers may differ.",
+                  file=sys.stderr)
 
     a = gate_a(rep, settings, args.min_reduction)
     b = gate_b(rep, judgments, args.min_precision)
-    print(render(rep, a, b))
+    print(render(rep, a, b, sweep, settings, args.volatility))
 
     if args.emit_judgments:
         with open(args.emit_judgments, "w") as fh:

@@ -126,3 +126,65 @@ def test_judgments_loader_ignores_rows_without_an_explicit_boolean(tmp_path):
                  '{"serve_id": "srv-3", "correct": false}\n')
     got = pilot.load_judgments(str(p))
     assert got == {"srv-0": True, "srv-3": False}       # silence is not consent
+
+
+# ------------------------------------------- end-to-end on the sample fixture
+
+import asyncio  # noqa: E402
+
+FIXTURE = pathlib.Path(__file__).parent / "fixtures" / "pilot_traces_sample.jsonl"
+_S_HASH = Settings(store="memory", embedder="hash", similarity_threshold=0.55)
+
+
+def test_fixture_carries_paraphrases_and_near_miss_distractors():
+    traces = pilot.load_traces(str(FIXTURE))
+    assert len(traces) > 50
+    queries = {t["query"] for t in traces}
+    facts = {t["fact_id"] for t in traces}
+    # many phrasings per fact => the matcher is exercised on paraphrase, not
+    # just verbatim repeats
+    assert len(queries) > len(facts) * 2
+    # and the fixture contains deliberately confusable NEIGHBOURS (at rest vs
+    # in transit; audit logs vs incident reports) so false hits are reachable
+    assert {"encryption-at-rest", "encryption-in-transit"} <= facts
+    assert {"audit-log-retention", "incident-report-retention"} <= facts
+
+
+def test_volatility_sensitivity_is_structural_not_incidental():
+    """The sweep must actually move: if every class produced the same number the
+    'always shown' disclosure would be theatre."""
+    traces = pilot.load_traces(str(FIXTURE))
+    by_vol = {v: asyncio.run(pilot.replay(traces, _S_HASH, v)) for v in pilot.VOLATILITIES}
+    reductions = {v: pilot.gate_a(r, _S_HASH, 20.0)["net_reduction_pct"]
+                  for v, r in by_vol.items()}
+    assert by_vol["low"]["hits"] > by_vol["high"]["hits"]
+    assert reductions["low"] - reductions["high"] > 20     # a real, wide spread
+
+
+def test_end_to_end_yields_both_gates_and_withholds_safety_without_judgments():
+    traces = pilot.load_traces(str(FIXTURE))
+    rep = asyncio.run(pilot.replay(traces, _S_HASH, "low"))
+    a = pilot.gate_a(rep, _S_HASH, 20.0)
+    b = pilot.gate_b(rep, judgments={}, floor=99.0)
+    assert a["verdict"] in ("PASS", "FAIL")
+    assert rep["hits"] > 0                       # something was actually served
+    assert b["verdict"] == "UNDETERMINED"        # ...and none of it is vouched for
+
+
+def test_ground_truth_judgments_expose_false_hits_the_savings_number_hides():
+    """The property the two-gate design exists for: on this fixture the economics
+    look strong while the matcher serves neighbouring answers. Asserted as
+    'the harness DETECTS wrong serves', not as a fixed precision, so improving
+    the matcher does not fail the test."""
+    traces = pilot.load_traces(str(FIXTURE))
+    rep = asyncio.run(pilot.replay(traces, _S_HASH, "low"))
+    # ground truth from the FIXTURE's own answers — never the matcher's score
+    judgments = {s["serve_id"]:
+                 s["answer_we_would_have_served"].strip() == s["their_actual_answer"].strip()
+                 for s in rep["serves"]}
+    a = pilot.gate_a(rep, _S_HASH, 20.0)
+    b = pilot.gate_b(rep, judgments, floor=99.0)
+    assert a["verdict"] == "PASS"                       # economics look great
+    assert b["incorrect"] > 0                           # but answers were wrong
+    assert b["verdict"] == "FAIL"
+    assert not (a["verdict"] == "PASS" and b["verdict"] == "PASS")
