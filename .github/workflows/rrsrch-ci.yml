@@ -36,8 +36,10 @@ jobs:
         # deterministic hash embedder; MiniLM integration tests skip themselves
         # when sentence-transformers is absent), so CI installs only this
         # subset — not the heavy Postgres / Torch / MCP stack, which runs on
-        # the deployment box (see rrsrch/DECISIONS.md). Fast and hermetic.
-        run: pip install pytest pytest-asyncio numpy "pydantic>=2.7" pydantic-settings tiktoken
+        # the deployment box (see rrsrch/DECISIONS.md). fastapi + httpx are the
+        # light ASGI test surface the dashboard suite needs (create_app + client).
+        # Fast and hermetic.
+        run: pip install pytest pytest-asyncio numpy "pydantic>=2.7" pydantic-settings tiktoken fastapi httpx
 
       - name: Unit tests (make test)
         run: make test
