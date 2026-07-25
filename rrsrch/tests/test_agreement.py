@@ -221,3 +221,18 @@ def test_numeric_mismatch_still_wins_audit_over_contested():
     v = verdict("The limit is 100 units.", "The limit is 250 units.", EX, S)
     assert v.agree is False
     assert v.rule == "numeric_mismatch"
+
+
+def test_contested_substitution_catches_sentence_final_word():
+    # the token pattern keeps '.', so "optional." must still be contestable
+    v = verdict("The 110 controls are optional.",
+                "The 110 controls are mandatory.", EX, S)
+    assert v.agree is False
+    assert v.rule == "contested_substitution"
+    assert v.detail["contested"] == "optional!=mandatory"
+
+
+def test_sentence_final_punctuation_alone_is_not_contested():
+    v = verdict("Encryption at rest is required.",
+                "Encryption at rest is required", EX, S)
+    assert v.agree is True

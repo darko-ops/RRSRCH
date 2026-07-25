@@ -310,6 +310,11 @@ def _contested_substitution(new_claim: str, old_claim: str) -> str | None:
     if not diffs or len(diffs) > _MAX_SUBST_DIFFS:
         return None
     for x, y in diffs:
+        # the token pattern keeps '.' (versions "3.14.6", prices "$0.023"), so a
+        # SENTENCE-FINAL word arrives as "optional." — strip enclosing dots
+        # before the content-word test or the last word of a claim is never
+        # contestable. Interior dots survive, so versions stay intact.
+        x, y = x.strip("."), y.strip(".")
         if (x in _SUBST_STOP or y in _SUBST_STOP
                 or not (x.isalpha() and y.isalpha())
                 or set(_stems(x)) & set(_stems(y))):
