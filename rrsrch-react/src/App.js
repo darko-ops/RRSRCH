@@ -1100,11 +1100,6 @@ function BackpackPanel({ isMobile, accountEmail, endpoint, setEndpoint }) {
   );
 }
 
-const ATLAS_STATE_COLORS = {
-  confirmed: '#5da862', phantom: '#e07070', shadow: '#dd9159',
-  undecidable: ATLAS_ACCENT, hypothesis: '#84847e',
-};
-
 function AtlasPanel({ isMobile, projectName }) {
   const [graph, setGraph] = useState(null);
   const [status, setStatus] = useState('loading'); // loading | none | ok
