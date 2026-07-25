@@ -5,6 +5,9 @@ description = "Read-only MCP server over an Atlas attestation export (atlas_grap
 requires-python = ">=3.10"
 dependencies = ["mcp>=1.0"]
 
+[project.optional-dependencies]
+dev = ["pytest>=8.2"]
+
 [project.scripts]
 atlas-mcp = "atlas_mcp:main"
 atlas-probe = "probe:main"
@@ -16,3 +19,8 @@ build-backend = "setuptools.build_meta"
 # ship ONLY the MCP module + generic probe — the bouncr collectors stay un-packaged
 [tool.setuptools]
 py-modules = ["atlas_mcp", "probe"]
+
+[tool.pytest.ini_options]
+# the modules live at the package root (py-modules), so put it on the path
+pythonpath = ["."]
+testpaths = ["tests"]

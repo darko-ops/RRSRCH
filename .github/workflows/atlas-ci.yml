@@ -1,0 +1,41 @@
+name: atlas CI
+
+# Smoke-gates the Atlas tooling (atlas-probe/). Two fast, network-free suites:
+#   - test_probe_smoke.py: the pure probe logic — credential stripping, host
+#     parsing, the declared/observed -> edge-state machine (confirmed / phantom /
+#     undecidable / shadow), and the multi-repo graph merge. The collectors and
+#     publish() shell out (git / curl / the site) and are deliberately not run.
+#   - test_mcp_smoke.py: the read-only MCP server answering over a fixture
+#     atlas_graph.json (summary counts, edge filters, conservative blast_radius,
+#     honest gaps).
+# Separate from rrsrch CI so each product gates on its own path.
+
+on:
+  push:
+    paths:
+      - "atlas-probe/**"
+      - ".github/workflows/atlas-ci.yml"
+  pull_request:
+    paths:
+      - "atlas-probe/**"
+      - ".github/workflows/atlas-ci.yml"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install deps
+        # mcp is the only real dependency (the MCP server); pytest runs the
+        # suite. The pyproject's pythonpath=["."] makes atlas_mcp/probe importable
+        # without installing the package.
+        run: pip install "mcp>=1.0" pytest
+
+      - name: Smoke tests
+        run: python -m pytest atlas-probe -q

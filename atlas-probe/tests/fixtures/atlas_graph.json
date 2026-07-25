@@ -1,0 +1,33 @@
+{
+  "title": "Atlas — demo",
+  "as_of": "2026-07-20T00:00:00+00:00",
+  "exported_at": "2026-07-20T00:00:00+00:00",
+  "connectors": ["filesystem", "curl (live domain)"],
+  "evidence_window": "point-in-time (this probe run)",
+  "nodes": [
+    {"id": "app:demo", "label": "demo", "kind": "service", "attributes": {}},
+    {"id": "db:postgres", "label": "postgres", "kind": "datastore", "attributes": {}},
+    {"id": "ext:stripe", "label": "stripe", "kind": "external_api", "attributes": {}},
+    {"id": "ext:openai", "label": "openai", "kind": "external_api", "attributes": {}}
+  ],
+  "edges": [
+    {"src": "app:demo", "dst": "db:postgres", "kind": "queries", "state": "confirmed",
+     "sources": [], "as_of": "2026-07-20T00:00:00+00:00",
+     "note": "declared and independently observed"},
+    {"src": "app:demo", "dst": "ext:stripe", "kind": "calls", "state": "phantom",
+     "sources": [], "as_of": "2026-07-20T00:00:00+00:00",
+     "note": "declared, an observer looked, and it is not there"},
+    {"src": "app:demo", "dst": "ext:openai", "kind": "calls", "state": "undecidable",
+     "sources": [], "as_of": "2026-07-20T00:00:00+00:00",
+     "note": "declared; no connected source can observe it",
+     "missing_connector": "provider usage logs",
+     "why_unobserved": "no connected evidence source covers this flow"}
+  ],
+  "could_not_determine": [
+    {"edge": "app:demo -[calls]-> ext:openai",
+     "label": "undecidable — declared, but no connected source can observe it",
+     "why": "no connected evidence source covers this flow",
+     "connector_to_install": "provider usage logs",
+     "as_of": "2026-07-20T00:00:00+00:00"}
+  ]
+}
