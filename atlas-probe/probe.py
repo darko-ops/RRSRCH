@@ -323,10 +323,13 @@ class Probe:
         rows = [r.split("\t") for r in docker.splitlines() if r.strip()]
         self.docker_ps_ran = bool(docker)
         self.evidence["docker_ps"] = ["\t".join(r) for r in rows]
-        # the app's OWN container (housing): name-matched, non-datastore image
-        stem = self.name.split("-")[0]
+        # the app's OWN container (housing): docker compose names containers
+        # <project>-<service>-<n>, so ownership = the project prefix equals the
+        # app name EXACTLY (a stem match attributes other repos' containers)
+        def owns(cname: str) -> bool:
+            return re.split(r"[-_]", cname)[0] == self.name
         for cname, image, ports in rows:
-            if stem in cname and not any(img in image for img, _ in IMAGE_PATTERNS):
+            if owns(cname) and not any(img in image for img, _ in IMAGE_PATTERNS):
                 self.docker_observed = {"class": "observed", "connector": dc,
                                         "ref": f"container {cname} ({image}) up, ports {ports}",
                                         "fetched_at": now()}
@@ -338,10 +341,12 @@ class Probe:
                 for img, prov in IMAGE_PATTERNS:
                     if prov == prov_key and img in image:
                         self.observe(prov, True, dc, f"container {cname} ({image}) up, ports {ports}")
-        # shadow candidates: running datastores that look like THIS project but undeclared
+        # shadow candidates: running datastores OWNED by this project (compose
+        # project prefix == app name) but never declared
         for cname, image, ports in rows:
             for img, prov in IMAGE_PATTERNS:
-                if img in image and prov not in self.sources and self.name.split("-")[0] in cname:
+                if (img in image and prov not in self.sources
+                        and re.split(r"[-_]", cname)[0] == self.name):
                     self.observe(prov, True, dc, f"container {cname} ({image}) up — never declared")
         # local supabase stack: the CLI names containers supabase_<svc>_<project_id>,
         # so only a suffix match counts — other projects' stacks must not attribute
@@ -527,26 +532,71 @@ def publish(name: str, graph: dict) -> str:
         return f"publish FAILED: {exc}"
 
 
+def merge_graphs(name: str, graphs: list[dict]) -> dict:
+    """One system, several repos: union of nodes (by id) and all edges. Each
+    repo keeps its own app node — a system map with two services is the truth."""
+    nodes: dict[str, dict] = {}
+    edges: list[dict] = []
+    cnd: list[dict] = []
+    connectors: set[str] = set()
+    for g in graphs:
+        for n in g["nodes"]:
+            nodes.setdefault(n["id"], n)
+        edges.extend(g["edges"])
+        cnd.extend(g["could_not_determine"])
+        connectors.update(g["connectors"])
+    return {"title": f"Atlas — {name} (multi-repo system)", "as_of": now(),
+            "exported_at": now(), "connectors": sorted(connectors),
+            "evidence_window": "point-in-time (this probe run)",
+            "nodes": list(nodes.values()), "edges": edges, "could_not_determine": cnd}
+
+
 def main() -> None:
-    target = pathlib.Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else pathlib.Path.cwd()
-    if not target.is_dir():
-        sys.exit(f"atlas-probe: not a directory: {target}")
-    p = Probe(target)
-    print(f"probing {target}  (name: {p.name})")
-    p.collect_declared()
-    p.collect_observed()
-    g = p.graph()
-    out = TARGETS_ROOT / p.name
+    """atlas-probe [--name SYSTEM] [dir ...]   (no dirs = the cwd)
+    Multiple dirs = one system spanning several repos, published under --name."""
+    args = sys.argv[1:]
+    name = None
+    if "--name" in args:
+        i = args.index("--name")
+        if i + 1 >= len(args):
+            sys.exit("atlas-probe: --name needs a value")
+        name = re.sub(r"[^a-z0-9-]", "-", args[i + 1].lower()).strip("-")
+        args = args[:i] + args[i + 2:]
+    dirs = [pathlib.Path(a).resolve() for a in args] or [pathlib.Path.cwd()]
+    for d in dirs:
+        if not d.is_dir():
+            sys.exit(f"atlas-probe: not a directory: {d}")
+    if len(dirs) > 1 and not name:
+        sys.exit("atlas-probe: probing multiple directories needs --name <system-name>")
+
+    graphs, evidence = [], {}
+    for d in dirs:
+        p = Probe(d)
+        print(f"probing {d}  (name: {p.name})")
+        p.collect_declared()
+        p.collect_observed()
+        graphs.append((p, p.graph()))
+        evidence[p.name] = p.evidence
+    name = name or graphs[0][0].name
+    if len(graphs) == 1:
+        g = graphs[0][1]
+        if name != graphs[0][0].name:
+            g["title"] = f"Atlas — {name} (generic probe)"
+    else:
+        g = merge_graphs(name, [gr for _, gr in graphs])
+
+    out = TARGETS_ROOT / name
     out.mkdir(parents=True, exist_ok=True)
     json.dump(g, open(out / "atlas_graph.json", "w"), indent=1)
-    json.dump(p.evidence, open(out / "evidence.json", "w"), indent=1)
+    json.dump(evidence if len(graphs) > 1 else graphs[0][0].evidence,
+              open(out / "evidence.json", "w"), indent=1)
     states: dict[str, int] = {}
     for e in g["edges"]:
         states[e["state"]] = states.get(e["state"], 0) + 1
     print(f"  {len(g['nodes'])} nodes, {len(g['edges'])} edges: "
           + ", ".join(f"{v} {k}" for k, v in sorted(states.items())))
     print(f"  -> {out / 'atlas_graph.json'}")
-    print(f"  {publish(p.name, g)}")
+    print(f"  {publish(name, g)}")
 
 
 if __name__ == "__main__":
