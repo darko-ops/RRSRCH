@@ -243,6 +243,13 @@ export default function AtlasAttestation({ graph, endpoint, isMobile }) {
   const [sel, setSel] = useState(null);           // {type:'node'|'edge', key}
   const [blastTarget, setBlastTarget] = useState(
     graph.nodes.find((n) => n.kind === 'datastore')?.id ?? graph.nodes[0].id);
+  // a re-published graph can arrive with different ids while this component is
+  // mounted — never let a stale selection/blast target crash a lookup
+  const byIdRaw = useMemo(
+    () => Object.fromEntries(graph.nodes.map((n) => [n.id, n])), [graph]);
+  const safeBlast = byIdRaw[blastTarget]
+    ? blastTarget
+    : (graph.nodes.find((n) => n.kind === 'datastore')?.id ?? graph.nodes[0].id);
   const [showAppendix, setShowAppendix] = useState(false);
   const [full, setFull] = useState(false);   // fullscreen diagram
   const { byId, pos, paths, hulls, clustered } = useMemo(() => computeLayout(graph), [graph]);
@@ -346,6 +353,7 @@ export default function AtlasAttestation({ graph, endpoint, isMobile }) {
     }
     if (sel.type === 'node') {
       const n = byId[sel.key];
+      if (!n) return null;   // selection from a previous version of the graph
       const touching = graph.edges.filter((e) => e.src === sel.key || e.dst === sel.key);
       return (
         <div style={{ fontSize: '12.5px' }}>
@@ -373,6 +381,7 @@ export default function AtlasAttestation({ graph, endpoint, isMobile }) {
       );
     }
     const e = graph.edges[sel.key];
+    if (!e || !byId[e.src] || !byId[e.dst]) return null;   // stale edge selection
     return (
       <div style={{ fontSize: '12.5px' }}>
         <div style={{ fontWeight: 700, color: C.ink, overflowWrap: 'anywhere' }}>
@@ -456,7 +465,12 @@ export default function AtlasAttestation({ graph, endpoint, isMobile }) {
         <div style={full ? {
           position: 'fixed', inset: 0, zIndex: 1000, background: '#121211',
           padding: '18px', display: 'flex', flexDirection: 'column'
-        } : { ...cardStyle, padding: '6px', position: 'relative' }}>
+        } : {
+          ...cardStyle, padding: '6px', position: 'relative',
+          // fixed height + svg at 100%: flat/wide graphs must not collapse the
+          // canvas to a short strip — the whole card is pannable viewport
+          height: isMobile ? '46vh' : '540px', display: 'flex'
+        }}>
           <div style={{ position: 'absolute', top: full ? '14px' : '10px',
             right: full ? '18px' : '10px', zIndex: 1, display: 'flex', gap: '6px' }}>
             {[
@@ -484,10 +498,8 @@ export default function AtlasAttestation({ graph, endpoint, isMobile }) {
             onClickCapture={(e) => {
               if (movedRef.current) { e.stopPropagation(); movedRef.current = false; }
             }}
-            style={full ? { width: '100%', height: '100%', flex: 1, display: 'block',
-                            cursor: dragRef.current ? 'grabbing' : 'grab', touchAction: 'none' }
-                        : { width: '100%', height: 'auto', display: 'block', maxHeight: '68vh',
-                            cursor: dragRef.current ? 'grabbing' : 'grab', touchAction: 'none' }}>
+            style={{ width: '100%', height: '100%', flex: 1, display: 'block',
+                     cursor: dragRef.current ? 'grabbing' : 'grab', touchAction: 'none' }}>
             <defs>
               {Object.keys(STYLE).map((k) => (
                 <marker key={k} id={`rr-arr-${k}`} viewBox="0 0 10 10" refX="9" refY="5"
@@ -623,7 +635,7 @@ export default function AtlasAttestation({ graph, endpoint, isMobile }) {
         <div>
           <div style={secHead}>Blast radius — what breaks if down</div>
           <div style={cardStyle}>
-            <select value={blastTarget} onChange={(e) => setBlastTarget(e.target.value)}
+            <select value={safeBlast} onChange={(e) => setBlastTarget(e.target.value)}
               style={{ width: '100%', background: '#0a0a0a', color: C.ink,
                 border: `1px solid ${C.hairline}`, borderRadius: '6px', padding: '6px 8px',
                 font: 'inherit', fontSize: '12.5px', marginBottom: '10px' }}>
@@ -631,7 +643,7 @@ export default function AtlasAttestation({ graph, endpoint, isMobile }) {
                 <option key={n.id} value={n.id}>{n.label} ({n.kind})</option>
               ))}
             </select>
-            {blastView(blastTarget)}
+            {blastView(safeBlast)}
           </div>
         </div>
       </div>
