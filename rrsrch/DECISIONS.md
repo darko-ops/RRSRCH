@@ -491,3 +491,49 @@ Aggregation stays store-side (SQL `count(...) FILTER` / `sum(...) FILTER` in
 Postgres, mirrored in memory) per the existing metrics rule. The dashboard's
 `recent()` reuse feed now filters to query outcomes and over-fetches, so
 bookkeeping rows never crowd real traffic out of the stream.
+
+## Pilot shadow analysis — two independent gates (2026-07-25)
+`scripts/pilot_report.py` replays a design partner's real agent traces against
+an empty corpus and reports two verdicts that are deliberately NEVER combined
+into one score:
+
+- **Gate A (economics)** — net token reduction after verification spend.
+- **Gate B (safety)** — precision of the answers it would have reused.
+
+**Why separate.** Hit rate = recurrence x recall x freshness x gate-survival;
+precision is not a term in it. A system can therefore post excellent savings
+while serving wrong knowledge, and collapsing the two into one number lets
+savings buy down a correctness failure — unacceptable in the compliance segment
+that is the likeliest first market. Both gates must PASS independently.
+
+**An unmeasured gate is not a pass.** Gate B resolves ONLY from blind human
+judgments; with none supplied it reports UNDETERMINED and the run fails (exit
+1). The matcher never grades itself — scoring reuse with the same similarity
+function that chose the reuse is circular. Unjudged serves are never counted as
+correct, and judgment coverage is reported beside the precision so a 100% drawn
+from 2 of 70 serves cannot masquerade as a result. Same discipline as the cost
+ledger: a zero means "nothing reported", never "nothing wrong".
+
+**Two passes by necessity.** The judgments can only exist after a replay reveals
+which serves happened, so the flow is: replay -> `--emit-judgments` worksheet ->
+blind human verdicts -> replay with `--judgments`.
+
+**`answer` is a REQUIRED input field.** With queries alone nothing can be
+deposited, so nothing can be served, so safe reuse is unmeasurable — the script
+refuses to run rather than silently degrade into a repetition counter.
+
+**Traffic shape is computed without the matcher** (exact normalized text) in
+three buckets, because they mean different things: same-session repeats are
+loops/retries and are NOT evidence of reusable knowledge; the same actor asking
+again in a later session, and a different actor converging, both are.
+
+**Costs come from summed partner actuals**, never a unit average smeared over
+the run, with the configured estimate filling in only for traces that reported
+none — disclosed as coverage. Coverage is over DERIVATIONS, not all traces: a
+hit needs no derivation, so counting hits in the denominator understates it.
+
+Volatility is a CLI choice (`--volatility`) because it is domain-driven, and it
+dominates the result: on a 30-day compliance sample whose questions recur about
+every 5 days, the default `medium` (3-day half-life) expired the cache before
+reuse and produced 63 stale / 0 hits; `low` produced 63 hits. Slow-changing
+corpora must be classified `low` or the freshness term alone sinks the pilot.
