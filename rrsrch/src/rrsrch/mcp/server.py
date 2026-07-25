@@ -7,6 +7,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from ..credentials import default_depositor
 from ..factory import build_corpus
 from .tools import tool_corroborate, tool_deposit, tool_recalls, tool_search
 
@@ -41,25 +42,32 @@ async def recalls(since: str) -> list[dict]:
 @mcp.tool()
 async def deposit(
     query: str, claim: str, sources: list[dict] | None = None, volatility_hint: str = "medium",
-    scope: dict[str, Any] | None = None, depositor: str = "local",
+    scope: dict[str, Any] | None = None, depositor: str | None = None,
+    derivation_tokens: int | None = None,
 ) -> dict:
     """Store a distilled, cited result so this question is never re-derived. `claim`
     is the compact self-contained answer; `sources` is [{url, retrieved_at?, title?}];
     `volatility_hint` is low|medium|high (how fast it goes stale); `scope` records any
-    constraints (region/version/date). Returns {id, created_at, volatility}."""
-    return await tool_deposit(_corpus, query, claim, sources, volatility_hint, scope, depositor)
+    constraints (region/version/date). Pass `derivation_tokens` — the actual token
+    cost of the research that produced this claim, if you know it — so later reuse
+    counts MEASURED savings instead of an estimate. Returns {id, created_at,
+    volatility}."""
+    return await tool_deposit(_corpus, query, claim, sources, volatility_hint, scope,
+                              depositor or default_depositor(), derivation_tokens)
 
 
 @mcp.tool()
 async def corroborate(
-    deposit_id: str, claim: str, sources: list[dict] | None = None, depositor: str = "local",
+    deposit_id: str, claim: str, sources: list[dict] | None = None, depositor: str | None = None,
+    derivation_tokens: int | None = None,
 ) -> dict:
     """After a 'stale' search: report what fresh research found for that deposit.
     If your `claim` agrees with the stored one (deterministic check), its confidence
     is re-earned to 1.0. If it disagrees, the old deposit is retired and superseded
     by yours — later searches return the new claim. Returns {outcome: agreed|
     disagreed|not_found|retired, new_deposit_id?, superseded_by?}."""
-    return await tool_corroborate(_corpus, deposit_id, claim, sources, depositor)
+    return await tool_corroborate(_corpus, deposit_id, claim, sources,
+                                  depositor or default_depositor(), derivation_tokens)
 
 
 def main() -> None:  # pragma: no cover

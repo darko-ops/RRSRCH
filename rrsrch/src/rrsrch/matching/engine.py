@@ -8,8 +8,12 @@ Pipeline:
   4. Rank by fused similarity; the best is a match only if it clears the (conservative,
      tunable) threshold.
 
-No LLM decides matches. (A hook for an LLM re-ranker could sit between 3 and 4 in a
-later phase; it is intentionally absent in Phase 0.)
+This module is retrieval + fusion only. The second-stage matcher (the
+cross-encoder reranker foreshadowed here in Phase 0) lives in rerank.py and is
+applied by Corpus._select_reranked when settings.reranker != "none": it rescores
+the gated survivors and its score replaces the fused threshold as the
+serve-signal. Matching is the one zone where a model may judge; the trust/
+confidence pipeline stays deterministic either way.
 """
 from __future__ import annotations
 

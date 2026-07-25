@@ -30,6 +30,34 @@ class Settings(BaseSettings):
     vector_weight: float = 0.7   # fusion: w_vec * cosine + w_lex * lexical
     lexical_weight: float = 0.3
 
+    # --- cross-encoder reranker (the second-stage matcher; see matching/rerank.py) ---
+    # "none" ⇒ the fused-threshold serve path above, byte-identical to Phase 2.
+    # "local" ⇒ bi-encoder retrieves, deterministic safety gates veto, the
+    # cross-encoder's score (not fused cosine) decides match-vs-miss.
+    # OPT-IN, and stays off by default deliberately: on the held-out
+    # question-equivalence eval the reranker did NOT beat a strict fused
+    # threshold on the precision/recall frontier — see reports/reranker.md
+    # before enabling. Values below are the calibrated operating point.
+    reranker: str = "none"                      # none | local (cross-encoder)
+    # STS cross-encoder, selected on the calibration slice: passage-relevance
+    # models (ms-marco) rank "topically related" high — useless inside one
+    # vertical; STS scores same-MEANING. See reports/reranker.md.
+    rerank_model: str = "cross-encoder/stsb-roberta-base"
+    rerank_activation: str = "native"           # native ([0,1] models) | sigmoid (logit models)
+    # VETO model: QQP duplicate-question strictness kills the STS primary's one
+    # blind spot — lexically-twinned different questions (validity vs duration).
+    # Empty string disables the veto.
+    rerank_veto_model: str = "cross-encoder/quora-roberta-large"
+    rerank_veto_floor: float = 0.13
+    # Calibrated on the CALIBRATION split of eval/equivalence_pairs.json only
+    # (never the held-out test slice); rule: max recall with at most one
+    # calibration false hit. See reports/reranker.md for the full curve.
+    rerank_threshold: float = 0.705
+    rerank_top_k: int = 10                      # candidates the cross-encoder scores
+    # Interrogative-facet gate (agreement.intent_verdict). Toggleable so the
+    # reranker A/B can measure whether the reranker subsumes it.
+    facet_gate: bool = True
+
     # --- confidence (deterministic decay + corroboration re-earning) ---
     confidence_threshold: float = 0.70          # serve if live confidence >= this
     half_life_low_days: float = 180.0           # decays over months
