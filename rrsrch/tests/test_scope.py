@@ -33,7 +33,7 @@ def test_infer_extracts_and_normalizes_aliases():
     assert infer("purpose of the GIL in CPython") == {"language": {"python"}}
     assert infer("current Node.js LTS version") == {"technology": {"node"}}
     assert infer("How to install Docker on Ubuntu 22.04") == \
-        {"technology": {"docker"}, "platform": {"ubuntu"}}
+        {"technology": {"docker"}, "platform": {"ubuntu"}, "version": {"22.04"}}
 
 
 def test_infer_context_bigrams_and_exclusions():
@@ -76,3 +76,38 @@ def test_implicit_conflict_rules():
 def test_declared_scope_is_authoritative_over_inferred():
     tags = effective_tags("profile memory in Rust", {"language": "Java"})
     assert tags["language"] == {"java"}    # declared wins its dimension
+
+
+# ------------------------------------------------- version dimension
+
+
+def test_infer_extracts_versions_from_explicit_forms_only():
+    assert infer("breaking changes in framework v2") == {"version": {"2"}}
+    assert infer("what changed in version 3.1") == {"version": {"3.1"}}
+    assert infer("python 3 async syntax") == \
+        {"language": {"python"}, "version": {"3"}}
+    assert infer("deprecations in kubernetes 1.35") == \
+        {"technology": {"kubernetes"}, "version": {"1.35"}}
+    # bare numbers are never versions — no marker, no gazetteer subject before
+    assert infer("top 10 postgres tips") == {"technology": {"postgres"}}
+    assert infer("the limit is 100") == {}
+
+
+def test_version_conflict_gates_and_one_sided_never_does():
+    v2 = infer("breaking changes in framework v2")
+    v3 = infer("breaking changes in framework v3")
+    assert implicit_conflicts(v2, v3) is True             # rule (a) on version
+    assert implicit_conflicts(infer("python 2 str handling"),
+                              infer("python 3 str handling")) is True
+    # same version agrees; one-sided version never gates
+    assert implicit_conflicts(v2, infer("breaking changes in framework v2")) is False
+    assert implicit_conflicts(v2, infer("breaking changes in the framework")) is False
+    # a bare version is not a SUBJECT: version-only vs tech-only must not
+    # trip rule (b)'s disjoint-union reject
+    assert implicit_conflicts(infer("what's new in v2"),
+                              infer("what's new in the postgres release")) is False
+
+
+def test_declared_version_is_authoritative():
+    tags = effective_tags("breaking changes in framework v2", {"version": "3"})
+    assert tags["version"] == {"3"}

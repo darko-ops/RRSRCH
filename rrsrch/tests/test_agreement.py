@@ -165,3 +165,59 @@ def test_verdict_detail_is_auditable():
     v = verdict("$5 fee", "$7 fee", EX, S)
     assert v.detail["new"]["numbers"] == [5.0] and v.detail["old"]["numbers"] == [7.0]
     assert isinstance(ClaimFields().to_log(), dict)
+
+
+# ------------------------------------------------- contested substitution
+
+
+def test_contested_substitution_blocks_numeric_vouch():
+    # shared incidental number must not vouch a one-word contradiction
+    v = verdict("The sky is plaid, variant 0.",
+                "The sky is blue, variant 0.", EX, S)
+    assert v.agree is False
+    assert v.rule == "contested_substitution"
+    assert v.detail["contested"] == "plaid!=blue"
+
+
+def test_contested_substitution_blocks_entity_and_lexical_vouch():
+    # shared entity (Kubernetes) + high lexical must not vouch removes vs keeps
+    v = verdict("Kubernetes removes the dockershim component.",
+                "Kubernetes retains the dockershim component.", EX, S)
+    assert v.agree is False
+    assert v.rule == "contested_substitution"
+
+
+def test_contested_substitution_catches_opposite_axis_predicates():
+    # enable vs disable: same polarity, matching numbers — still a contradiction
+    v = verdict("Enable TLS on port 8443.", "Disable TLS on port 8443.", EX, S)
+    assert v.agree is False
+    assert v.rule == "contested_substitution"
+
+
+def test_nonmisfire_same_axis_synonyms_still_agree():
+    # required/mandated are obligation:+1 on both sides — known synonyms
+    v = verdict("Encryption at rest is required.",
+                "Encryption at rest is mandated.", EX, S)
+    assert v.agree is True
+
+
+def test_nonmisfire_inflection_is_not_contested():
+    v = verdict("A C3PAO assesses the 110 controls.",
+                "A C3PAO assessed the 110 controls.", EX, S)
+    assert v.agree is True
+
+
+def test_nonmisfire_reworded_numeric_paraphrase_still_agrees():
+    # genuine rewording differs at many positions — guard must stay silent and
+    # numeric_match must keep doing its paraphrase-safety job
+    v = verdict("The price is $0.023 per GB.",
+                "Storage costs $0.023 per GB monthly.", EX, S)
+    assert v.agree is True
+    assert v.rule == "numeric_match"
+
+
+def test_numeric_mismatch_still_wins_audit_over_contested():
+    # when the NUMBERS themselves differ, the specific rule names the cause
+    v = verdict("The limit is 100 units.", "The limit is 250 units.", EX, S)
+    assert v.agree is False
+    assert v.rule == "numeric_mismatch"
