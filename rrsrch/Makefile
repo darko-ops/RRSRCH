@@ -31,6 +31,11 @@ test-pg:       ## the full suite against real Postgres (docker compose up -d db 
 flywheel:      ## flywheel curve on labeled Zipf traffic (Postgres+MiniLM, ~5 min)
 	RRSRCH_STORE=postgres RRSRCH_EMBEDDER=minilm PYTHONPATH=src:. $(PYTHON) scripts/flywheel_report.py
 
+pilot:         ## design-partner shadow analysis (TRACES=partner.jsonl [JUDGMENTS=j.jsonl])
+	PYTHONPATH=src $(PYTHON) scripts/pilot_report.py $(TRACES) \
+	    --volatility $(or $(VOLATILITY),low) \
+	    $(if $(JUDGMENTS),--judgments $(JUDGMENTS),--emit-judgments judgments.todo.jsonl)
+
 multiagent:    ## multi-agent flywheel: trust separation + poison containment (Phase 2 exit)
 	RRSRCH_STORE=postgres RRSRCH_EMBEDDER=minilm PYTHONPATH=src:. $(PYTHON) scripts/multiagent_report.py
 
