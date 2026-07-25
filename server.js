@@ -739,6 +739,33 @@ app.get('/api/account/atlas/:slug', async (req, res) => {
   }
 });
 
+// Drop a target for good: every published version of it, not just the latest.
+// A renamed project leaves its old slug behind (the probe names the attestation
+// from the repo, so `ora` outlives a rename to `dromo`) and until now nothing
+// could clear it. Scoped to prefix + user.id + slug + '/', so it can never
+// reach another account's targets, and `dromo` can't be caught by `dromo-web`.
+app.delete('/api/account/atlas/:slug', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const slug = atlasSlug(req.params.slug);
+  if (!slug) return res.status(400).json({ error: 'Need a target slug.' });
+  if (useBlob) {
+    const { list, del } = require('@vercel/blob');
+    const { blobs } = await list({ prefix: `${ATLAS_PREFIX}${user.id}/${slug}/` });
+    if (!blobs.length) {
+      return res.status(404).json({ error: 'No attestation published for this target.' });
+    }
+    await del(blobs.map((b) => b.url));
+    return res.json({ deleted: true, target: slug, versions: blobs.length });
+  }
+  try {
+    await fs.unlink(path.join(ATLAS_DIR, user.id, `${slug}.json`));
+    return res.json({ deleted: true, target: slug, versions: 1 });
+  } catch {
+    return res.status(404).json({ error: 'No attestation published for this target.' });
+  }
+});
+
 // self-delete (also how probe/test accounts get cleaned up)
 app.delete('/api/account/me', async (req, res) => {
   const user = await requireUser(req, res);
