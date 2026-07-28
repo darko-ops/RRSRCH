@@ -559,17 +559,30 @@ async function requireUser(req, res) {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const payload = verifyToken(token);
   if (!payload) {
-    res.status(401).json({ error: 'Not authenticated' });
+    // The caller never proved who they are: bad signature, malformed, or expired.
+    // Their problem, and the ordinary case — logged quietly.
+    console.warn('auth: token rejected (bad signature, malformed, or expired)');
+    res.status(401).json({ error: 'Not authenticated', reason: 'invalid_token' });
     return null;
   }
-  const user = (await readUsers()).find((u) => u.id === payload.sub);
+  const users = await readUsers();
+  const user = users.find((u) => u.id === payload.sub);
   if (!user) {
-    res.status(401).json({ error: 'Not authenticated' });
+    // A VALID signature for an account that isn't there. Reaching this line already
+    // required possession of a real token, so this is our problem, not the caller's —
+    // usually the users store failing to load rather than a deleted account. The
+    // count is the tell: 0 means the store came back empty, a non-zero count means
+    // this one record is genuinely gone.
+    console.error(
+      `auth: valid token for unknown user ${payload.sub} — users loaded: ${users.length}`
+    );
+    res.status(401).json({ error: 'Not authenticated', reason: 'unknown_user' });
     return null;
   }
   // device tokens are revocable: the device must still be on the account
   if (payload.dev && !(user.devices || []).some((d) => d.id === payload.dev)) {
-    res.status(401).json({ error: 'Device revoked' });
+    console.warn(`auth: device ${payload.dev} not on account ${user.id}`);
+    res.status(401).json({ error: 'Device revoked', reason: 'device_revoked' });
     return null;
   }
   return user;
