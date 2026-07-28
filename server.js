@@ -527,15 +527,26 @@ async function readUsers() {
     // out: the accounts were there the whole time, refused at the edge. `useCache:
     // false` also reads from origin, so a stale or poisoned CDN entry can't do this
     // again. The account store is the wrong thing to be reading over an anonymous URL.
+    // Both access modes, because the store's mode is the open question: `list`
+    // authenticates and works, while a public-mode read is refused with 403. If the
+    // store (or this object) is private now, only the private read carries the token
+    // in a way the origin accepts. Whichever succeeds is logged, so one deploy answers
+    // it instead of another round of guessing.
     let text;
     try {
       const { get } = require('@vercel/blob');
-      const result = await get(match.pathname, { access: 'public', useCache: false });
-      if (!result) {
-        console.error('users: blob GET returned nothing for a path LIST just reported — '
-                      + 'accounts unread, not absent');
-        return [];
+      let result = null;
+      let mode = null;
+      for (const access of ['private', 'public']) {
+        try {
+          result = await get(match.pathname, { access, useCache: false });
+          if (result) { mode = access; break; }
+        } catch (modeErr) {
+          console.error(`users: blob GET access='${access}' failed (${modeErr.message})`);
+        }
       }
+      if (!result) throw new Error('both access modes refused the read');
+      console.log(`users: blob GET succeeded with access='${mode}'`);
       if (result.statusCode !== 200 || !result.stream) {
         console.error(`users: blob GET status ${result.statusCode} with no body`);
         return [];
