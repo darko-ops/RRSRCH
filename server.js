@@ -69,6 +69,12 @@ passport.deserializeUser((user, done) => {
 const POSTS_FILE = path.join(__dirname, 'posts.json');
 const BLOB_KEY = 'posts.json';
 const useBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
+// Which persistence the process actually got. Without the blob token this silently
+// falls back to a local file, which on serverless is a read-only empty disk — every
+// account vanishes and nothing says why.
+console.log(useBlob
+  ? 'storage: vercel blob'
+  : 'storage: LOCAL FILE — BLOB_READ_WRITE_TOKEN is not set in this environment');
 
 async function readPosts() {
   if (useBlob) {
@@ -496,17 +502,57 @@ async function latestUsersBlob() {
   return blobs.reduce((a, b) => (a.pathname > b.pathname ? a : b));
 }
 
+/// Every failure below used to return `[]`, which reads downstream as "this account
+/// store is empty" — indistinguishable from "we could not read the account store".
+/// Those are opposite problems: one needs a restore, the other needs a credential.
+/// Each path now says which it was, without logging the secret-derived prefix or the
+/// blob URL (that path is unguessable by design and belongs in logs no more than a key
+/// does). Callers still get `[]`, so behaviour is unchanged — only the silence is.
 async function readUsers() {
   if (useBlob) {
-    const match = await latestUsersBlob();
-    if (!match) return [];
-    const res = await fetch(match.url, { cache: 'no-store' });
-    if (!res.ok) return [];
-    return res.json();
+    let match;
+    try {
+      match = await latestUsersBlob();
+    } catch (err) {
+      console.error(`users: blob LIST failed (${err.message}) — accounts unread, not absent`);
+      return [];
+    }
+    if (!match) {
+      console.error('users: no users blob under the expected prefix — store empty, '
+                    + 'or the prefix moved with AUTH_SECRET');
+      return [];
+    }
+    let res;
+    try {
+      res = await fetch(match.url, { cache: 'no-store' });
+    } catch (err) {
+      console.error(`users: blob FETCH threw (${err.message}) — accounts unread, not absent`);
+      return [];
+    }
+    if (!res.ok) {
+      console.error(`users: blob FETCH ${res.status} — accounts unread, not absent`);
+      return [];
+    }
+    try {
+      const parsed = await res.json();
+      if (!Array.isArray(parsed)) {
+        console.error(`users: blob parsed to ${typeof parsed}, expected an array`);
+        return [];
+      }
+      return parsed;
+    } catch (err) {
+      console.error(`users: blob JSON parse failed (${err.message})`);
+      return [];
+    }
   }
   try {
-    return JSON.parse(await fs.readFile(USERS_FILE, 'utf8'));
-  } catch {
+    const parsed = JSON.parse(await fs.readFile(USERS_FILE, 'utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    // On serverless this is the expected outcome of running WITHOUT a blob token: the
+    // filesystem is read-only and empty, so every account silently disappears.
+    console.error(`users: local file store unreadable (${err.code || err.message}) — `
+                  + 'this is the fallback path; is BLOB_READ_WRITE_TOKEN set?');
     return [];
   }
 }
