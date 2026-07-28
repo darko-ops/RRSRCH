@@ -522,19 +522,43 @@ async function readUsers() {
                     + 'or the prefix moved with AUTH_SECRET');
       return [];
     }
-    let res;
+    // Read through the SDK with the store token, NOT by fetching the public CDN URL.
+    // The unauthenticated fetch is what started returning 403 and logged every runner
+    // out: the accounts were there the whole time, refused at the edge. `useCache:
+    // false` also reads from origin, so a stale or poisoned CDN entry can't do this
+    // again. The account store is the wrong thing to be reading over an anonymous URL.
+    let text;
     try {
-      res = await fetch(match.url, { cache: 'no-store' });
+      const { get } = require('@vercel/blob');
+      const result = await get(match.pathname, { access: 'public', useCache: false });
+      if (!result) {
+        console.error('users: blob GET returned nothing for a path LIST just reported — '
+                      + 'accounts unread, not absent');
+        return [];
+      }
+      if (result.statusCode !== 200 || !result.stream) {
+        console.error(`users: blob GET status ${result.statusCode} with no body`);
+        return [];
+      }
+      text = await new Response(result.stream).text();
     } catch (err) {
-      console.error(`users: blob FETCH threw (${err.message}) — accounts unread, not absent`);
-      return [];
-    }
-    if (!res.ok) {
-      console.error(`users: blob FETCH ${res.status} — accounts unread, not absent`);
-      return [];
+      // Keep the old path as a fallback: if the SDK read fails for a reason the
+      // public URL doesn't share, an available account store beats a tidy one.
+      console.error(`users: blob GET failed (${err.message}) — falling back to public URL`);
+      try {
+        const res = await fetch(match.url, { cache: 'no-store' });
+        if (!res.ok) {
+          console.error(`users: fallback FETCH ${res.status} — accounts unread, not absent`);
+          return [];
+        }
+        text = await res.text();
+      } catch (fallbackErr) {
+        console.error(`users: fallback FETCH threw (${fallbackErr.message})`);
+        return [];
+      }
     }
     try {
-      const parsed = await res.json();
+      const parsed = JSON.parse(text);
       if (!Array.isArray(parsed)) {
         console.error(`users: blob parsed to ${typeof parsed}, expected an array`);
         return [];
