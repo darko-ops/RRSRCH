@@ -454,3 +454,40 @@ the corpus. Accepted as-is; revisit only with evidence from organic traffic.
   origins incl. DoD CIO; 1,195 labeled pairs, group-aware cal/test split) is
   reusable infrastructure: threshold recalibration, future matcher A/Bs, and
   seed data for a fine-tuned matcher.
+
+## Cost ledger — recording actuals, not estimates (2026-07-25)
+Savings were reported entirely against the configured 90k cold-path ESTIMATE
+(`make demo` showed `tokens_saved_measured: 0`). Five facts are now recorded so
+the claim is auditable:
+
+1. **Actual cold-derivation cost.** `deposit()` now logs a `derive` event
+   carrying `derivation_tokens`. It logs **spend 0 on purpose**: the miss that
+   preceded the deposit already charged the cold estimate, so charging again
+   would double-count one derivation. Keeping the actual in `detail` instead
+   lets metrics RECONCILE estimate vs reality without disturbing
+   `tokens_with_rrsrch`. That reconciliation is `estimate_bias_pct` — on a
+   sample run the 90k default overstated a measured 54.5k mean by 65%, i.e. the
+   headline savings number was inflated by the assumption, not by the engine.
+2. **Actual verification cost.** `explore` events tag `cost_basis`
+   measured|estimated, so a provider-reported cost is never conflated with the
+   cold-estimate fallback. Reported as measured total + mean alongside total spend.
+3. **Warm-hit frequency.** hits/queries plus mean served tokens (the 22-token
+   figure is now measured per-run, not quoted from one demo).
+4. **Stale-verification success rate.** Corroborations carry
+   `detail.verification`, set only by `_explore`, so verdicts from the
+   self-verification loop are separable from agent corroborations. Reported as
+   `cache_still_valid_pct` (agreed / settled). Named deliberately: a `disagreed`
+   run is the loop WORKING, not a failure, so both counts are shown and the rate
+   is labelled cache-still-valid rather than "success".
+5. **Net tokens saved after verification.** `total_tokens_saved` was gross.
+   `net_savings` subtracts verification spend and reports `verification_drag_pct`.
+
+Coverage is always reported next to each actual (`coverage_pct`, and `None`
+means nothing measured). A zero total therefore reads as "nothing reported",
+never as "nothing spent" — the failure mode that would let the ledger launder an
+estimate into a measurement.
+
+Aggregation stays store-side (SQL `count(...) FILTER` / `sum(...) FILTER` in
+Postgres, mirrored in memory) per the existing metrics rule. The dashboard's
+`recent()` reuse feed now filters to query outcomes and over-fetches, so
+bookkeeping rows never crowd real traffic out of the stream.

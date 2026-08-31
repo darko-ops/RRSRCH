@@ -144,8 +144,31 @@ class InMemoryStore:
         ttc: list[float] = []
         saved = spent = explore_spent = 0
         saved_measured = hits_measured = 0
+        # --- cost ledgers (actuals, not estimates) ---
+        derive_n = derive_measured_n = derive_actual = 0
+        explore_n = explore_measured_n = explore_measured_spend = 0
+        hit_served = 0
+        verif_agreed = verif_disagreed = 0
         for e in self._events:
             out = e["outcome"]
+            det = e.get("detail") or {}
+            if out == "derive":
+                derive_n += 1
+                if det.get("cost_basis") == "measured":
+                    derive_measured_n += 1
+                    derive_actual += int(det.get("derivation_tokens") or 0)
+            elif out == "explore":
+                explore_n += 1
+                if det.get("cost_basis") == "measured":
+                    explore_measured_n += 1
+                    explore_measured_spend += int(e.get("tokens_spent_estimate") or 0)
+            elif out in ("agreed", "disagreed") and det.get("verification"):
+                if out == "agreed":
+                    verif_agreed += 1
+                else:
+                    verif_disagreed += 1
+            if out == "hit":
+                hit_served += int(e.get("tokens_spent_estimate") or 0)
             by_outcome[out] = by_outcome.get(out, 0) + 1
             if out in ("stale", "miss"):
                 reasons[e.get("reason") or "miss"] = reasons.get(e.get("reason") or "miss", 0) + 1
@@ -174,5 +197,14 @@ class InMemoryStore:
                 "tokens_saved_measured": saved_measured,
                 "hits_measured_basis": hits_measured,
                 "exploration_tokens_spent": explore_spent,
+                "derivations": derive_n,
+                "derivations_measured": derive_measured_n,
+                "derivation_tokens_actual": derive_actual,
+                "verification_runs": explore_n,
+                "verification_runs_measured": explore_measured_n,
+                "verification_tokens_measured": explore_measured_spend,
+                "hit_tokens_served": hit_served,
+                "verification_agreed": verif_agreed,
+                "verification_disagreed": verif_disagreed,
                 "by_topic": by_topic,
                 "mean_time_to_correction_seconds": (sum(ttc) / len(ttc)) if ttc else None}

@@ -294,6 +294,35 @@ class PostgresStore:
                 .where(QueryEvent.outcome == "hit",
                        QueryEvent.detail["cold_basis"].as_string() == "measured")
             )).one()
+            # --- cost ledgers (actuals, not estimates); aggregated in SQL ---
+            derive_n, derive_measured_n, derive_actual = (await s.execute(
+                select(func.count(),
+                       func.count().filter(
+                           QueryEvent.detail["cost_basis"].as_string() == "measured"),
+                       func.coalesce(func.sum(
+                           QueryEvent.detail["derivation_tokens"].as_integer()), 0))
+                .where(QueryEvent.outcome == "derive")
+            )).one()
+            explore_n, explore_measured_n, explore_measured_spend = (await s.execute(
+                select(func.count(),
+                       func.count().filter(
+                           QueryEvent.detail["cost_basis"].as_string() == "measured"),
+                       func.coalesce(func.sum(QueryEvent.tokens_spent_estimate).filter(
+                           QueryEvent.detail["cost_basis"].as_string() == "measured"), 0))
+                .where(QueryEvent.outcome == "explore")
+            )).one()
+            hit_served = (await s.execute(
+                select(func.coalesce(func.sum(QueryEvent.tokens_spent_estimate), 0))
+                .where(QueryEvent.outcome == "hit")
+            )).scalar_one() or 0
+            verif = {
+                out: n for out, n in (await s.execute(
+                    select(QueryEvent.outcome, func.count())
+                    .where(QueryEvent.outcome.in_(("agreed", "disagreed")),
+                           QueryEvent.detail["verification"].as_boolean().is_(True))
+                    .group_by(QueryEvent.outcome)
+                )).all()
+            }
             by_topic: dict[str, dict[str, int]] = {}
             for tid, out, n, ev_spent, ev_saved in (await s.execute(
                 select(QueryEvent.topic_id, QueryEvent.outcome, func.count(),
@@ -319,5 +348,14 @@ class PostgresStore:
                 "tokens_saved_measured": int(saved_measured),
                 "hits_measured_basis": int(hits_measured),
                 "exploration_tokens_spent": int(explore_spent),
+                "derivations": int(derive_n),
+                "derivations_measured": int(derive_measured_n),
+                "derivation_tokens_actual": int(derive_actual),
+                "verification_runs": int(explore_n),
+                "verification_runs_measured": int(explore_measured_n),
+                "verification_tokens_measured": int(explore_measured_spend),
+                "hit_tokens_served": int(hit_served),
+                "verification_agreed": int(verif.get("agreed", 0)),
+                "verification_disagreed": int(verif.get("disagreed", 0)),
                 "by_topic": by_topic,
                 "mean_time_to_correction_seconds": float(mean_ttc) if mean_ttc is not None else None}

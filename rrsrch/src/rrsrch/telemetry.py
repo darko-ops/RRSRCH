@@ -71,4 +71,81 @@ def metrics(stats: dict[str, Any], cold_path_estimate: int,
         },
         "mean_time_to_correction_seconds": stats.get("mean_time_to_correction_seconds"),
         "topics": topics,
+        **_cost_ledger(stats, cold_path_estimate, hits, total, saved),
+    }
+
+
+def _cost_ledger(stats: dict[str, Any], cold_path_estimate: int,
+                 hits: int, total: int, saved: int) -> dict[str, Any]:
+    """The five recorded cost facts, kept separate from the estimate-based
+    headline above so neither can silently borrow the other's credibility.
+
+    Everything here is an ACTUAL unless a field says otherwise: derivation and
+    verification costs are the numbers their producers reported, and
+    `*_coverage_pct` states what fraction of runs reported one at all. A
+    coverage of 0 means the corresponding total is 0 because nothing was
+    measured — NOT because nothing was spent."""
+    d_n = stats.get("derivations", 0)
+    d_meas = stats.get("derivations_measured", 0)
+    d_actual = stats.get("derivation_tokens_actual", 0)
+    d_mean = round(d_actual / d_meas, 1) if d_meas else None
+
+    v_runs = stats.get("verification_runs", 0)
+    v_meas = stats.get("verification_runs_measured", 0)
+    v_tokens_measured = stats.get("verification_tokens_measured", 0)
+    v_spend_all = stats.get("exploration_tokens_spent", 0)
+    v_agreed = stats.get("verification_agreed", 0)
+    v_disagreed = stats.get("verification_disagreed", 0)
+    v_settled = v_agreed + v_disagreed
+
+    return {
+        # 1 — actual tokens for every cold derivation
+        "derivation_cost": {
+            "derivations": d_n,
+            "measured": d_meas,
+            "coverage_pct": round(100 * d_meas / d_n, 1) if d_n else 0.0,
+            "actual_tokens_total": d_actual,
+            "actual_tokens_mean": d_mean,
+            "configured_estimate": cold_path_estimate,
+            # how wrong the configured cold-path assumption is against reality:
+            # positive ⇒ the estimate OVERSTATES real cost, inflating savings
+            "estimate_bias_pct": (round(100 * (cold_path_estimate - d_mean) / d_mean, 1)
+                                  if d_mean else None),
+        },
+        # 2 — actual verification cost
+        "verification_cost": {
+            "runs": v_runs,
+            "measured_runs": v_meas,
+            "coverage_pct": round(100 * v_meas / v_runs, 1) if v_runs else 0.0,
+            "actual_tokens_measured": v_tokens_measured,
+            "tokens_spent_total": v_spend_all,
+            "actual_tokens_mean": (round(v_tokens_measured / v_meas, 1) if v_meas else None),
+        },
+        # 3 — warm-hit frequency
+        "warm_hits": {
+            "hits": hits,
+            "queries": total,
+            "frequency_pct": round(100 * hits / total, 2) if total else 0.0,
+            "tokens_served_total": stats.get("hit_tokens_served", 0),
+            "tokens_served_mean": (round(stats.get("hit_tokens_served", 0) / hits, 1)
+                                   if hits else None),
+        },
+        # 4 — stale-verification success rate. "Success" = the loop ran AND the
+        # cached claim survived it (agreed). A disagreed run is not a failure of
+        # the loop — it is the loop working — so both are reported and the rate
+        # is explicitly the cache-still-valid rate.
+        "stale_verification": {
+            "runs_settled": v_settled,
+            "confirmed_still_valid": v_agreed,
+            "superseded": v_disagreed,
+            "cache_still_valid_pct": (round(100 * v_agreed / v_settled, 1)
+                                      if v_settled else None),
+        },
+        # 5 — net tokens saved AFTER verification spending
+        "net_savings": {
+            "gross_tokens_saved": saved,
+            "verification_tokens_spent": v_spend_all,
+            "net_tokens_saved": saved - v_spend_all,
+            "verification_drag_pct": (round(100 * v_spend_all / saved, 2) if saved else 0.0),
+        },
     }

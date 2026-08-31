@@ -86,6 +86,22 @@ class Corpus:
             inferred_scope={d: sorted(v) for d, v in scope_mod.infer(payload.query).items()},
         )
         await self.store.add(rec)
+        # Record the ACTUAL cold-derivation cost as its own event. Spend is
+        # logged as 0 on purpose: the miss that preceded this deposit already
+        # charged the configured cold ESTIMATE, so charging again would double-
+        # count the same derivation. Keeping the actual in `detail` instead lets
+        # metrics RECONCILE the estimate against reality (see
+        # telemetry.derivation_cost) without disturbing tokens_with_rrsrch.
+        await self.store.log_event({
+            "ts": when.isoformat(), "query": payload.query, "outcome": "derive",
+            "reason": None, "similarity": None, "confidence": None,
+            "tokens_saved_estimate": 0, "tokens_spent_estimate": 0,
+            "served_deposit_id": str(rec.id), "volatility": rec.volatility,
+            "topic_id": topic_id,
+            "detail": {"cost_basis": ("measured" if payload.derivation_tokens is not None
+                                      else "unreported"),
+                       "derivation_tokens": payload.derivation_tokens},
+        })
         return rec
 
     # ------------------------------------------------------------------ search
@@ -250,11 +266,17 @@ class Corpus:
             "reason": trigger, "similarity": None, "confidence": None,
             "tokens_saved_estimate": 0, "tokens_spent_estimate": spend,
             "served_deposit_id": str(rec.id), "volatility": rec.volatility,
-            "topic_id": rec.topic_id, "detail": {"trigger": trigger},
+            "topic_id": rec.topic_id,
+            # cost_basis distinguishes a provider-REPORTED verification cost from
+            # the cold-estimate fallback, so verification spend is never quoted
+            # as measured when it was assumed.
+            "detail": {"trigger": trigger,
+                       "cost_basis": ("measured" if research.tokens_spent else "estimated")},
         })
         out = await self.corroborate(str(rec.id), research.claim,
                                      sources=research.sources, depositor=f"rrsrch-{trigger}",
-                                     derivation_tokens=research.tokens_spent or None)
+                                     derivation_tokens=research.tokens_spent or None,
+                                     verification=True)
         if out.outcome == "disagreed" and out.new_deposit_id:
             fresh = await self.store.get(UUID(out.new_deposit_id))
             if fresh is not None:
@@ -269,7 +291,8 @@ class Corpus:
                           sources: list[Source] | None = None,
                           depositor: str = "local",
                           attestation: str | None = None,
-                          derivation_tokens: int | None = None) -> CorroborateResult:
+                          derivation_tokens: int | None = None,
+                          *, verification: bool = False) -> CorroborateResult:
         """Re-earn or retire a deposit against a freshly derived claim.
 
         DETERMINISTIC verdict (agreement.py): polarity, numbers, entities are
@@ -330,7 +353,7 @@ class Corpus:
                 await self._update_topic(topic, agreed=True)
             served_base = 1.0 if (strong_voucher or rec.independent_corroboration_count
                                   ) else await self._depositor_base(rec.depositor)
-            await self._log_corroboration(rec, "agreed", v, topic,
+            await self._log_corroboration(rec, "agreed", v, topic, verification=verification,
                                           independent=independent)
             return CorroborateResult(outcome="agreed", deposit_id=deposit_id,
                                      confidence=round(served_base, 4),
@@ -348,6 +371,7 @@ class Corpus:
         if independent and not is_verifier:
             if await self._trust(depositor) < await self._trust(rec.depositor):
                 await self._log_corroboration(rec, "disputed", v, topic,
+                                              verification=verification,
                                               independent=independent)
                 return CorroborateResult(outcome="disputed", deposit_id=deposit_id,
                                          claim_similarity=round(v.lexical, 4),
@@ -393,6 +417,7 @@ class Corpus:
         if topic is not None:
             await self._update_topic(topic, agreed=False)
         await self._log_corroboration(rec, "disagreed", v, topic, ttc=ttc,
+                                      verification=verification,
                                       independent=independent)
         return CorroborateResult(outcome="disagreed", deposit_id=deposit_id,
                                  new_deposit_id=str(new.id),
@@ -552,9 +577,14 @@ class Corpus:
     async def _log_corroboration(self, rec: DepositRecord, outcome: str,
                                  v: agreement.Verdict, topic: TopicState | None,
                                  ttc: float | None = None,
-                                 independent: bool = False) -> None:
+                                 independent: bool = False,
+                                 verification: bool = False) -> None:
         detail: dict[str, Any] = {"rule": v.rule, "fields": v.detail,
                                   "independent": independent,
+                                  # True when this verdict came from the
+                                  # self-verification loop rather than an agent —
+                                  # the basis of the stale-verification success rate
+                                  "verification": verification,
                                   "author": rec.depositor,
                                   "author_trust": round(await self._trust(rec.depositor), 4),
                                   "author_attested_level":
@@ -577,8 +607,14 @@ class Corpus:
         `limit` query events newest-first, with served rows (hit/stale) enriched
         from the deposit they point at — claim (truncated), source urls,
         depositor, and the deposit's age at serve time. Never touches the
-        matching/confidence/trust path."""
-        events = await self.store.recent_events(limit)
+        matching/confidence/trust path.
+
+        QUERY events only (hit/stale/miss). Bookkeeping rows — `derive`,
+        `explore`, and corroboration verdicts — are cost-ledger entries, not
+        reuse, and must never crowd real traffic out of the stream; over-fetch
+        so the filter still yields a full page."""
+        events = [e for e in await self.store.recent_events(max(4 * limit, limit))
+                  if e["outcome"] in ("hit", "stale", "miss")][:limit]
         deposits: dict[str, DepositRecord | None] = {}
         for e in events:
             dep_id = e.get("served_deposit_id")
