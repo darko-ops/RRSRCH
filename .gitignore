@@ -22,3 +22,6 @@ DEPLOYMENT.md
 
 # Posts data
 posts.json
+
+# Local Backpack MCP client scratch dir (node_modules only, never shipped)
+backpack/
