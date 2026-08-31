@@ -23,5 +23,9 @@ DEPLOYMENT.md
 # Posts data
 posts.json
 
+# Dependencies — installed from the lockfiles, never committed.
+# Vercel runs its own install on every build; nothing here is deploy input.
+node_modules/
+
 # Local Backpack MCP client scratch dir (node_modules only, never shipped)
 backpack/
