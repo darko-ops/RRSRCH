@@ -1,0 +1,1040 @@
+<title>The Full-Stack Loop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap">
+<style>
+:root{
+  --bg:#F4F5F6; --surface:#FFFFFF; --surface-2:#EAEDEF; --rule:#D9DEE3;
+  --text:#15181C; --text-2:#565E67; --text-3:#848C95;
+  --accent:#8A6212; --accent-line:#C99B3C; --accent-soft:#F4E9CE;
+  --ok:#2C6F49; --ok-soft:#DFEFE5; --warn:#8A6212; --warn-soft:#F4E9CE; --crit:#9E362F; --crit-soft:#F7E1DE;
+  --shadow:0 1px 2px rgba(20,24,28,.05), 0 8px 24px -12px rgba(20,24,28,.18);
+  --f-body:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --f-disp:"Newsreader",Georgia,"Times New Roman",serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --bg:#0C0E11; --surface:#14171B; --surface-2:#1B1F25; --rule:#282E35;
+  --text:#E6E9EC; --text-2:#9BA4AE; --text-3:#6C757F;
+  --accent:#D6A94E; --accent-line:#8A6D2E; --accent-soft:#241D10;
+  --ok:#6DC08D; --ok-soft:#152318; --warn:#D6A94E; --warn-soft:#241D10; --crit:#E38076; --crit-soft:#291715;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.7);
+}}
+:root[data-theme="dark"]{
+  --bg:#0C0E11; --surface:#14171B; --surface-2:#1B1F25; --rule:#282E35;
+  --text:#E6E9EC; --text-2:#9BA4AE; --text-3:#6C757F;
+  --accent:#D6A94E; --accent-line:#8A6D2E; --accent-soft:#241D10;
+  --ok:#6DC08D; --ok-soft:#152318; --warn:#D6A94E; --warn-soft:#241D10; --crit:#E38076; --crit-soft:#291715;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--f-body);font-size:16.5px;line-height:1.62;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:var(--f-disp);font-weight:600;text-wrap:balance;line-height:1.18;margin:0}
+p{margin:0}
+a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:2px}
+:focus-visible{outline:2px solid var(--accent-line);outline-offset:2px;border-radius:3px}
+
+/* ---------- masthead ---------- */
+.masthead{border-bottom:1px solid var(--rule);background:var(--surface);position:relative;overflow:hidden}
+.masthead::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(var(--rule) 1px,transparent 1px),linear-gradient(90deg,var(--rule) 1px,transparent 1px);
+  background-size:56px 56px;opacity:.28;mask-image:linear-gradient(to bottom,rgba(0,0,0,.9),transparent 82%)}
+.mast-in{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:44px 28px 38px}
+.eyebrow{font-family:var(--f-mono);font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3)}
+.masthead h1{font-size:clamp(2.1rem,5.2vw,3.15rem);letter-spacing:-.018em;margin:.5rem 0 .55rem;max-width:16ch}
+.dek{color:var(--text-2);max-width:62ch;font-size:1.02rem}
+.mast-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tag{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.04em;padding:4px 9px;border:1px solid var(--rule);border-radius:2px;color:var(--text-2);background:var(--bg)}
+
+/* ---------- toolbar ---------- */
+.toolbar{position:sticky;top:0;z-index:20;background:var(--surface);background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--rule)}
+.tb-in{max-width:1180px;margin:0 auto;padding:9px 28px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tb-label{font-family:var(--f-mono);font-size:.68rem;letter-spacing:.13em;text-transform:uppercase;color:var(--text-3);margin-right:auto}
+.btn{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:6px 11px;border:1px solid var(--rule);background:var(--bg);color:var(--text-2);border-radius:2px;cursor:pointer;transition:border-color .15s,color .15s}
+.btn:hover{border-color:var(--accent-line);color:var(--text)}
+.btn[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent)}
+
+/* ---------- shell ---------- */
+.shell{max-width:1180px;margin:0 auto;padding:0 28px 96px;display:grid;grid-template-columns:1fr;gap:0}
+@media(min-width:1040px){.shell{grid-template-columns:212px minmax(0,1fr);gap:56px}}
+.rail{display:none}
+@media(min-width:1040px){.rail{display:block;position:sticky;top:56px;align-self:start;padding-top:44px;max-height:calc(100vh - 56px);overflow-y:auto}}
+.rail ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+.rail a{display:grid;grid-template-columns:22px 1fr;gap:8px;padding:5px 8px;font-size:.83rem;color:var(--text-2);text-decoration:none;border-left:2px solid transparent;border-radius:0 2px 2px 0}
+.rail a span:first-child{font-family:var(--f-mono);font-size:.68rem;color:var(--text-3);padding-top:2px}
+.rail a:hover{background:var(--surface-2);color:var(--text)}
+.rail a.on{border-left-color:var(--accent-line);color:var(--text);background:var(--surface-2)}
+.rail a.on span:first-child{color:var(--accent)}
+main{min-width:0;padding-top:44px}
+
+/* ---------- sections ---------- */
+.sec{margin-bottom:62px;scroll-margin-top:70px}
+.sec-head{border-top:2px solid var(--text);padding-top:12px;margin-bottom:22px}
+.sec-num{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.14em;color:var(--accent)}
+.sec-head h2{font-size:clamp(1.5rem,3vw,1.95rem);letter-spacing:-.012em;margin:.35rem 0 .5rem}
+.sec-head .lede{color:var(--text-2);max-width:66ch;font-size:.97rem}
+.prose{max-width:68ch;display:flex;flex-direction:column;gap:14px;margin-bottom:26px}
+.prose ul,.prose ol{margin:0;padding-left:1.15rem;display:flex;flex-direction:column;gap:7px}
+.prose li::marker{color:var(--text-3)}
+h3.sub{font-size:1.12rem;margin:30px 0 12px;letter-spacing:-.005em}
+h3.sub::before{content:"";display:inline-block;width:14px;height:1px;background:var(--accent-line);vertical-align:middle;margin-right:9px}
+
+code{font-family:var(--f-mono);font-size:.855em;background:var(--surface-2);border:1px solid var(--rule);border-radius:2px;padding:1px 4px}
+pre{font-family:var(--f-mono);font-size:.8rem;line-height:1.62;background:var(--surface);border:1px solid var(--rule);border-radius:3px;padding:13px 15px;overflow-x:auto;margin:0}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.ref{font-family:var(--f-mono);font-size:.76em;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:2px;padding:1px 5px;white-space:nowrap}
+
+/* ---------- Q&A ---------- */
+.qa{background:var(--surface);border:1px solid var(--rule);border-radius:3px;margin-bottom:9px;box-shadow:var(--shadow);overflow:hidden}
+.qa[open]{border-color:var(--accent-line)}
+.qa summary{list-style:none;cursor:pointer;padding:13px 15px 13px 42px;position:relative;display:block;font-family:var(--f-disp);font-size:1.07rem;line-height:1.4;color:var(--text)}
+.qa summary::-webkit-details-marker{display:none}
+.qa summary::before{content:"+";position:absolute;left:15px;top:13px;font-family:var(--f-mono);font-size:.95rem;color:var(--accent);transition:transform .18s ease}
+.qa[open] summary::before{content:"\2212"}
+.qa summary:hover{background:var(--surface-2)}
+.flag{position:absolute;right:11px;top:11px;border:1px solid var(--rule);background:var(--bg);color:var(--text-3);border-radius:2px;font-family:var(--f-mono);font-size:.64rem;letter-spacing:.06em;padding:3px 7px;cursor:pointer;line-height:1.5}
+.flag:hover{border-color:var(--accent-line);color:var(--text-2)}
+.qa.flagged{border-left:3px solid var(--accent-line)}
+.qa.flagged .flag{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent)}
+.qa summary{padding-right:78px}
+.qa-body{border-top:1px solid var(--rule);padding:15px;display:flex;flex-direction:column;gap:12px;font-size:.965rem}
+.qa-body>p{max-width:70ch}
+.qa-body ul,.qa-body ol{margin:0;padding-left:1.15rem;display:flex;flex-direction:column;gap:6px;max-width:70ch}
+.probe{font-family:var(--f-mono);font-size:.78rem;line-height:1.58;color:var(--text-2);background:var(--surface-2);border-left:2px solid var(--accent-line);padding:8px 11px;border-radius:0 2px 2px 0}
+.probe b{color:var(--text);font-weight:600;letter-spacing:.05em;text-transform:uppercase;font-size:.9em}
+.say{border-left:2px solid var(--rule);padding-left:12px;color:var(--text);font-style:italic;font-family:var(--f-disp);font-size:1.02rem}
+.tell{font-size:.86rem;color:var(--text-2)}
+.tell b{color:var(--text);font-family:var(--f-mono);font-size:.78rem;letter-spacing:.05em;text-transform:uppercase}
+
+/* ---------- callouts / tables ---------- */
+.note{border:1px solid var(--rule);border-radius:3px;padding:13px 15px;background:var(--surface);font-size:.93rem;display:flex;flex-direction:column;gap:8px;max-width:70ch}
+.note.warn{border-color:var(--accent-line);background:var(--accent-soft)}
+.note-t{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.tw{overflow-x:auto;border:1px solid var(--rule);border-radius:3px;background:var(--surface);margin-bottom:20px}
+table{border-collapse:collapse;width:100%;font-size:.88rem;min-width:520px}
+th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-family:var(--f-mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:500;background:var(--surface-2)}
+tr:last-child td{border-bottom:0}
+.pill{font-family:var(--f-mono);font-size:.66rem;letter-spacing:.05em;padding:2px 7px;border-radius:2px;white-space:nowrap}
+.p-ok{background:var(--ok-soft);color:var(--ok)} .p-warn{background:var(--warn-soft);color:var(--warn)} .p-crit{background:var(--crit-soft);color:var(--crit)}
+
+footer{border-top:1px solid var(--rule);margin-top:24px;padding-top:18px;color:var(--text-3);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;max-width:68ch}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media(max-width:640px){.mast-in,.tb-in,.shell{padding-left:18px;padding-right:18px}body{font-size:16px}}
+</style>
+
+<header class="masthead">
+  <div class="mast-in">
+    <div class="eyebrow">Interview preparation &middot; grounded in rrsrch.com</div>
+    <h1>The Full-Stack Loop</h1>
+    <p class="dek">Every question below is one an interviewer can reach by reading your repo &mdash; React&nbsp;19 on CRA, an Express API running serverless on Vercel with hand-rolled HMAC tokens and Blob storage, and a FastAPI retrieval engine on Postgres&nbsp;+&nbsp;pgvector. The answers are yours to say out loud, not to recite.</p>
+    <div class="mast-meta">
+      <span class="tag">React 19</span><span class="tag">Express / Node 24</span><span class="tag">Vercel serverless</span><span class="tag">FastAPI</span><span class="tag">Postgres + pgvector</span><span class="tag">SQLAlchemy async</span><span class="tag">three.js</span><span class="tag">GitHub Actions</span>
+    </div>
+  </div>
+</header>
+
+<div class="toolbar">
+  <div class="tb-in">
+    <span class="tb-label">Self-quiz &mdash; answers hidden by default</span>
+    <button class="btn" id="expand">Reveal all</button>
+    <button class="btn" id="collapse">Hide all</button>
+    <button class="btn" id="only-flagged" aria-pressed="false">Flagged only <span id="fcount"></span></button>
+  </div>
+</div>
+
+<div class="shell">
+  <nav class="rail" aria-label="Sections"><ol id="railList"></ol></nav>
+  <main>
+
+<section class="sec" id="s1" data-title="How the loop runs">
+  <div class="sec-head">
+    <div class="sec-num">01 &mdash; ORIENTATION</div>
+    <h2>How the loop actually runs</h2>
+    <p class="lede">Five rounds, five different things being measured. Most candidates lose in the round they didn't realise they were in.</p>
+  </div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Round</th><th>What's really measured</th><th>How you lose it</th></tr></thead>
+      <tbody>
+        <tr><td><b>Recruiter screen</b><br><span class="tell">20&ndash;30 min</span></td><td>Can you describe your work in plain language? Level and comp fit.</td><td>Rambling. Not knowing the company's product.</td></tr>
+        <tr><td><b>Coding</b><br><span class="tell">45&ndash;60 min</span></td><td>Do you think out loud, handle edge cases, and test your own code?</td><td>Silence. Jumping to code before restating the problem.</td></tr>
+        <tr><td><b>Full-stack / practical</b><br><span class="tell">60&ndash;90 min</span></td><td>Build or extend a small app: an endpoint, a component, a bug hunt.</td><td>Not asking about the contract between client and server.</td></tr>
+        <tr><td><b>System design</b><br><span class="tell">45&ndash;60 min</span></td><td>Do you scope before you draw? Do you name tradeoffs unprompted?</td><td>Drawing boxes with no requirements. Inventing scale nobody asked for.</td></tr>
+        <tr><td><b>Behavioural / hiring manager</b><br><span class="tell">45 min</span></td><td>Judgment, ownership, how you behave when something breaks in prod.</td><td>Stories with no conflict, no decision, and no outcome.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3 class="sub">The four sentences that carry every technical answer</h3>
+  <div class="prose">
+    <ol>
+      <li><b>Restate.</b> &ldquo;So you want X, given Y &mdash; is Z in scope?&rdquo; Buys thinking time and catches misreads for free.</li>
+      <li><b>Name the approach and its cost.</b> &ldquo;I'd do A. It's simpler, and it costs us B.&rdquo;</li>
+      <li><b>Show the work.</b> Code, a schema, a sequence of calls &mdash; something concrete.</li>
+      <li><b>Say what you'd do next with more time.</b> This is the sentence that reads as seniority.</li>
+    </ol>
+    <p>If you only drill one habit before the interview, drill #2. Junior answers state a choice; senior answers state a choice <em>and what it costs</em>. Your codebase is unusually good at this already &mdash; the comments in <span class="ref">server.js:478</span> literally enumerate the v0 tradeoffs. Talk the way you comment.</p>
+  </div>
+  <div class="note warn">
+    <div class="note-t">Using this page</div>
+    <p>Questions are collapsed on purpose. Read the question, answer it aloud, <em>then</em> open it. Flag the ones you fumbled and come back with &ldquo;Flagged only&rdquo; &mdash; your flags are saved in this browser.</p>
+  </div>
+</section>
+
+<section class="sec" id="s2" data-title="Your project pitch">
+  <div class="sec-head">
+    <div class="sec-num">02 &mdash; THE STORY</div>
+    <h2>Your project, told well</h2>
+    <p class="lede">&ldquo;Walk me through something you built&rdquo; is guaranteed, and RRSRCH is a genuinely strong answer &mdash; a real distributed system with a caching bug, an auth model, and a retrieval engine. The risk isn't depth, it's rambling.</p>
+  </div>
+
+  <h3 class="sub">The 90-second version</h3>
+  <div class="prose">
+    <p class="say">&ldquo;RRSRCH is a research-memory layer: agents deposit a distilled answer with its sources, and the next agent that asks a semantically equivalent question gets the stored answer instead of re-deriving it. Three pieces &mdash; a React front end, a Node API running serverless on Vercel, and a Python retrieval engine on Postgres with pgvector. The interesting part is the matching: a hybrid of vector similarity and lexical similarity, with a hard scope gate in front of it, because in this domain a false hit &mdash; the right answer to the wrong question &mdash; is much worse than a miss. I own all three layers.&rdquo;</p>
+    <p>That's the whole pitch. Stop there and let them pick the thread. Prepared depth on each layer, offered one layer at a time, is what a strong project round sounds like.</p>
+  </div>
+
+  <h3 class="sub">Know your own numbers</h3>
+  <div class="prose">
+    <p>Interviewers trust specifics. Have these ready without looking:</p>
+    <ul>
+      <li>~1,050 lines of Express in <span class="ref">server.js</span>; ~2,700 lines of React across <span class="ref">App.js</span> and <span class="ref">AtlasView.js</span>.</li>
+      <li>23 Python test modules; CI gates on the unit suite <em>and</em> a matching eval with explicit exit criteria (paraphrase hit rate, ~0 scope false-hits).</li>
+      <li>Fusion weights 0.7 vector / 0.3 lexical; serve threshold 0.85 on MiniLM, tuned so false hits stay at zero.</li>
+      <li>Confidence decays as <code>0.5 ** (age / half_life)</code>, half-lives 180d / 3d / 6h by volatility, serve at &ge; 0.70.</li>
+    </ul>
+  </div>
+
+  <details class="qa"><summary>Walk me through the architecture end to end.</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you understand the whole system or just the file you last edited. They want the request path, not a component inventory.</p>
+    <p>Trace one request, don't list technologies:</p>
+    <ol>
+      <li>Browser loads the CRA bundle from Vercel's CDN. <span class="ref">vercel.json</span> rewrites everything that isn't <code>/api/*</code> to <code>index.html</code>, because the client does its own routing.</li>
+      <li>The React app calls <code>/api/...</code>. That rewrite points at <span class="ref">api/index.js</span>, which is three lines &mdash; it just exports the Express app so Vercel can invoke it per request.</li>
+      <li>Express authenticates the caller from a <code>Bearer</code> token, verifies an HMAC over the payload, loads the account, and serves or writes.</li>
+      <li>The Python side is separate: FastAPI + an MCP server over the same corpus, talking to Postgres through async SQLAlchemy, with pgvector for vector kNN and pg_trgm for lexical kNN.</li>
+    </ol>
+    <p>Then name the seam that matters: <b>the Node API is stateless by necessity</b> &mdash; it runs as a serverless function, so there's no process to keep a session in and no writable disk. That single constraint explains most of the design decisions below, and saying it up front makes the rest sound intentional rather than improvised.</p>
+  </div></details>
+
+  <details class="qa"><summary>Why three stacks? Isn't that over-engineered for one product?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you chose or just accumulated. A defensible &ldquo;yes, partly&rdquo; beats a defensive &ldquo;no&rdquo;.</p>
+    <p>Answer honestly, with the split drawn along a real line: the Python service exists because the retrieval work lives there &mdash; <code>sentence-transformers</code>, numpy, pgvector, an eval harness. Reimplementing embeddings and a reranker in Node to avoid a second language would have been the actual over-engineering. The Node API is a thin edge: auth, accounts, publishing, and proxying. The boundary is &ldquo;does this need the ML ecosystem?&rdquo;</p>
+    <p>Then concede the real cost, because there is one: two deploy targets, two dependency sets, and no shared type definitions across the seam &mdash; a schema change has to be made twice by hand. If you were starting again with a team, that's the argument for collapsing to one language or generating clients from an OpenAPI spec.</p>
+  </div></details>
+
+  <details class="qa"><summary>What's the part you'd rewrite first?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Self-assessment. Candidates who can't criticise their own code usually can't review anyone else's either.</p>
+    <p>Pick a real one and be concrete. Strongest options in your repo:</p>
+    <ul>
+      <li><b>The Blob user store.</b> Storing accounts as a JSON array in blob storage means every signup is a full read&ndash;modify&ndash;write with last-write-wins on concurrent registration. It was the right call to ship without provisioning a database; it is not the right call to keep. Postgres with a unique index on <code>email</code> replaces the whole mechanism &mdash; and you already run Postgres for the Python side.</li>
+      <li><b>App.js at ~1,970 lines.</b> One component holding 40-odd <code>useState</code>/<code>useEffect</code> calls. The fix is extracting data-fetching into hooks and splitting by route, not a rewrite.</li>
+      <li><b>No rate limiting on login.</b> It's the first thing you'd add before real users, and knowing that unprompted reads well.</li>
+    </ul>
+    <p>The pattern: <em>name it, say why it was acceptable at the time, say exactly what replaces it.</em></p>
+  </div></details>
+
+  <details class="qa"><summary>Where does this fall over at 100&times; the traffic?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you can find your own bottleneck. Every system has one; not knowing yours is the bad answer.</p>
+    <p>Your bottleneck is unambiguous, so say it fast: <b>the JSON-blob account store.</b> Every authenticated request calls <code>readUsers()</code>, which lists a blob prefix and downloads the entire user file. That's O(all users) work per request, and writes are a full-file rewrite with no locking &mdash; two concurrent signups and one is silently lost.</p>
+    <p>The fix is not caching, it's the right store: users in Postgres, indexed by id and email, one row read per request. After that the next constraints are cold starts on the serverless functions and embedding inference on the Python side &mdash; which is why <code>encode()</code> is already pushed off the event loop rather than blocking the async request path.</p>
+  </div></details>
+
+  <details class="qa"><summary>Tell me about the hardest bug you've fixed in it.</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Debugging method under pressure. They want the reasoning trail, not the patch.</p>
+    <p>Use the blob-read incident &mdash; it's a genuinely good story because the symptom lied. Structure it tightly:</p>
+    <ul>
+      <li><b>Symptom.</b> Users were being logged out. Tokens verified fine, but the account lookup found nothing.</li>
+      <li><b>The misleading part.</b> Every failure path in the read returned an empty array, so &ldquo;the store is empty&rdquo; and &ldquo;we couldn't read the store&rdquo; looked identical from the outside. Those need opposite responses &mdash; one needs a restore, the other needs a credential.</li>
+      <li><b>First fix was diagnostic, not behavioural.</b> Made each failure path say which one it was, without logging the secret-derived prefix. Callers still got <code>[]</code>; only the silence changed.</li>
+      <li><b>Root cause.</b> The code fetched the blob's public CDN URL anonymously; the edge started refusing it with a 403. The accounts had been there the whole time.</li>
+      <li><b>Real fix.</b> Read through the SDK with the store token instead of an anonymous URL, and bypass the cache so a stale or poisoned edge entry couldn't repeat it.</li>
+    </ul>
+    <p>The line to land: <b>&ldquo;the bug was that a failure was indistinguishable from a normal result.&rdquo;</b> That's an observability lesson, and it generalises &mdash; which is what makes it interview-grade rather than trivia about one vendor's CDN.</p>
+  </div></details>
+</section>
+
+<section class="sec" id="s3" data-title="JavaScript fundamentals">
+  <div class="sec-head">
+    <div class="sec-num">03 &mdash; LANGUAGE</div>
+    <h2>JavaScript they will actually ask about</h2>
+    <p class="lede">Fundamentals round. Short questions with a right answer, used to calibrate before the harder rounds. Answer crisply and move on &mdash; over-explaining here reads as padding.</p>
+  </div>
+
+  <details class="qa"><summary>Explain the event loop. Predict the output of a snippet mixing <code>setTimeout</code>, a promise, and sync code.</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> The single most-asked JS question. They want &ldquo;microtasks drain before the next macrotask&rdquo; and the ability to trace it.</p>
+    <p>JS runs one call stack. When the stack empties, the runtime drains the <b>microtask queue</b> completely (promise callbacks, <code>queueMicrotask</code>), then takes <b>one macrotask</b> (timers, I/O) and repeats. So promise callbacks always run before a <code>setTimeout(...,0)</code> queued at the same moment.</p>
+<pre><code>console.log('1');
+setTimeout(() =&gt; console.log('2'), 0);
+Promise.resolve().then(() =&gt; console.log('3'));
+console.log('4');
+// 1, 4, 3, 2</code></pre>
+    <p>Sync code first (<code>1</code>, <code>4</code>), then the microtask (<code>3</code>), then the timer (<code>2</code>). If they push further: in Node, <code>process.nextTick</code> drains before promise microtasks, and <code>setImmediate</code> fires in the check phase after I/O callbacks.</p>
+    <p>Bring it back to your code if it fits &mdash; this is exactly why the Python side pushes model inference off the event loop: a blocking CPU call in an async handler stalls every other in-flight request, and the same is true of a synchronous <code>bcrypt.hashSync</code> in Express.</p>
+  </div></details>
+
+  <details class="qa"><summary>What is a closure, and where have you actually used one?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you understand scope capture or just memorised a definition. The &ldquo;where did you use one&rdquo; half is the real question.</p>
+    <p>A closure is a function plus the scope it was defined in, kept alive after that outer scope returns. Definition, then a use:</p>
+<pre><code>function rateLimiter(maxPerMinute) {
+  const hits = new Map();                 // captured, private
+  return (key) =&gt; {
+    const now = Date.now();
+    const recent = (hits.get(key) || []).filter(t =&gt; now - t &lt; 60_000);
+    if (recent.length &gt;= maxPerMinute) return false;
+    hits.set(key, [...recent, now]);
+    return true;
+  };
+}</code></pre>
+    <p><code>hits</code> survives the call and is unreachable from outside &mdash; that's the point. Nice bonus: this is exactly the rate limiter your login endpoint is missing, so it doubles as a real answer if they ask what you'd harden first.</p>
+    <p>Classic follow-up: <code>var</code> in a loop with <code>setTimeout</code> prints the final value every time because all three closures share one binding; <code>let</code> creates a fresh binding per iteration and prints 0, 1, 2.</p>
+  </div></details>
+
+  <details class="qa"><summary><code>==</code> vs <code>===</code>, and how would you compare two secrets?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Basic knowledge, then whether security instinct shows up unprompted. The second half is the differentiator.</p>
+    <p><code>==</code> coerces before comparing (<code>'1' == 1</code>, <code>null == undefined</code>, and the famous <code>[] == false</code>); <code>===</code> compares type and value. Use <code>===</code>, except the idiomatic <code>x == null</code> to catch both null and undefined.</p>
+    <p>For secrets, neither: <code>===</code> on strings short-circuits at the first differing byte, which leaks length and prefix through timing. Use a constant-time compare on equal-length buffers &mdash; which is what your token verification does at <span class="ref">server.js:626</span>, checking length first because <code>timingSafeEqual</code> throws on a length mismatch.</p>
+  </div></details>
+
+  <details class="qa"><summary>How do you handle errors across several async calls?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Practical async competence. They're watching for unhandled rejections and for whether you know the <code>Promise</code> combinators.</p>
+    <ul>
+      <li><code>Promise.all</code> &mdash; rejects on the first failure, and the other promises keep running unobserved. Right when you need every result.</li>
+      <li><code>Promise.allSettled</code> &mdash; always resolves with per-item status. Right when partial success is useful, like fanning out to several market-data providers where one being down shouldn't blank the page.</li>
+      <li><code>Promise.race</code> / <code>any</code> &mdash; first settled / first fulfilled. <code>race</code> against a timeout is the standard deadline pattern.</li>
+    </ul>
+    <p>In Express 4 specifically, an async handler that throws does <em>not</em> reach the error middleware &mdash; the rejection is unhandled and the request hangs until it times out. That's why every handler in your <span class="ref">server.js</span> wraps its body in <code>try/catch</code> and returns a 500 explicitly. Express 5 fixes this by forwarding rejected promises to <code>next()</code>; in 4 you either keep the try/catch or wrap handlers in an <code>asyncHandler</code> helper. Saying this shows you've actually run Express in production.</p>
+  </div></details>
+
+  <details class="qa"><summary>What would TypeScript have bought you here?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you can argue types as engineering, not fashion. Most full-stack roles are TS-first, so this is often a fit question in disguise.</p>
+    <p>Be concrete about your own seams. The Express API and the React client agree on response shapes by convention only &mdash; nothing catches it when <code>publicUser</code> drops a field the UI still renders. Shared types across that boundary is the highest-value change, and it's cheap: define the response types once, import them on both sides.</p>
+    <p>Then show you know the limits: types don't validate untrusted input. Whatever the compiler thinks, <code>req.body</code> is <code>unknown</code> at runtime, so you still need a parse step at the boundary &mdash; which is precisely what the Python side already does with Pydantic. The pattern is <em>validate at the edge, trust types inside</em>. If asked what you'd reach for in Node: Zod, for the same reason.</p>
+  </div></details>
+
+  <details class="qa"><summary>Deep clone an object. What breaks?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you know the standard tool and its edges, rather than reflexively reaching for the JSON trick.</p>
+    <p><code>structuredClone(obj)</code> is the modern answer &mdash; it handles <code>Date</code>, <code>Map</code>, <code>Set</code>, <code>ArrayBuffer</code>, and cyclic references. It throws on functions, DOM nodes, and class prototypes (you get a plain object back).</p>
+    <p><code>JSON.parse(JSON.stringify(x))</code> silently corrupts data: <code>Date</code> becomes a string, <code>undefined</code> and functions vanish from objects, <code>NaN</code> and <code>Infinity</code> become <code>null</code>, <code>Map</code>/<code>Set</code> become <code>{}</code>, and cycles throw. Fine for known-flat JSON, wrong as a default.</p>
+    <p>Spread and <code>Object.assign</code> are shallow &mdash; a nested object is shared, which is a real bug source in React state where mutating a nested field of a &ldquo;copy&rdquo; skips the re-render.</p>
+  </div></details>
+</section>
+
+<section class="sec" id="s4" data-title="React &amp; the front end">
+  <div class="sec-head">
+    <div class="sec-num">04 &mdash; FRONT END</div>
+    <h2>React and the front end</h2>
+    <p class="lede">You're on React 19 with a 1,970-line <code>App.js</code> and a three.js scene in <code>AtlasView.js</code>. Both are assets: one gives you a real refactoring conversation, the other a real performance one.</p>
+  </div>
+
+  <details class="qa"><summary>Why does React need keys in a list, and why is the array index a bad one?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Reconciliation. Extremely common, and the wrong answer (&ldquo;for performance&rdquo;) misses that it's a correctness issue.</p>
+    <p>Keys tell React which element in the new list corresponds to which in the old one. Without a stable identity React matches by position, so it reuses the wrong component instance &mdash; it doesn't just re-render more, it renders <em>wrong</em>.</p>
+    <p>Concretely: a list of items each with an uncontrolled input, keyed by index. Delete the first item and every element shifts up by one; React sees the same keys 0..n-1 in the same positions and keeps the existing DOM nodes and state, so the text you typed into row 1 is now sitting in row 0's input. Key by <code>item.id</code> and React moves the node instead.</p>
+    <p>Index keys are fine only when the list is append-only and never reordered, filtered, or deleted from.</p>
+  </div></details>
+
+  <details class="qa"><summary><code>useMemo</code>, <code>useCallback</code>, <code>React.memo</code> &mdash; when do they actually help?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you measure or cargo-cult. The strong answer includes &ldquo;usually not&rdquo;.</p>
+    <p>Each has a real cost &mdash; a dependency array to keep correct and memory held across renders. Defaults: don't, until a profile says otherwise. The three cases where they earn their place:</p>
+    <ul>
+      <li><b>Genuinely expensive computation</b> per render &mdash; sorting or filtering thousands of rows, or the derived geometry in your <span class="ref">AtlasView.js</span>, where four <code>useMemo</code> calls stop node and edge layouts being rebuilt every frame. That's the textbook justified use.</li>
+      <li><b>Referential identity feeding a memoised child or an effect.</b> A fresh object or callback each render defeats <code>React.memo</code> and re-fires <code>useEffect</code>. Here <code>useCallback</code> is about correctness of the dependency graph, not speed.</li>
+      <li><b>A context value</b>, so every consumer doesn't re-render whenever the provider does.</li>
+    </ul>
+    <p>Then mention the direction of travel: the React Compiler auto-memoises this pattern, which is exactly why hand-memoising everything ahead of a measurement is poor value. Note that <code>React.memo</code> is a shallow prop compare &mdash; it does nothing if you pass a new inline object every render.</p>
+  </div></details>
+
+  <details class="qa"><summary>Your <code>App.js</code> is nearly 2,000 lines with dozens of hooks. How would you break it up?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> This is the one they'll actually ask if they read your repo. It's not a gotcha &mdash; they want to see how you refactor safely.</p>
+    <p>Don't get defensive; give a sequenced plan, smallest risk first:</p>
+    <ol>
+      <li><b>Extract data-fetching into custom hooks</b> &mdash; <code>useAccount()</code>, <code>useAtlasList()</code>. Each owns its loading, error, and abort handling. This alone removes most of the <code>useEffect</code> calls and makes them individually testable.</li>
+      <li><b>Split by route.</b> The dashboard, the account page, and the Atlas view are separate screens sharing one component only because they were built together. Splitting them lets you code-split too, so the three.js bundle isn't paid for by someone visiting the login page.</li>
+      <li><b>Lift shared server state into one place.</b> Whether that's context plus a reducer or a data library, the goal is that &ldquo;who is signed in&rdquo; has exactly one owner.</li>
+      <li><b>Leave presentational JSX until last.</b> It's the largest and least risky part; moving it early creates a big diff that hides real changes.</li>
+    </ol>
+    <p>Close with the guardrail: a 2,000-line component with no tests can't be refactored confidently, so the first commit is a couple of smoke tests around the flows you're about to touch &mdash; then the moves are verifiable.</p>
+  </div></details>
+
+  <details class="qa"><summary>How do you fetch data in an effect without race conditions or setting state after unmount?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Very common practical bug. They want cleanup and cancellation, not just <code>fetch().then(setState)</code>.</p>
+    <p>The bug: a user types fast, two requests are in flight, the slower one resolves last and overwrites the newer result with stale data. Order of resolution is not order of dispatch.</p>
+<pre><code>useEffect(() =&gt; {
+  const ac = new AbortController();
+  (async () =&gt; {
+    try {
+      const res = await fetch(`/api/account/atlas/${slug}`, { signal: ac.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setData(await res.json());
+    } catch (err) {
+      if (err.name !== 'AbortError') setError(err);
+    }
+  })();
+  return () =&gt; ac.abort();       // runs on slug change AND on unmount
+}, [slug]);</code></pre>
+    <p>The cleanup solves both problems at once: the previous request is cancelled before the next starts, and an unmount aborts the in-flight one. An <code>ignore</code> boolean also works if you can't cancel, but <code>AbortController</code> actually stops the request.</p>
+    <p>Worth adding: in React 19, effects run twice in development StrictMode specifically to surface missing cleanup. If double-mounting breaks your effect, the effect was already broken.</p>
+  </div></details>
+
+  <details class="qa"><summary>Controlled vs uncontrolled components &mdash; which do you reach for?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Everyday React judgment, and a chance to see if you know the perf cost of controlling everything.</p>
+    <p>Controlled: React state is the source of truth (<code>value</code> + <code>onChange</code>). Uncontrolled: the DOM holds the value and you read it via a ref or on submit.</p>
+    <p>Reach for controlled when the value drives other UI as it changes &mdash; live validation, a disabled submit button, a filtered list. Reach for uncontrolled when you only need the value at submit time; it's less code and avoids a re-render per keystroke, which matters in a large form.</p>
+    <p>The trap: switching a component between the two by passing <code>value={undefined}</code>, which React warns about loudly. Give inputs <code>value={x ?? ''}</code> when <code>x</code> may be null.</p>
+  </div></details>
+
+  <details class="qa"><summary>What's new in React 19 that you'd actually use?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether &ldquo;React 19&rdquo; in your <code>package.json</code> is a version bump or a decision. Naming two features you'd use beats reciting the changelog.</p>
+    <ul>
+      <li><b>Actions and <code>useActionState</code></b> &mdash; pending state, errors, and optimistic updates for form submission handled by the framework instead of three <code>useState</code> calls per form. Directly applicable to your signup and login forms.</li>
+      <li><b><code>use()</code></b> &mdash; read a promise or context conditionally, which removes a class of &ldquo;fetch in an effect, store in state&rdquo; boilerplate.</li>
+      <li><b>Ref as a prop</b> &mdash; <code>forwardRef</code> is no longer needed for most components.</li>
+      <li><b>Better hydration errors</b> and native support for document metadata and stylesheets rendered from components.</li>
+    </ul>
+    <p>Honest framing if pressed: you're on <code>react-scripts</code>, so you're getting React 19 the library without the server-side pieces. CRA is deprecated, and the migration you'd plan is to Vite for a dev-server and build story that's actively maintained &mdash; Next.js only if you actually want SSR, which a dashboard behind a login mostly doesn't.</p>
+  </div></details>
+
+  <details class="qa"><summary>How do you keep a three.js scene from tanking the frame rate in React?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Bonus round if they notice <code>@react-three/fiber</code>. Real answer: React state and a render loop are different clocks.</p>
+    <p>The core rule: <b>never drive per-frame animation through React state.</b> <code>setState</code> at 60fps means 60 reconciliations a second. Inside <code>useFrame</code>, mutate the object directly &mdash; <code>meshRef.current.position.x = …</code> &mdash; and let the renderer read it. React owns the scene graph's structure; the frame loop owns its values.</p>
+    <p>Beyond that: memoise geometries and materials so they aren't reallocated per render (each one is a GPU allocation), dispose them on unmount to avoid leaking, instance repeated nodes rather than mounting hundreds of meshes, and lazy-load the whole view with <code>React.lazy</code> so three.js stays out of the initial bundle.</p>
+  </div></details>
+
+  <details class="qa"><summary>How would you make this accessible, and how would you know it worked?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Increasingly a standard screen. The failure mode is listing rules with no verification step.</p>
+    <p>Basics: semantic elements over <code>div</code>s with click handlers (a real <code>button</code> gets keyboard and screen-reader behaviour for free), every input tied to a <code>label</code>, visible focus states, meaningful <code>alt</code> text, and colour never as the sole signal.</p>
+    <p>Then the part most candidates skip &mdash; how you verify: tab through the flow with no mouse, run axe or Lighthouse in CI, and test with Testing Library queries by role and label rather than test IDs, so an inaccessible component literally fails its own test. That last point lands well because you already have Testing Library installed.</p>
+    <p>For a canvas-based view like the Atlas, the honest answer is that a WebGL scene is opaque to assistive tech, so it needs a parallel accessible representation &mdash; a list or table of the same nodes and edges &mdash; not an <code>aria-label</code> on the canvas.</p>
+  </div></details>
+</section>
+
+<section class="sec" id="s5" data-title="Node, Express &amp; API design">
+  <div class="sec-head">
+    <div class="sec-num">05 &mdash; BACK END</div>
+    <h2>Node, Express, and API design</h2>
+    <p class="lede">Your API is small but unusually opinionated: stateless by necessity, versioned writes, an explicit device-pairing flow. That's a lot of surface to be asked about.</p>
+  </div>
+
+  <details class="qa"><summary>What is middleware in Express, and what does ordering change?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you understand the request pipeline. Ordering bugs are the classic Express production incident.</p>
+    <p>Middleware is <code>(req, res, next)</code> functions run in registration order; each either responds or calls <code>next()</code>. Error middleware takes four arguments and only runs when something calls <code>next(err)</code>.</p>
+    <p>Order is the whole design. In your <span class="ref">server.js</span> the stack is CORS &rarr; body parser &rarr; session &rarr; passport &rarr; routes, and that sequence is required: CORS has to handle the preflight before anything can reject the request, and passport can't read a session that hasn't been attached yet. Register a body parser after your routes and <code>req.body</code> is <code>undefined</code> in every one of them.</p>
+    <p>A detail worth volunteering: you raised the JSON limit to 1&nbsp;MB deliberately because Atlas graphs exceed the 100&nbsp;KB default. That's a good answer to &ldquo;how do you stop a client sending you a 2&nbsp;GB body&rdquo; &mdash; a bounded limit is a security control, not just a config value.</p>
+  </div></details>
+
+  <details class="qa"><summary>Design a REST endpoint for creating a resource. What status codes and what makes it safe to retry?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> API judgment. Idempotency is the word they're listening for.</p>
+    <p><code>POST /api/atlas</code> returns <b>201</b> with the created resource and a <code>Location</code> header; <b>400</b> for a malformed body, <b>401</b> unauthenticated, <b>403</b> authenticated but not allowed, <b>404</b> for a missing parent, <b>409</b> for a conflict such as a duplicate email (which is what your signup returns), <b>422</b> if you distinguish semantic validation from parse failure, <b>429</b> rate limited.</p>
+    <p>On retries: <code>GET</code>, <code>PUT</code>, and <code>DELETE</code> are idempotent by definition; <code>POST</code> is not, so a client that times out and retries can create two resources. The fix is an <code>Idempotency-Key</code> header the server records with the result, returning the original response on a repeat. Alternatively make creation a <code>PUT</code> to a client-chosen id &mdash; which is effectively what your Atlas publishing does by keying on a slug, so a republish overwrites rather than duplicating.</p>
+    <p>If they push on pagination: cursor-based, not <code>OFFSET</code>. Offset pagination gets slower the deeper you go and skips or repeats rows when the underlying list changes between pages.</p>
+  </div></details>
+
+  <details class="qa"><summary>Your API runs serverless. What does that change about how you write it?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you know your own deployment model. Very likely to be asked because <code>api/index.js</code> is three lines and obviously deliberate.</p>
+    <p>Four things stop being available, and each has a visible consequence in your code:</p>
+    <ul>
+      <li><b>No process memory between requests.</b> An in-memory session store or cache is per-instance and effectively random. That's why account auth uses stateless signed tokens rather than the <code>express-session</code> store used for the Google OAuth path.</li>
+      <li><b>No writable disk.</b> The local JSON fallback silently reads nothing in production &mdash; which is exactly the failure your logging now calls out by name at <span class="ref">server.js:585</span>.</li>
+      <li><b>No background work after the response.</b> The instance can be frozen the moment you respond, so &ldquo;fire and forget&rdquo; work may never run. It needs a queue.</li>
+      <li><b>Cold starts and connection limits.</b> Each concurrent invocation is its own instance, so naive per-request database connections exhaust Postgres fast &mdash; hence connection pooling at the proxy layer rather than in the function.</li>
+    </ul>
+    <p>Say the tradeoff plainly: you get zero-ops scaling and pay for it with statelessness. It suits a read-mostly API in front of a shared store, and it's a poor fit for long-lived connections like WebSockets.</p>
+  </div></details>
+
+  <details class="qa"><summary>You write a JSON file to blob storage and immediately read it back &mdash; you get the old version. Why, and how do you fix it?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Distributed-systems instinct. This is your real war story, and it maps onto a classic caching question.</p>
+    <p>The write went to origin; the read was served by a CDN edge still holding the previous object for that key. Overwriting the <em>same</em> path means the cached copy is stale for as long as its TTL &mdash; up to about a minute in practice. For a cache of article text that's harmless. For an account store it's fatal: a user signs up, the next request reads the pre-signup version, and the account doesn't exist.</p>
+    <p>Two fixes, and knowing both is the point:</p>
+    <ul>
+      <li><b>Never overwrite a key.</b> Every write lands at a new immutable path &mdash; yours are zero-padded millisecond timestamps, so lexicographic max is the newest version. Reads list the prefix and fetch that unique URL, which was never cached under a stale value. Old versions are pruned best-effort. This is content-addressed writing, and it's the same reason bundlers emit hashed filenames.</li>
+      <li><b>Read from origin, authenticated.</b> Fetch through the SDK with the store token and cache disabled, so no edge copy is involved.</li>
+    </ul>
+    <p>Then name the general principle, which is what they're actually buying: <b>read-after-write consistency is not free, and caches are correct only for data that tolerates being stale.</b> Authentication data does not.</p>
+  </div></details>
+
+  <details class="qa"><summary>How do you decide what to log, and what must never be logged?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Operational maturity. Rare enough to be a strong differentiator.</p>
+    <p>Log at the decision points where two different causes could produce the same outcome &mdash; that's the whole lesson from your blob incident. A read that returns <code>[]</code> should say whether the store was empty or unreadable, because those need opposite responses.</p>
+    <p>Match level to ownership, which your <code>requireUser</code> already does: a rejected token is <code>warn</code>, because it's the caller's problem and the ordinary case; a <em>valid</em> token for an unknown user is <code>error</code>, because reaching that line required a real signature, so it's almost certainly the store failing to load. Including the loaded user count makes the log self-diagnosing &mdash; zero means the store came back empty, non-zero means that one record is genuinely gone.</p>
+    <p>Never logged: passwords or hashes, tokens or session ids, the secret-derived blob prefix (an unguessable path is a credential &mdash; logging it destroys the property it relies on), and personal data beyond an opaque user id. Structured JSON with a request id so one request can be traced end to end.</p>
+  </div></details>
+
+  <details class="qa"><summary>Walk me through your device-pairing flow. Why not just ask for the password?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you can explain an auth protocol you implemented, and whether you know why it exists.</p>
+    <p>It's the OAuth device authorization grant, for a client that can't safely show a browser or accept a password &mdash; a CLI or an agent on another machine. The flow:</p>
+    <ol>
+      <li>Device calls <code>/api/device/start</code> and gets a short human-readable <code>user_code</code>, an opaque <code>device_code</code>, a verification URL, and a poll interval.</li>
+      <li>The human types that code into an <em>already-authenticated</em> browser session and approves it.</li>
+      <li>The device polls <code>/api/device/poll</code> with its <code>device_code</code> and gets a long-lived token once approved.</li>
+    </ol>
+    <p>Design details worth volunteering, because they're the reason it's a good implementation: the user code alphabet excludes <code>0/O/1/I/L</code> so a code read aloud can't be mistyped; the pairing is single-use (<code>consumed</code>) and TTL-bounded; and the approving user must already be authenticated, so the code alone grants nothing. Crucially, <b>the token carries a device id and the device stays on the account record, which is the revocation list</b> &mdash; that's how you get revocable credentials out of otherwise stateless tokens. Deleting the device invalidates its token on the next request.</p>
+    <p>Why not the password: it would put a long-lived, reusable, all-powerful credential on a machine you may not control, with no way to revoke it short of a password reset that logs out everything.</p>
+  </div></details>
+</section>
+
+<section class="sec" id="s6" data-title="Auth &amp; security">
+  <div class="sec-head">
+    <div class="sec-num">06 &mdash; SECURITY</div>
+    <h2>Auth and security</h2>
+    <p class="lede">Your strongest technical territory, and the most probeable: you hand-rolled an HMAC token scheme, a capability-URL store, and a device grant. Expect them to push. The winning move is knowing your own weaknesses before they name them.</p>
+  </div>
+
+  <details class="qa"><summary>You built your own token instead of using a JWT library. Defend that.</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether &ldquo;I wrote it myself&rdquo; is arrogance or a considered scope decision. They're mostly checking you didn't make a classic crypto mistake.</p>
+    <p>Start by showing you know what you built: it's a JWT-shaped token &mdash; base64url payload, dot, HMAC-SHA256 over that payload &mdash; minus the header. Symmetric signing, verified per request, with an <code>exp</code> claim checked on every verify.</p>
+    <p>The defensible reasons: a single service signing and verifying with one secret has no need for JWT's algorithm negotiation, and that negotiation <em>is</em> the historical vulnerability &mdash; the <code>alg: none</code> and RS256-confused-for-HS256 attacks both come from trusting an attacker-supplied header. Your verifier hardcodes the algorithm, so that class of bug is structurally absent.</p>
+    <p>Then show the care in the details, unprompted: the comparison is <code>timingSafeEqual</code> with a length check first, because that function throws on unequal lengths; the payload is decoded only <em>after</em> the MAC verifies, so you never parse untrusted JSON you haven't authenticated.</p>
+    <p>And concede the honest limit: rolling your own is right for one service and wrong the moment a second service needs to verify these tokens, or you want asymmetric keys so verifiers can't mint. At that point it's a library and a JWKS endpoint. Framing it as &ldquo;correct at this scope, replaced at that scope&rdquo; is exactly the judgment they're testing.</p>
+  </div></details>
+
+  <details class="qa"><summary>Your tokens last 30 days &mdash; a year for devices &mdash; and can't be revoked. Is that OK?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> The known weakness of stateless auth. Denying it is the only wrong answer.</p>
+    <p>Concede it directly: a stateless token is valid until it expires, so a leaked one is usable for its full lifetime. There's no logout that invalidates it server-side &mdash; the client just forgets it.</p>
+    <p>Then show you've already solved half of it: device tokens <em>are</em> revocable, because they carry a device id checked against the account's device list on every request. Removing the device kills the token immediately. That's the standard pattern &mdash; a small piece of server state converts a stateless token into a revocable one.</p>
+    <p>What you'd do properly: short-lived access tokens (15 minutes) plus a longer refresh token that's stored and revocable, and a <code>token_version</code> on the user record bumped on password change so every outstanding token dies at once. Then note the tradeoff honestly &mdash; each of those adds a store lookup, which is the statelessness you bought serverless deployment with. That's the trade, not an oversight.</p>
+  </div></details>
+
+  <details class="qa"><summary>Why bcrypt? Why not SHA-256? What's the cost factor for?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Password storage fundamentals. Nearly guaranteed if they see <code>bcrypt</code> in your dependencies.</p>
+    <p>SHA-256 is designed to be fast, which is precisely wrong for passwords &mdash; commodity hardware does billions of guesses a second against a stolen hash table. bcrypt is deliberately slow and its cost factor is tunable, so you can keep raising the attacker's cost as hardware improves without changing the scheme. It also salts each hash automatically, so identical passwords produce different hashes and one rainbow table can't cover your whole user table.</p>
+    <p>Cost 10 (yours) is about 100&nbsp;ms per hash &mdash; a reasonable floor; 12 is a common current recommendation. The upper bound is your own login latency and CPU, and on serverless it's also your invocation time. Note the real constraint: bcrypt is <em>CPU-bound</em>, so the async version matters &mdash; <code>bcrypt.hashSync</code> in an Express handler blocks the event loop for every concurrent request, which is a self-inflicted denial of service. Your code uses the promise API correctly.</p>
+    <p>If they push further: Argon2id is the current preference because it's memory-hard, which blunts GPU and ASIC attacks in a way bcrypt's CPU cost doesn't. bcrypt remains perfectly acceptable; scrypt is the other memory-hard option. What is <em>not</em> acceptable is a plain fast hash, salted or otherwise.</p>
+  </div></details>
+
+  <details class="qa"><summary>What is a capability URL, and what are you relying on?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you understand the security model you chose, including what breaks it. A great question to get, because most candidates have never had to think about it.</p>
+    <p>Your blob store is public-by-URL, so the user file lives at a path derived by hashing a secret: <code>users-&lt;sha256(secret)[0:40]&gt;/</code>. The path itself <em>is</em> the credential &mdash; knowing it grants read access, and 160 bits of it is not guessable.</p>
+    <p>What that relies on, and you should list it before they do: the URL never appears in a log, a referrer header, an error page, a bug report, or a Git commit. It can't be revoked without moving the data. And it grants access to whoever holds it &mdash; there's no per-user authorisation, so it's all-or-nothing.</p>
+    <p>The mitigations you already have: the file holds bcrypt hashes only, never plaintext, so reading it isn't instantly game over; and the code deliberately keeps that prefix out of logs even in the error paths. Rotating the secret both invalidates every token and moves the store &mdash; a documented consequence, and a good example of a coupling you'd design out later by separating the signing key from the storage key.</p>
+    <p>Where it goes at scale: a private store with authenticated reads, which is the direction the SDK read already moved in.</p>
+  </div></details>
+
+  <details class="qa"><summary>Your login endpoint has no rate limiting. Walk me through the attack and the fix.</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you can threat-model your own code. You already know this gap &mdash; own it fast and spend the time on the fix.</p>
+    <p>The attack is credential stuffing: take a breach dump of email/password pairs and replay it as fast as the endpoint will answer. No lockout means the only limit is your throughput. Bcrypt at cost 10 helps a little &mdash; it caps guesses per second &mdash; but that cuts both ways, since each attempt also burns 100&nbsp;ms of <em>your</em> CPU, so the same endpoint is a cheap resource-exhaustion vector.</p>
+    <p>Layered fix, cheapest first:</p>
+    <ul>
+      <li>Rate limit per IP <em>and</em> per account &mdash; per-IP alone is defeated by a botnet, per-account alone lets one IP spray many accounts.</li>
+      <li>Exponential backoff or a temporary lock after repeated failures on one account.</li>
+      <li>A CAPTCHA or proof-of-work step once a threshold trips, rather than a hard lock that becomes a denial-of-service against the real user.</li>
+      <li>Alert on the shape of the traffic &mdash; many accounts, few attempts each, one source &mdash; because that's what stuffing looks like and a per-account limit won't catch it.</li>
+    </ul>
+    <p>One more thing to volunteer: your login returns a generic failure regardless of whether the email exists, which is correct &mdash; distinct messages turn the login form into an account-enumeration oracle. Signup necessarily leaks that with its 409, which is the usual accepted tradeoff.</p>
+  </div></details>
+
+  <details class="qa"><summary>Explain CORS. Your config sets a single origin and <code>credentials: true</code> &mdash; why not <code>*</code>?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you understand the browser's rules or just copy config until the error goes away. Extremely common.</p>
+    <p>CORS is a <em>browser</em> restriction, not a server one: the browser refuses to let page JS read a cross-origin response unless the server's headers permit that origin. It protects users from a malicious page reading their authenticated data on another site. It is not access control &mdash; curl and any server ignore it entirely, so it never substitutes for authorisation.</p>
+    <p>You can't use <code>*</code> with credentials: the spec forbids the combination, precisely because a wildcard plus cookies would let any site make authenticated requests on the user's behalf. With <code>credentials: true</code> you must echo one specific origin, which is what your config does from <code>FRONTEND_URL</code>.</p>
+    <p>Worth adding: non-simple requests get a preflight <code>OPTIONS</code> first, which is why CORS must be registered before anything that could reject the request; and reflecting the request's own <code>Origin</code> back is the common &ldquo;fix&rdquo; that quietly disables the protection entirely &mdash; it's an allowlist or nothing.</p>
+  </div></details>
+
+  <details class="qa"><summary>How do you prevent XSS, CSRF, and SQL injection?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> The security baseline. Give the mechanism, not the name.</p>
+    <ul>
+      <li><b>SQL injection</b> &mdash; parameterised queries, never string interpolation. SQLAlchemy's expression language on your Python side binds parameters, so this is structurally handled; the danger returns the moment someone builds raw SQL with an f-string. ORM use isn't the protection; parameter binding is.</li>
+      <li><b>XSS</b> &mdash; React escapes interpolated values by default, so the main risk is <code>dangerouslySetInnerHTML</code> (sanitise with DOMPurify if you must render user HTML) and <code>javascript:</code> URLs in <code>href</code>. A Content-Security-Policy is the second layer for when the first fails.</li>
+      <li><b>CSRF</b> &mdash; only affects credentials the browser attaches <em>automatically</em>, which means cookies. Your account API sends a <code>Bearer</code> token from JS, so it's structurally immune. Your Google OAuth path uses a session cookie and is not &mdash; that one wants <code>SameSite=Lax</code> (or a token) as its defence. Naming this distinction is the strong answer, because it shows you're reasoning about the mechanism rather than reciting a checklist.</li>
+    </ul>
+    <p>Round it out with headers you'd set: <code>Strict-Transport-Security</code>, <code>X-Content-Type-Options: nosniff</code>, and cookies as <code>httpOnly</code>, <code>secure</code>, <code>SameSite</code> &mdash; which your session config already does.</p>
+  </div></details>
+
+  <details class="qa"><summary>A secret gets committed to the repo. What do you do?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Incident response. There is one right first move and most people get it wrong.</p>
+    <p><b>Rotate the secret first.</b> Not scrub history &mdash; rotate. The moment it was pushed it must be assumed compromised; scrubbing history is cosmetic and gives false comfort while the live credential is still valid. Bots scan public pushes within seconds.</p>
+    <p>Then, in order: revoke the old credential at the provider, check access logs for use during the exposure window, remove it from history if the repo is public or the history is shared, and add a pre-commit secret scanner plus a <code>.gitignore</code> entry so it can't recur. Finally, ask why a human could commit it at all &mdash; the durable fix is that secrets only ever live in the environment, which is how your code reads every one of them.</p>
+    <p>Worth noting for your own repo: the fallbacks like <code>process.env.SESSION_SECRET || 'rrsrch-secret-key-2025'</code> are a related risk &mdash; a missing env var doesn't fail loudly, it silently signs tokens with a value that's public in the source. In production that default should throw at boot instead. Saying this before they find it is a strong move.</p>
+  </div></details>
+</section>
+
+<section class="sec" id="s7" data-title="Data, SQL &amp; retrieval">
+  <div class="sec-head">
+    <div class="sec-num">07 &mdash; DATA</div>
+    <h2>Data, SQL, and retrieval</h2>
+    <p class="lede">Expect standard SQL questions plus, because it's in your repo, real curiosity about pgvector and hybrid search. The vector work is genuinely differentiating &mdash; most full-stack candidates can't discuss it.</p>
+  </div>
+
+  <details class="qa"><summary>When does an index help, and when does it hurt?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Table stakes for anyone claiming backend. They want the write cost named, not just &ldquo;indexes make reads fast&rdquo;.</p>
+    <p>An index is a sorted structure the planner can seek into instead of scanning. It helps equality and range lookups, joins on the indexed column, and <code>ORDER BY</code> that matches its order.</p>
+    <p>The costs: every insert, update, and delete maintains every index on the table, so write-heavy tables pay per index. They consume storage and memory. And the planner will ignore one if it estimates a large fraction of rows will match &mdash; a sequential scan genuinely is faster then, because random I/O per row costs more than a straight read.</p>
+    <p>Things that quietly disable an index: wrapping the column in a function (<code>WHERE lower(email) = …</code> needs an expression index on <code>lower(email)</code>), a leading wildcard <code>LIKE '%foo'</code>, and a type mismatch that forces a cast. On composite indexes, order matters &mdash; <code>(a, b)</code> serves <code>WHERE a</code> and <code>WHERE a AND b</code>, but not <code>WHERE b</code> alone.</p>
+    <p>Close with the method: <code>EXPLAIN ANALYZE</code>, and compare estimated to actual rows &mdash; a large gap usually means stale statistics, not a missing index.</p>
+  </div></details>
+
+  <details class="qa"><summary>What's an N+1 query and how do you find one?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> The most common real-world ORM performance bug.</p>
+    <p>One query fetches N rows, then accessing a relation on each row fires one more query &mdash; 1 + N round trips where 2 would do. It's invisible in development with ten rows and fatal in production with ten thousand, because the cost is network round trips, not database work.</p>
+    <p>Fix by telling the ORM you want the relation up front &mdash; in SQLAlchemy, <code>selectinload</code> (a second query with <code>IN</code>, usually the right default) or <code>joinedload</code> (a single join, better for many-to-one, but it multiplies rows on collections). Or drop to one explicit query with a join and map the results yourself.</p>
+    <p>Finding it: log SQL in development and watch the count per request, or use an APM that flags repeated identical query shapes. The tell is a query executed many times with only the bound parameter changing.</p>
+  </div></details>
+
+  <details class="qa"><summary>How would you model this in SQL &mdash; and what would you index?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Practical schema design. They usually give you a small domain and watch for keys, constraints, and nullability.</p>
+    <p>Use your own migration off the blob store as the worked example:</p>
+<pre><code>CREATE TABLE users (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email         citext NOT NULL UNIQUE,      -- case-insensitive, unique
+  password_hash text   NOT NULL,
+  name          text   NOT NULL,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE devices (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name       text NOT NULL,
+  paired_at  timestamptz NOT NULL DEFAULT now(),
+  revoked_at timestamptz
+);
+CREATE INDEX ON devices (user_id) WHERE revoked_at IS NULL;</code></pre>
+    <p>Point at the decisions rather than the syntax: the unique index on <code>email</code> is what makes concurrent signup safe &mdash; the database rejects the duplicate, which is a guarantee your read-modify-write blob store cannot give at any level of application care. <code>ON DELETE CASCADE</code> means account deletion can't leave orphaned devices. <code>timestamptz</code> not <code>timestamp</code>, always. And the partial index only covers live devices, since that's the only thing the auth path queries.</p>
+    <p>Volunteering &ldquo;this constraint is why the race disappears&rdquo; is worth more than a perfect schema, because it shows you know what a database is <em>for</em>.</p>
+  </div></details>
+
+  <details class="qa"><summary>Explain transactions and isolation levels.</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Depth. Fine to say where your practical experience ends &mdash; but know what the levels prevent.</p>
+    <p>ACID in one line each: atomic (all or nothing), consistent (constraints hold at commit), isolated (concurrent transactions don't see each other's partial work), durable (committed survives a crash).</p>
+    <p>Isolation levels are a ladder of anomalies prevented: <b>read committed</b> (Postgres default) stops dirty reads but allows a value to change between two reads in the same transaction; <b>repeatable read</b> gives a consistent snapshot for the whole transaction; <b>serializable</b> guarantees the outcome matches some serial order, at the cost of transactions that fail and must be retried.</p>
+    <p>The practical point is what it looks like in code: read-modify-write is a race at read committed &mdash; two concurrent balance updates lose one. Fix with <code>SELECT … FOR UPDATE</code>, an atomic <code>UPDATE … SET n = n + 1</code>, or serializable plus a retry loop. Then connect it: <b>your blob user store is exactly this race with no database to arbitrate it</b> &mdash; two simultaneous signups both read the array, both append, and the second write erases the first. That's a strong close, because it's the same bug at a layer you actually own.</p>
+  </div></details>
+
+  <details class="qa"><summary>What is pgvector doing, and why hybrid search rather than pure vector similarity?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Your differentiator. Most candidates can't answer this at all, so a clear explanation is disproportionately valuable.</p>
+    <p>Explain in layers, plain first: an embedding model maps text to a vector so that semantically similar text lands nearby, and cosine similarity measures that. pgvector adds the column type and the distance operators to Postgres, so retrieval is a normal SQL query against the same database as everything else &mdash; no separate vector store to keep in sync.</p>
+    <p>Why hybrid: vectors are good at paraphrase and bad at exact tokens. Ask about a specific error code, version number, or identifier and pure vector search happily returns something &ldquo;about the same topic&rdquo; but wrong. Lexical matching &mdash; trigram similarity via <code>pg_trgm</code> in your case &mdash; is the opposite: exact on tokens, blind to paraphrase. So your store returns the union of vector kNN and lexical kNN as a candidate pool, and the engine fuses the two scores at 0.7/0.3.</p>
+    <p>Then the part that shows judgment, because it's a product decision rather than a technique: <b>a hard scope gate runs before any similarity is considered.</b> If the query is scoped to Rust and the candidate is scoped to CSS, it's rejected outright no matter how similar the embeddings are. The reasoning is asymmetric risk &mdash; a miss costs a re-derivation, a false hit serves a confidently wrong answer. The threshold is tuned so false hits stay at zero, and CI fails if that regresses.</p>
+    <p>If they go deeper: index choice is HNSW versus IVFFlat, and the tradeoff is recall against build time and memory &mdash; both are approximate, so you're trading exactness for speed and should measure recall, not assume it.</p>
+  </div></details>
+
+  <details class="qa"><summary>How do you run a schema migration with zero downtime?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you've shipped against a live database. Alembic in your dependencies invites this.</p>
+    <p>The principle: old and new code run simultaneously during a deploy, so <b>every migration must be backward compatible with the currently running version.</b> That forces the expand&ndash;migrate&ndash;contract pattern:</p>
+    <ol>
+      <li><b>Expand</b> &mdash; add the new nullable column or table. Old code ignores it.</li>
+      <li><b>Backfill</b> in batches, not one long transaction that locks the table.</li>
+      <li><b>Migrate</b> &mdash; deploy code that writes both and reads the new.</li>
+      <li><b>Contract</b> &mdash; once no running code touches it, drop the old column.</li>
+    </ol>
+    <p>A rename is never one step; it's add, dual-write, backfill, switch reads, drop. Specific Postgres hazards worth naming: adding a column with a volatile default rewrites the table, <code>CREATE INDEX</code> locks writes unless you use <code>CONCURRENTLY</code>, and any DDL waits on a lock that a long-running transaction is holding &mdash; and then blocks everything queued behind it. Always set a lock timeout.</p>
+  </div></details>
+</section>
+
+<section class="sec" id="s8" data-title="System design">
+  <div class="sec-head">
+    <div class="sec-num">08 &mdash; DESIGN</div>
+    <h2>The system design round</h2>
+    <p class="lede">For a full-stack role this is usually product-shaped &mdash; design a URL shortener, a notification system, a collaborative editor &mdash; not &ldquo;design Google&rdquo;. They're watching your process far more than your answer.</p>
+  </div>
+
+  <h3 class="sub">The five moves, in order</h3>
+  <div class="prose">
+    <ol>
+      <li><b>Requirements, out loud.</b> Who uses it, what must it do, what's explicitly out of scope. Get agreement before drawing anything. Spending five minutes here is not slow &mdash; skipping it is the most common failure in the round.</li>
+      <li><b>Scale, in numbers.</b> Daily active users, reads per second, writes per second, item size. Rough is fine; the point is that every later decision has a number behind it. 1M DAU with 10 actions a day is ~115 writes/sec average, call it 1,000 at peak &mdash; which is a single Postgres box, and saying so is a <em>good</em> answer.</li>
+      <li><b>The API first.</b> Three or four endpoints with their shapes. This forces the data model and keeps the discussion concrete.</li>
+      <li><b>Data model, then storage choice.</b> In that order &mdash; the shape of the data and its access patterns choose the store, never the reverse.</li>
+      <li><b>One bottleneck, one fix.</b> Pick the thing that breaks first, address it, name what the fix costs. Repeat only if there's time.</li>
+    </ol>
+  </div>
+  <div class="note warn">
+    <div class="note-t">The trap</div>
+    <p>Reaching for Kafka, sharding, and a microservice mesh for a system with a thousand users. Proposing scale nobody asked for reads as inexperience, not ambition. &ldquo;This fits on one Postgres instance with a read replica; here's the number that would change my mind&rdquo; is a senior answer.</p>
+  </div>
+
+  <details class="qa"><summary>Design a URL shortener.</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> The canonical warm-up. They want to see the process, and specifically that you notice it's read-heavy.</p>
+    <p><b>Requirements.</b> Create a short code for a URL; redirect on visit; optional custom alias; optional expiry; click analytics. Out of scope: editing, user accounts.</p>
+    <p><b>Scale.</b> Say 100M URLs, 10:1 read/write. That's the defining fact &mdash; it's overwhelmingly a read system, so it's a caching problem, not a write-throughput problem.</p>
+    <p><b>API.</b> <code>POST /links {url, alias?}</code> &rarr; <code>201 {code}</code>; <code>GET /:code</code> &rarr; <code>301/302</code> redirect.</p>
+    <p><b>Codes.</b> Two options, and name the tradeoff: base62 of an auto-increment id is compact, collision-free, and guessable/enumerable; a random 7-character code needs a uniqueness check but is unguessable. For public links, random &mdash; enumerable short links leak everyone's URLs.</p>
+    <p><b>Data.</b> One table keyed by code, with the URL, creator, created_at, expires_at. The redirect is a single primary-key lookup, so cache it &mdash; the mapping is immutable once created, which makes it the easiest thing in the world to cache. That's the key insight: <b>immutable data has no invalidation problem.</b></p>
+    <p><b>Redirect status.</b> <code>301</code> is cached by browsers forever, which kills your analytics and makes expiry impossible; <code>302</code> keeps every hit coming to you. Choose based on whether you want the traffic. Noticing this at all marks you out.</p>
+    <p><b>Analytics.</b> Don't write a row synchronously on the redirect path &mdash; the redirect must stay fast. Fire an event onto a queue and aggregate asynchronously.</p>
+  </div></details>
+
+  <details class="qa"><summary>Design a notification system (email, push, in-app).</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Queues, retries, idempotency, fan-out. The most common &ldquo;real&rdquo; full-stack design prompt.</p>
+    <p><b>The shape:</b> producers emit events &rarr; a queue &rarr; workers resolve preferences and fan out to channel adapters (email, push, in-app) &rarr; each adapter talks to a third-party provider.</p>
+    <p>The design points that matter, all of which come from one fact &mdash; <b>third-party providers fail and time out</b>:</p>
+    <ul>
+      <li><b>Never send inline with the request.</b> A provider timeout must not fail the user's action.</li>
+      <li><b>Idempotency.</b> Queues deliver at-least-once, so a retried message must not send twice. Deduplicate on a notification key before dispatch. This is the single most important word in this design.</li>
+      <li><b>Retries with exponential backoff and jitter</b>, then a dead-letter queue. Jitter matters: without it, every retry after a provider outage arrives simultaneously and knocks it over again.</li>
+      <li><b>Preferences and quiet hours</b> checked at send time, not enqueue time &mdash; the user may have unsubscribed in between.</li>
+      <li><b>Digest and rate limiting</b> per user, so one noisy event source can't send 400 emails.</li>
+      <li><b>Templates versioned</b>, with the rendered payload stored for support and debugging.</li>
+    </ul>
+    <p>If they ask about in-app real-time: WebSockets or SSE for connected clients, with a durable inbox table as the source of truth so a disconnected user isn't skipped. The socket is an optimisation; the table is the guarantee.</p>
+  </div></details>
+
+  <details class="qa"><summary>Design the system you already built &mdash; a shared research cache for agents.</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Nothing beats designing a system you've actually operated. If they let you choose the prompt, choose this.</p>
+    <p>Lead with the framing that makes it interesting: <b>it's a cache whose keys are natural-language questions</b>, so the two hard problems are <em>what counts as a cache hit</em> and <em>when does an entry go stale</em>. Both have real answers in your build:</p>
+    <ul>
+      <li><b>Hit criterion.</b> Not string equality &mdash; semantic equivalence. Hybrid retrieval (vector ∪ lexical), a hard scope gate, fusion, and a conservative threshold. Tuned toward misses because a false hit serves a wrong answer with a citation attached.</li>
+      <li><b>Staleness.</b> No fixed TTL, because different facts rot at different rates. Confidence decays exponentially from the last corroboration, with the half-life set by a volatility class &mdash; 180 days, 3 days, 6 hours. Serve only above a threshold. Corroboration moves the anchor and re-earns confidence.</li>
+      <li><b>Correction.</b> Disagreement supersedes rather than edits &mdash; the old record is retired with a pointer to its replacement, and retired records are filtered out at the store level so a known-wrong answer can't be served again. The full chain stays for audit.</li>
+      <li><b>Trust.</b> Per-depositor trust and independent corroboration counts, so one bad actor can't poison a topic on their own.</li>
+    </ul>
+    <p>Then the line that ties it to engineering rather than research: <b>the trust and confidence pipeline is deterministic on purpose</b> &mdash; no model judges whether a claim is still true. Matching is the one place a model is allowed to decide. That's an auditability constraint, and it's exactly the sort of self-imposed boundary that reads as senior.</p>
+  </div></details>
+
+  <details class="qa"><summary>How do you cache, and how do you invalidate?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Comes up in almost every design round. You have a genuine production scar here &mdash; use it.</p>
+    <p>Layers, outermost first: browser cache, CDN, an application cache such as Redis, the database's own buffer cache. Cache as close to the user as the data's tolerance for staleness allows.</p>
+    <p>Strategies: <b>cache-aside</b> (read cache, miss &rarr; read database &rarr; populate) is the default; <b>write-through</b> keeps them consistent at the cost of write latency; <b>write-behind</b> is fast and can lose data.</p>
+    <p>Invalidation, in preference order: (1) make the data immutable and key by content or version, so nothing ever needs invalidating &mdash; this is what your versioned blob writes do, and what bundlers do with hashed filenames; (2) explicitly evict on write; (3) TTL, which is really just choosing how wrong you're willing to be.</p>
+    <p>Then name the failure you actually hit: <b>a cache is only correct for data that tolerates staleness, and authentication data does not.</b> Overwriting one blob key meant a signup could be invisible to the very next request. Also mention the stampede &mdash; when a hot key expires, every concurrent request misses at once and hammers the origin; fix with a short lock, or by refreshing slightly before expiry.</p>
+  </div></details>
+</section>
+
+<section class="sec" id="s9" data-title="The coding round">
+  <div class="sec-head">
+    <div class="sec-num">09 &mdash; CODING</div>
+    <h2>The coding round</h2>
+    <p class="lede">For full-stack roles this is usually mid-difficulty and often practical &mdash; transform some data, debug a component, add an endpoint &mdash; rather than a hard algorithms puzzle. How you work is scored as heavily as whether you finish.</p>
+  </div>
+
+  <h3 class="sub">The protocol that scores well</h3>
+  <div class="prose">
+    <ol>
+      <li><b>Restate the problem and give one example</b> with input and expected output. Confirm it before writing anything.</li>
+      <li><b>Ask about the edges now, not later.</b> Empty input, duplicates, nulls, size, sorted or not. This is graded.</li>
+      <li><b>State the brute force, then improve it.</b> &ldquo;Nested loops is O(n&sup2;); a hash map makes it O(n) with O(n) space&rdquo; &mdash; and you may not even need to write the slow one.</li>
+      <li><b>Narrate while you type,</b> and name variables properly. Silence is the most common way to fail an otherwise correct solution.</li>
+      <li><b>Trace your own code on the example</b> when you finish. Finding your own bug is a strong positive signal; having the interviewer find it is not.</li>
+    </ol>
+  </div>
+
+  <h3 class="sub">What to drill, in priority order</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Pattern</th><th>Why it comes up</th><th>Likelihood</th></tr></thead>
+      <tbody>
+        <tr><td>Hash map counting / grouping</td><td>Underlies the majority of easy&ndash;medium questions</td><td><span class="pill p-crit">Near certain</span></td></tr>
+        <tr><td>Array and string two-pointer, sliding window</td><td>Longest substring, dedupe, in-place transforms</td><td><span class="pill p-crit">Near certain</span></td></tr>
+        <tr><td>Reshape nested JSON &rarr; flat, or flat &rarr; tree</td><td>The most common <em>practical</em> full-stack question there is</td><td><span class="pill p-crit">Near certain</span></td></tr>
+        <tr><td>Sorting with a custom comparator</td><td>Merge intervals, ranking, top-K</td><td><span class="pill p-warn">Likely</span></td></tr>
+        <tr><td>Recursion / tree or DOM traversal</td><td>Nested comments, file trees, category trees</td><td><span class="pill p-warn">Likely</span></td></tr>
+        <tr><td>Debounce, throttle, retry with backoff</td><td>Front-end favourite; tests closures and timers together</td><td><span class="pill p-warn">Likely</span></td></tr>
+        <tr><td>Async orchestration &mdash; run N tasks, limit concurrency</td><td>Tests real understanding of promises</td><td><span class="pill p-ok">Possible</span></td></tr>
+        <tr><td>Graphs, DP, backtracking</td><td>Mostly big-tech loops; rare for product full-stack</td><td><span class="pill p-ok">Possible</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <details class="qa"><summary>Build a tree from a flat list of items with parent ids.</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> The single most likely practical question. Real (comment threads, nav menus, category trees) and it separates O(n) from O(n&sup2;) thinking.</p>
+<pre><code>function buildTree(rows) {
+  const byId = new Map();
+  for (const r of rows) byId.set(r.id, { ...r, children: [] });
+
+  const roots = [];
+  for (const r of rows) {
+    const node = byId.get(r.id);
+    const parent = r.parentId == null ? null : byId.get(r.parentId);
+    if (parent) parent.children.push(node);
+    else roots.push(node);          // root, or an orphan whose parent is missing
+  }
+  return roots;
+}</code></pre>
+    <p>Two passes, O(n) time and space. The first pass exists so the second never has to search for a parent &mdash; that's the whole trick, and saying it aloud is the point.</p>
+    <p>Edges to raise yourself: a missing parent id (orphan &mdash; drop it, or promote it to a root, but <em>ask</em>); a cycle, which this silently tolerates but which would infinitely recurse in any renderer, so detect it if the data is untrusted; and stable ordering, which follows input order here and may need an explicit sort.</p>
+  </div></details>
+
+  <details class="qa"><summary>Implement debounce. Then throttle. What's the difference?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Closures, <code>this</code>, and timers in one question. A front-end classic.</p>
+<pre><code>function debounce(fn, wait) {
+  let t;
+  return function (...args) {
+    clearTimeout(t);
+    t = setTimeout(() =&gt; fn.apply(this, args), wait);
+  };
+}
+
+function throttle(fn, interval) {
+  let last = 0;
+  return function (...args) {
+    const now = Date.now();
+    if (now - last &gt;= interval) { last = now; fn.apply(this, args); }
+  };
+}</code></pre>
+    <p>Debounce waits for the activity to <em>stop</em> &mdash; one call after the last event. Use it for a search-as-you-type field, where only the final query matters. Throttle guarantees at most one call per interval regardless of how long activity continues &mdash; use it for scroll and resize handlers, where you want steady updates during the event, not one at the end.</p>
+    <p>Details that earn credit: <code>function</code> rather than an arrow so <code>this</code> binds from the call site, and offering a <code>cancel()</code> method for cleanup in a React effect &mdash; a pending debounced call firing after unmount is a real bug.</p>
+  </div></details>
+
+  <details class="qa"><summary>Run N async tasks with a concurrency limit of K.</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether your promise knowledge is real. <code>Promise.all</code> over 10,000 URLs starts 10,000 requests at once &mdash; that's the bug being probed.</p>
+<pre><code>async function pool(items, k, worker) {
+  const results = new Array(items.length);
+  let next = 0;
+
+  const runner = async () =&gt; {
+    while (next &lt; items.length) {
+      const i = next++;                       // claim an index, then await
+      results[i] = await worker(items[i], i);
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(k, items.length) }, runner));
+  return results;
+}</code></pre>
+    <p>K workers each pull the next index until the list is exhausted &mdash; a worker that finishes early picks up more work, so it self-balances. Incrementing <code>next</code> before any <code>await</code> is what makes the claim atomic; JS is single-threaded, so no two workers can interleave between the read and the increment.</p>
+    <p>Follow-ups to pre-empt: results stay in input order because you write by index; a rejected task currently kills the pool, so wrap the worker if you want <code>allSettled</code> semantics; and this is the right place to mention retries with backoff and an <code>AbortController</code> deadline if the tasks are network calls.</p>
+  </div></details>
+
+  <details class="qa"><summary>Here's a component with a bug. Find it.</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Debugging under observation, which is closer to the actual job than any algorithm question.</p>
+    <p>Work the list out loud in this order &mdash; it's roughly the frequency order of real React bugs:</p>
+    <ol>
+      <li><b>Stale closure</b> &mdash; an effect or callback capturing an old state value because a dependency is missing from the array.</li>
+      <li><b>Missing cleanup</b> &mdash; a subscription, timer, or fetch that outlives the component.</li>
+      <li><b>Mutating state</b> &mdash; <code>arr.push(x); setArr(arr)</code>. Same reference, so no re-render.</li>
+      <li><b>Index keys</b> in a reorderable list.</li>
+      <li><b>Async setState from a stale value</b> &mdash; <code>setCount(count + 1)</code> twice in a row; needs the updater form <code>setCount(c =&gt; c + 1)</code>.</li>
+      <li><b>Race condition</b> in a fetch effect &mdash; the slow response overwriting the fast one.</li>
+    </ol>
+    <p>Say what you're checking as you check it. &ldquo;Let me look at the dependency arrays first, that's where this usually lives&rdquo; demonstrates a method, which is what's being scored &mdash; and it still scores if the bug turns out to be somewhere else.</p>
+  </div></details>
+</section>
+
+<section class="sec" id="s10" data-title="Testing, CI &amp; ops">
+  <div class="sec-head">
+    <div class="sec-num">10 &mdash; DELIVERY</div>
+    <h2>Testing, CI, and shipping</h2>
+    <p class="lede">Your CI is a genuinely good answer &mdash; it gates on a quality metric, not just green unit tests. Most candidates have nothing like that to point at.</p>
+  </div>
+
+  <details class="qa"><summary>What do you test, and what don't you?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Judgment, not doctrine. &ldquo;Test everything&rdquo; and &ldquo;100% coverage&rdquo; are both wrong answers.</p>
+    <p>Test behaviour at the boundaries of a unit, not its internals &mdash; a test that breaks when you rename a private function is a liability, because it makes refactoring expensive and teaches people to delete tests.</p>
+    <p>Where the value is, by tier: heavy unit testing of pure logic with real branching &mdash; your confidence decay, the agreement gate, scope conflict resolution, all pure functions with clear inputs and outputs; integration tests at the API boundary, hitting a real database rather than a mocked one, because the interesting bugs live in the SQL and the serialisation; and a small number of end-to-end tests over the two or three flows that lose you money if they break &mdash; signup, login, publish.</p>
+    <p>What not to test: framework behaviour, getters, and anything where the test restates the implementation. On coverage: useful as a signal about which files are <em>untouched</em>, worthless as a target &mdash; the moment it's a goal, people write tests that execute lines without asserting anything.</p>
+  </div></details>
+
+  <details class="qa"><summary>Walk me through your CI pipeline.</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you've thought about feedback speed and what a build is allowed to block on.</p>
+    <p>Yours has three properties worth naming explicitly, because each is a deliberate decision:</p>
+    <ul>
+      <li><b>Path-filtered.</b> The workflow only runs when <code>rrsrch/**</code> or the workflow itself changes, so a front-end commit doesn't wait on a Python suite that can't be affected by it.</li>
+      <li><b>Hermetic and offline.</b> CI installs a light dependency subset and runs against an in-memory store with a deterministic hash embedder. No Postgres, no Torch, no network. The heavy Postgres and MiniLM variants run on the deployment box instead. That's the fast/slow split: <b>the fast checks gate the merge; the slow ones run where the real infrastructure is.</b></li>
+      <li><b>It gates on quality, not just correctness.</b> Beyond 93 unit tests, <code>make eval</code> runs a matching evaluation with explicit exit criteria &mdash; paraphrase hit rate, approximately zero scope false-hits, zero intent false-hits &mdash; and exits non-zero if any regresses. So a change that keeps every test green but makes retrieval worse still fails the build.</li>
+    </ul>
+    <p>That last point is the one to dwell on. Framed generally: <b>if your product's core value is a measurable metric, that metric belongs in CI as a gate.</b> It's the same argument as a performance budget failing a build on bundle size. Very few candidates bring an example of it.</p>
+    <p>What you'd add next: linting and type checking as required checks (you have ruff and mypy configured but not wired into the workflow), and a preview deployment per pull request.</p>
+  </div></details>
+
+  <details class="qa"><summary>Production is down. Walk me through the first fifteen minutes.</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Incident instinct. The order matters more than the tools.</p>
+    <ol>
+      <li><b>Restore service before diagnosing.</b> If a deploy correlates with the outage, roll back first and investigate from a healthy state. Understanding the bug is not the emergency.</li>
+      <li><b>Communicate early.</b> A short status note with what's affected and when you'll next update. Silence is what turns an outage into a crisis.</li>
+      <li><b>Establish blast radius</b> &mdash; all users or some, all endpoints or one, reads or writes. This narrows the cause faster than reading logs.</li>
+      <li><b>Check what changed.</b> Your deploy, a dependency, a provider, a certificate, a quota. Your own blob incident is the perfect illustration: nothing in the code changed &mdash; the edge started refusing an anonymous read. Something outside your deploy pipeline changed.</li>
+      <li><b>Mitigate, then fix.</b> Feature-flag the broken path off if you can.</li>
+      <li><b>Blameless write-up afterwards</b> with a timeline, contributing causes, and one or two concrete follow-ups. Include the detection gap &mdash; how long between breaking and noticing &mdash; because that's usually the most valuable finding.</li>
+    </ol>
+    <p>If you get the chance, land the point from your own incident: the root cause was diagnosable only after you made two different failures distinguishable in the logs. <b>Observability work is what makes the next incident short.</b></p>
+  </div></details>
+
+  <details class="qa"><summary>How do you review someone else's pull request?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you'd be good on a team. Often asked as the last question by a senior engineer.</p>
+    <p>Read the description first &mdash; if you can't tell what problem it solves, that's the first comment. Then correctness at the boundaries (nulls, errors, concurrency), then whether the tests would actually catch a regression, then design, then style last &mdash; and style should be a linter's job, not a human's.</p>
+    <p>On tone: separate blocking concerns from suggestions explicitly, ask questions rather than issue instructions when you might be missing context, and approve with minor comments rather than blocking on nits &mdash; a review round trip costs a day and nits don't justify it. Say what's good, briefly; a review that's only criticism trains people to fear review.</p>
+    <p>Your repo shows you'd be a good reviewer already, and it's worth saying why: the comments explain <em>why</em>, not what. &ldquo;Every failure below used to return <code>[]</code>, which reads downstream as 'this store is empty' &mdash; indistinguishable from 'we could not read it'. Those are opposite problems.&rdquo; That's the reasoning a reviewer needs, left in the code where the next person finds it.</p>
+  </div></details>
+</section>
+
+<section class="sec" id="s11" data-title="Behavioural stories">
+  <div class="sec-head">
+    <div class="sec-num">11 &mdash; BEHAVIOURAL</div>
+    <h2>Behavioural, with your actual stories</h2>
+    <p class="lede">Prepare four stories and reuse them across a dozen questions. A story needs a real decision, a real tension, and a real outcome &mdash; and yours are in your commit history.</p>
+  </div>
+
+  <h3 class="sub">Your four</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Story</th><th>What it demonstrates</th><th>Answers</th></tr></thead>
+      <tbody>
+        <tr><td><b>The blob 403</b> &mdash; users logged out; failure looked identical to an empty store; fixed observability first, then read through the SDK.</td><td>Debugging method, observability, not stopping at the symptom</td><td>Hardest bug; a time you were stuck; production incident; a mistake</td></tr>
+        <tr><td><b>The CDN stale read</b> &mdash; blob overwrites cached at the edge; moved to immutable versioned writes.</td><td>Distributed reasoning, choosing a structural fix over a patch</td><td>Technical decision you're proud of; something surprising you learned</td></tr>
+        <tr><td><b>Corroboration reversal</b> &mdash; cut as scope creep, then reinstated when it turned out the core thesis required it, and the reversal documented in <code>DECISIONS.md</code>.</td><td>Changing your mind on evidence; writing decisions down</td><td>A time you were wrong; disagreed and committed; scope pressure</td></tr>
+        <tr><td><b>Shipping v0 knowingly</b> &mdash; accounts in blob storage with the tradeoffs written into the code, and a stated migration path.</td><td>Pragmatism with eyes open; managing technical debt deliberately</td><td>Speed vs quality; a shortcut you took; how you handle debt</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <details class="qa"><summary>Tell me about a technical decision you'd make differently now.</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Growth. A fake weakness (&ldquo;I care too much&rdquo;) fails this outright.</p>
+    <p>Use the account store, in STAR order and tightly: <b>Situation</b> &mdash; needed accounts on a serverless deploy with no database provisioned. <b>Task</b> &mdash; ship auth without a week of infrastructure work. <b>Action</b> &mdash; persisted users as JSON in blob storage, with the tradeoffs written into the source: no rate limiting, last-write-wins on concurrent signup, secret rotation moves the store. <b>Result</b> &mdash; auth shipped in a day and worked, and then two real failures came directly out of that choice: the stale-read problem and the anonymous-read 403.</p>
+    <p>The reflection is what's being marked: the decision to defer a database was defensible, but treating a <em>user store</em> as the place to defer it was not &mdash; auth data has consistency requirements almost nothing else in a product has. The rule you took from it: <b>you can defer infrastructure for anything that tolerates being briefly wrong; authentication does not.</b> Now you'd have put users in Postgres from the start, since the Python side already ran one.</p>
+  </div></details>
+
+  <details class="qa"><summary>Tell me about a time you disagreed with someone.</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you can disagree without it becoming personal, and whether you can lose gracefully.</p>
+    <p>Solo project? Say so and reframe honestly &mdash; do not invent a colleague. Use the corroboration reversal as a disagreement with your own earlier judgment: you'd cut it as scope creep, then the worked examples showed the product's central claim (&ldquo;confidence re-earned by corroboration&rdquo;) couldn't be demonstrated without it. You reversed the call and left the reversal in the decisions document rather than quietly rewriting history, so the reasoning stays auditable.</p>
+    <p>Then generalise to the team version, which is what they're really asking about: disagree on the artefact, not the person; state your position once with evidence; ask what would change their mind and say what would change yours; propose the cheapest experiment that settles it; and if it isn't settled, escalate to whoever owns the decision, then commit to their call properly &mdash; not with a running commentary about how you'd have done it differently.</p>
+  </div></details>
+
+  <details class="qa"><summary>Why are you leaving, and why us?</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Motivation and risk. Criticising your last employer is the fastest way to lose the room.</p>
+    <p>Frame the move toward something, never away: what you want more of &mdash; a team to learn from, larger scale, more product ownership &mdash; and why this role has it. Running RRSRCH end to end gives you a strong, true version of this: you've owned the whole stack alone, and the thing you don't get alone is review, and other people's judgment on your design decisions.</p>
+    <p>For &ldquo;why us&rdquo;, be specific enough to prove you looked: something about their product you actually used, an engineering blog post, the shape of the role. Generic enthusiasm reads as a mass application. And keep it two sentences &mdash; this is a warm-up question, not the interview.</p>
+  </div></details>
+
+  <details class="qa"><summary>Tell me about a time you had to ship under time pressure.</summary><div class="qa-body">
+    <p class="probe"><b>Testing</b> Whether you cut scope or cut quality. Those are very different answers.</p>
+    <p>The strong version cuts <em>scope</em> and says so: with accounts, you shipped email plus password with the security fundamentals intact &mdash; bcrypt, timing-safe token comparison, generic login errors, no plaintext anywhere &mdash; and deferred the things that were genuinely deferrable: rate limiting, revocation, a real database. The line to use: <b>&ldquo;I cut features, not correctness &mdash; and I wrote down what I'd deferred, in the code, so it couldn't quietly become permanent.&rdquo;</b></p>
+    <p>That last clause is the differentiator. Anyone can take a shortcut; the signal is making the debt visible and specific rather than leaving a <code>TODO</code>. Your v0 comment block is a genuine example, so you can describe it without embellishing.</p>
+  </div></details>
+</section>
+
+<section class="sec" id="s12" data-title="Questions to ask them">
+  <div class="sec-head">
+    <div class="sec-num">12 &mdash; YOUR TURN</div>
+    <h2>What to ask them</h2>
+    <p class="lede">This is scored. Have six ready, ask three, and pick ones whose answer would genuinely change whether you take the job.</p>
+  </div>
+  <div class="prose">
+    <p><b>Ask the engineers:</b></p>
+    <ul>
+      <li>What does the path from a merged pull request to production look like, and how long does it take?</li>
+      <li>What's the most painful part of the codebase right now, and is anyone allowed to fix it?</li>
+      <li>How do you decide what gets built &mdash; where does a feature come from?</li>
+      <li>What broke most recently, and what changed afterwards?</li>
+      <li>How much of the week is uninterrupted building versus meetings and support?</li>
+    </ul>
+    <p><b>Ask the hiring manager:</b></p>
+    <ul>
+      <li>What would a great first ninety days look like &mdash; what would I have shipped?</li>
+      <li>Why is this role open? New headcount or a backfill?</li>
+      <li>What separates someone doing well here from someone doing very well?</li>
+      <li>What's the biggest risk to this team hitting its goals this year?</li>
+    </ul>
+    <p><b>One worth asking every time:</b> &ldquo;Is there anything about my background that gives you hesitation?&rdquo; It's slightly uncomfortable and it's the only chance you'll get to address a concern before it becomes a decision made without you.</p>
+  </div>
+  <div class="note">
+    <div class="note-t">Avoid</div>
+    <p>Anything answered on the careers page, compensation before an offer conversation (leave that to the recruiter), and &ldquo;what's the culture like?&rdquo; &mdash; nobody has ever answered that question usefully.</p>
+  </div>
+</section>
+
+<section class="sec" id="s13" data-title="The last 48 hours">
+  <div class="sec-head">
+    <div class="sec-num">13 &mdash; CHECKLIST</div>
+    <h2>The last 48 hours</h2>
+    <p class="lede">Preparation past this point has sharply diminishing returns. Do these, then stop.</p>
+  </div>
+  <div class="prose">
+    <ul>
+      <li><b>Re-read your own code</b> &mdash; <span class="ref">server.js</span> auth section, the matching engine, <code>AtlasView.js</code>. Being fuzzy on code you wrote is the worst possible look, and it's the most likely thing to happen.</li>
+      <li><b>Say the 90-second pitch out loud five times.</b> Out loud, timed. It will be too long the first three.</li>
+      <li><b>Write your four stories as six bullets each</b> &mdash; situation, tension, decision, action, outcome, lesson. Don't script sentences; you'll sound rehearsed.</li>
+      <li><b>Do two coding problems in the actual environment</b> they'll use, talking the whole time. If it's a shared editor with no autocomplete, practise without autocomplete.</li>
+      <li><b>Prepare the three weaknesses in your repo before they find them</b> &mdash; the blob store, the 2,000-line component, the missing rate limiting. Raising them yourself converts a gotcha into evidence of judgment.</li>
+      <li><b>Have one specific thing about their product</b> you can reference. One is enough; it just has to be real.</li>
+      <li><b>Check the setup</b> &mdash; camera, mic, screen share, and the link &mdash; the day before, not five minutes before.</li>
+    </ul>
+  </div>
+  <div class="note warn">
+    <div class="note-t">If you take one thing into the room</div>
+    <p>You built and operated a three-language distributed system, and you hit real problems in it &mdash; a cache serving stale auth data, an edge refusing an anonymous read, a failure mode indistinguishable from a normal result. Most candidates for a full-stack role have shipped features. You've debugged a distributed system in production and written the reasoning down. <b>Talk about the tradeoffs, not the technologies.</b></p>
+  </div>
+</section>
+
+<footer>Built from the rrsrch repository &mdash; server.js, rrsrch-react/, rrsrch/src/rrsrch/. Answers are prompts for your own words, not a script.</footer>
+  </main>
+</div>
+
+<script>
+(function () {
+  // ---- section rail, built from the sections themselves ----
+  var secs = Array.prototype.slice.call(document.querySelectorAll('.sec'));
+  var rail = document.getElementById('railList');
+  secs.forEach(function (s, i) {
+    var li = document.createElement('li');
+    var a = document.createElement('a');
+    a.href = '#' + s.id;
+    a.innerHTML = '<span>' + String(i + 1).padStart(2, '0') + '</span><span>' +
+                  s.getAttribute('data-title') + '</span>';
+    li.appendChild(a); rail.appendChild(li);
+  });
+  var links = Array.prototype.slice.call(rail.querySelectorAll('a'));
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        var i = secs.indexOf(e.target);
+        links.forEach(function (l, j) { l.classList.toggle('on', j === i); });
+      });
+    }, { rootMargin: '-70px 0px -65% 0px' });
+    secs.forEach(function (s) { io.observe(s); });
+  }
+
+  // ---- flags, persisted per browser ----
+  var KEY = 'rrsrch-prep-flags-v1';
+  var flags = {};
+  try { flags = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { flags = {}; }
+  var save = function () { try { localStorage.setItem(KEY, JSON.stringify(flags)); } catch (e) {} };
+
+  var cards = Array.prototype.slice.call(document.querySelectorAll('.qa'));
+  cards.forEach(function (card, i) {
+    var id = 'q' + i;
+    var summary = card.querySelector('summary');
+    var btn = document.createElement('button');
+    btn.className = 'flag';
+    btn.type = 'button';
+    var paint = function () {
+      var on = !!flags[id];
+      card.classList.toggle('flagged', on);
+      btn.textContent = on ? 'REVIEW' : 'FLAG';
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.setAttribute('aria-label', (on ? 'Unflag' : 'Flag') + ' this question for review');
+    };
+    btn.addEventListener('click', function (ev) {
+      ev.preventDefault(); ev.stopPropagation();
+      flags[id] = !flags[id]; save(); paint(); count();
+    });
+    summary.appendChild(btn);
+    paint();
+  });
+
+  // ---- toolbar ----
+  var fc = document.getElementById('fcount');
+  function count() {
+    var n = cards.filter(function (c) { return c.classList.contains('flagged'); }).length;
+    fc.textContent = n ? '(' + n + ')' : '';
+    if (!n && filterOn) toggleFilter(false);
+  }
+
+  document.getElementById('expand').addEventListener('click', function () {
+    cards.forEach(function (c) { if (c.style.display !== 'none') c.open = true; });
+  });
+  document.getElementById('collapse').addEventListener('click', function () {
+    cards.forEach(function (c) { c.open = false; });
+  });
+
+  var filterOn = false;
+  var filterBtn = document.getElementById('only-flagged');
+  function toggleFilter(on) {
+    filterOn = on;
+    filterBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    cards.forEach(function (c) {
+      c.style.display = (on && !c.classList.contains('flagged')) ? 'none' : '';
+    });
+    secs.forEach(function (s) {
+      var qs = s.querySelectorAll('.qa');
+      if (!qs.length) return;
+      var anyVisible = Array.prototype.some.call(qs, function (c) { return c.style.display !== 'none'; });
+      s.style.display = (on && !anyVisible) ? 'none' : '';
+    });
+  }
+  filterBtn.addEventListener('click', function () { toggleFilter(!filterOn); });
+
+  count();
+})();
+</script>
