@@ -35,6 +35,16 @@ Deliberately EXCLUDED from the gazetteer (see DECISIONS): umbrella terms
 (linux, unix, aws, cloud — hierarchical false conflicts: Ubuntu IS linux) and
 bare common-word names (go, r, lambda) — Go and R are matched only via the
 "in go" / "in r" context bigrams.
+
+VERSION dimension: a version named in the query prose is scope too — "breaking
+changes in framework v2" must not serve a v3 question (versions are ORDINAL:
+exact compare, mirroring the corroboration gate). Extracted only from explicit,
+high-precision forms (a vN token; "version N"; a gazetteer subject immediately
+followed by a number, as in "python 3" / "kubernetes 1.35"); bare numbers are
+never versions. Versions gate ONLY against versions — rule (a) on their own
+dimension — and are excluded from rule (b)'s subject unions: a bare version is
+not a subject, and letting it join the unions would make a version-only query
+falsely conflict with every version-free candidate that names any technology.
 """
 from __future__ import annotations
 
@@ -60,7 +70,7 @@ def conflicts(query_scope: dict[str, Any] | None, candidate_scope: dict[str, Any
 
 # --------------------------------------------------------- implicit (Phase 2)
 
-DIMENSIONS = ("language", "technology", "platform")
+DIMENSIONS = ("language", "technology", "platform", "version")
 
 # alias → (dimension, canonical). Multi-word aliases are matched as token
 # n-grams (up to 3). Tight by design: precision over coverage.
@@ -118,6 +128,9 @@ GAZETTEER: dict[str, tuple[str, str]] = {
 }
 
 _TOKEN = re.compile(r"[a-z0-9+#.]+")
+_VTOKEN = re.compile(r"^v(\d+(?:\.\d+)*)$")        # v2, v3.1
+_NUMTOKEN = re.compile(r"^\d+(?:\.\d+)*$")         # 3, 1.35, 22.04
+_VERSION_MARKERS = {"version", "versions", "release", "releases"}
 
 
 def infer(text: str) -> dict[str, set[str]]:
@@ -133,6 +146,18 @@ def infer(text: str) -> dict[str, set[str]]:
             if gram in GAZETTEER:
                 dim, canonical = GAZETTEER[gram]
                 tags.setdefault(dim, set()).add(canonical)
+    # version tags — explicit forms only, canonical = the bare digit string.
+    # "v2.0" vs "v2" deliberately conflict (exact compare, ordinal; a false
+    # reject only costs a fresh search).
+    for i, tok in enumerate(tokens):
+        m = _VTOKEN.match(tok)
+        if m:                                             # framework v2
+            tags.setdefault("version", set()).add(m.group(1))
+            continue
+        if _NUMTOKEN.match(tok) and i > 0 and (
+                tokens[i - 1] in _VERSION_MARKERS         # version 3.1
+                or tokens[i - 1] in GAZETTEER):           # python 3, k8s 1.35
+            tags.setdefault("version", set()).add(tok)
     return tags
 
 
@@ -153,6 +178,8 @@ def implicit_conflicts(q: dict[str, set[str]], c: dict[str, set[str]]) -> bool:
     for dim in set(q) & set(c):
         if (q[dim] - c[dim]) and (c[dim] - q[dim]):
             return True                                   # rule (a), symmetric
-    q_all = set().union(*q.values()) if q else set()
-    c_all = set().union(*c.values()) if c else set()
+    # rule (b) compares SUBJECTS; a bare version number is not a subject, so
+    # the version dimension gates only via rule (a) above.
+    q_all = set().union(*(v for d, v in q.items() if d != "version")) if q else set()
+    c_all = set().union(*(v for d, v in c.items() if d != "version")) if c else set()
     return bool(q_all) and bool(c_all) and not (q_all & c_all)   # rule (b)

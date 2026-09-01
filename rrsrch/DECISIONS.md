@@ -454,3 +454,37 @@ the corpus. Accepted as-is; revisit only with evidence from organic traffic.
   origins incl. DoD CIO; 1,195 labeled pairs, group-aware cal/test split) is
   reusable infrastructure: threshold recalibration, future matcher A/Bs, and
   seed data for a fine-tuned matcher.
+
+## Matching + agreement gap closures (external analysis findings, 2026-07-25)
+- **Version dimension in the implicit-scope gate:** "breaking changes in
+  framework v2" served a v3 query — "versions compare exactly" lived only in
+  the corroboration gate (claims), not the matching gate (queries). `infer()`
+  now extracts a `version` tag from explicit forms ONLY (a `vN` token;
+  "version N"; a gazetteer subject immediately followed by a number — "python
+  3", "kubernetes 1.35"); bare numbers are never versions. Versions gate via
+  rule (a) on their own dimension and are EXCLUDED from rule (b)'s subject
+  unions (a bare version is not a subject; letting it join the unions would
+  make a version-only query falsely conflict with every version-free candidate
+  naming any technology). Exact compare, ordinal — "v2" vs "v2.0" deliberately
+  conflict; a false reject only costs a fresh search. Note: deposits persist
+  `inferred_scope` at deposit time, so pre-existing rows carry no version tag
+  (one-sided ⇒ no gate ⇒ safe) until `scripts/backfill_inferred_scope.py`
+  re-runs.
+- **Contested-substitution guard on the agreement verdict:** "The sky is
+  plaid, variant 0" vs "The sky is blue, variant 0" AGREED via numeric_match —
+  a shared incidental number vouched a one-word contradiction and wrongly
+  re-earned confidence. A lexical floor cannot fix this (the contested pair
+  scores 0.67, ABOVE genuine reworded paraphrases at ~0.6); the discriminator
+  is SHAPE: identical token count, ≤2 differing positions, and a differing
+  position where both tokens are non-stopword words sharing no stem. Absolved:
+  inflection (shared stem: assesses/assessed) and same-direction predicate
+  synonyms via the existing axis lexicon (required/mandated = obligation:+1);
+  opposite directions stay contested (enable/disable — previously vouched by a
+  shared port number). A contested pair blocks EVERY agree rule (numeric,
+  entity, lexical) → disagree, rule `contested_substitution`, pair logged in
+  the audit detail. Genuine rewordings differ at many positions and never trip
+  it (pinned: the $0.023/GB paraphrase still agrees via numeric_match).
+  Asymmetric risk per the Phase 0 doctrine: the residual false-disagree case
+  (a near-verbatim synonym swap outside the axis lexicon, e.g. cap/limit)
+  supersedes with an equivalent-truth claim — corpus stays correct,
+  recoverable; the false agree it replaces vouched a lie.

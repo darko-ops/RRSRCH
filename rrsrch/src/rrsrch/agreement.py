@@ -16,6 +16,9 @@ Phase 0's gate (lexical similarity >= 0.90) had two real failure modes:
     are lexically near-identical).
 
 The fix: extract structured comparands, then decide deterministically:
+  0. contested substitution                  → DISAGREE (near-verbatim claims
+                                               that differ ONLY by swapped
+                                               content words — see below)
   1. polarity differs                        → DISAGREE (negation safety)
   2. both have versions, any unmatched       → DISAGREE (versions are ORDINAL:
                                                exact compare, never tolerance —
@@ -25,6 +28,19 @@ The fix: extract structured comparands, then decide deterministically:
   4. versions / numbers all matched          → AGREE    (paraphrase safety)
   5. both have entities, strong overlap      → AGREE (needs moderate lexical too)
   6. nothing extracted on either side        → Phase 0 lexical fallback
+
+The CONTESTED-SUBSTITUTION guard (rule 0) closes a hole in rules 4-5: two
+claims sharing incidental numbers or entities but contradicting in one aligned
+content word ("the sky is plaid, variant 0" vs "the sky is blue, variant 0")
+short-circuited to AGREE via numeric_match — a false agree that wrongly
+re-earns confidence. A lexical floor cannot separate this (the contested pair
+scores 0.67, ABOVE genuine reworded paraphrases at ~0.6); the discriminator is
+SHAPE: identical token count, at most two differing positions, and a differing
+position where both tokens are non-stopword words with different stems. Real
+paraphrases reword everywhere (many position diffs) and stay untouched; a
+pointed edit in a near-verbatim claim is exactly the contested case. Asymmetric
+risk, per the corroboration doctrine: a false disagree merely supersedes with
+an equivalent-truth claim (recoverable); a false agree vouches a lie.
 """
 from __future__ import annotations
 
@@ -259,6 +275,57 @@ class Verdict:
     detail: dict[str, Any]    # both sides' fields — the audit trail
 
 
+# stopwords + copulas never count as a contested substitution ("a" vs "the",
+# "is" vs "was" are wording, not content).
+_SUBST_STOP = {"a", "an", "the", "this", "that", "these", "those", "is", "are",
+               "was", "were", "be", "been", "being", "of", "in", "on", "at",
+               "to", "for", "and", "or", "but", "as", "by", "with", "from",
+               "per", "it", "its", "their", "your", "our"}
+_SUBST_TOKEN = re.compile(r"[\w$€£%.#+-]+")
+_MAX_SUBST_DIFFS = 2
+
+
+def _axis_sign(token: str) -> tuple[str, int] | None:
+    for stem in _stems(token):
+        if stem in _PREDICATE_AXES:
+            return _PREDICATE_AXES[stem]
+    return None
+
+
+def _contested_substitution(new_claim: str, old_claim: str) -> str | None:
+    """Detect a pointed content-word swap between NEAR-VERBATIM claims: same
+    token count, <= _MAX_SUBST_DIFFS differing positions, and some differing
+    position where both tokens are alphabetic non-stopwords with no shared stem
+    (shared stems absolve inflection: 'assesses' vs 'assessed'; a shared
+    predicate axis with the SAME sign absolves known synonyms: 'required' vs
+    'mandated' are both obligation:+1 — opposite signs stay contested).
+    Returns the contested pair for the audit trail, or None. Deliberately
+    TIGHT: genuinely reworded paraphrases differ at many positions and never
+    trip this."""
+    a = _SUBST_TOKEN.findall((new_claim or "").lower())
+    b = _SUBST_TOKEN.findall((old_claim or "").lower())
+    if not a or len(a) != len(b):
+        return None
+    diffs = [(x, y) for x, y in zip(a, b) if x != y]
+    if not diffs or len(diffs) > _MAX_SUBST_DIFFS:
+        return None
+    for x, y in diffs:
+        # the token pattern keeps '.' (versions "3.14.6", prices "$0.023"), so a
+        # SENTENCE-FINAL word arrives as "optional." — strip enclosing dots
+        # before the content-word test or the last word of a claim is never
+        # contestable. Interior dots survive, so versions stay intact.
+        x, y = x.strip("."), y.strip(".")
+        if (x in _SUBST_STOP or y in _SUBST_STOP
+                or not (x.isalpha() and y.isalpha())
+                or set(_stems(x)) & set(_stems(y))):
+            continue
+        ax, ay = _axis_sign(x), _axis_sign(y)
+        if ax is not None and ax == ay:
+            continue                     # same-direction predicate synonyms
+        return f"{x}!={y}"
+    return None
+
+
 def _numbers_match(a: list[float], b: list[float], tolerance: float) -> bool:
     """Every number in the SHORTER list must have a within-tolerance counterpart
     in the longer (a claim may add context numbers like a year). Greedy 1:1."""
@@ -291,6 +358,15 @@ def verdict(new_claim: str, old_claim: str, extractor: Extractor, settings) -> V
     lex = lexical_score(new_claim, old_claim)
     detail = {"new": a.to_log(), "old": b.to_log()}
 
+    # rule 0 — a pointed content-word swap between near-verbatim claims is a
+    # CONTRADICTION, not a paraphrase: no shared number, entity, or high
+    # lexical score may vouch across it. Fires before the agree shortcuts;
+    # the specific mismatch rules below still take precedence in audit terms
+    # only when polarity/versions/numbers themselves differ.
+    contested = _contested_substitution(new_claim, old_claim)
+    if contested:
+        detail["contested"] = contested
+
     # EFFECTIVE polarity sets, not a raw boolean: "Not true: X is not required"
     # is {pos} and no longer matches "X is not required" {neg} — the
     # double-negation poison bypass. Mixed sets ({pos,neg} vs {neg}) differ →
@@ -306,6 +382,12 @@ def verdict(new_claim: str, old_claim: str, extractor: Extractor, settings) -> V
     if a.numbers and b.numbers and not _numbers_match(
             a.numbers, b.numbers, settings.numeric_tolerance):
         return Verdict(False, "numeric_mismatch", lex, detail)
+
+    # a contested substitution blocks EVERY agreement rule — matched numbers,
+    # shared entities, and even near-identical wording are exactly what a
+    # one-word lie looks like.
+    if contested:
+        return Verdict(False, "contested_substitution", lex, detail)
 
     if a.versions and b.versions:
         return Verdict(True, "version_match", lex, detail)
