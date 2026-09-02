@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+# the probe's own export at the package root — NOT tests/fixtures/atlas_graph.json
+/atlas_graph.json
