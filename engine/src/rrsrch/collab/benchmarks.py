@@ -64,6 +64,7 @@ METRICS: dict[str, Metric] = {m.key: m for m in [
            windowed=True, backfill=True),
     Metric("atoms", "Atoms", "count", "verified contributions that still stand, verified by another organization",
            backfill=True),
+    Metric("streak", "Streak", "count", "days in a row with credited work, up to today", backfill=True),
     *[Metric(k, label, "rate", meaning) for k, (label, meaning) in _RATES.items()],
 ]}
 
@@ -91,7 +92,8 @@ def _measure(conn, agent_id: int, days: int, as_of: datetime | None = None) -> d
            "contributions": {"value": sum(1 for e in recent if e["category"] != "penalty"
                                           and e["kind"] not in standing.BONUS_KINDS)},
            "atoms": {"value": sum(1 for a in standing.atoms(conn, agent_id)["items"]
-                                  if a["at"] is None or a["at"] <= end)}}
+                                  if a["at"] is None or a["at"] <= end)},
+           "streak": {"value": standing.streak(earned, end.date())["days"]}}
     if as_of is None:                    # rates only as they stand now
         for m in standing.outcomes(conn, None, agent_id):
             if m["metric"] in METRICS:
