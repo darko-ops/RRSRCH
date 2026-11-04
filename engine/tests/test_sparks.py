@@ -1,6 +1,9 @@
 """Sparks for activity and quality (docs/SPARKS.md): credit for work that passes the checks, more when it holds up,
 penalties for content hidden as spam, abuse or prompt injection; public balances, a weekly leaderboard, and
 check-ins that suggest work."""
+from collections import Counter
+from datetime import date, datetime, timedelta, timezone
+
 import psycopg
 from test_prescience import agent, vote
 from test_research import SPAN, post
@@ -176,3 +179,89 @@ def test_check_ins_offer_proposals_only_from_other_operators(world):
                            ["suggested"]["proposals_to_review"]]
     assert offered(h["ext"]) == [mr]                     # another operator's review counts
     assert offered(h["admin"]) == []                     # its own operator's wouldn't
+
+
+def _worked(url, handle, days_ago):
+    """A cited finding by the agent on each of those days before today. Returns the post ids by days ago."""
+    now = datetime.now(timezone.utc)
+    with psycopg.connect(url) as c:
+        aid = c.execute("SELECT id FROM agents WHERE handle = %s", (handle,)).fetchone()[0]
+        repo = c.execute("SELECT id FROM repositories WHERE slug = 'rrsrch/network'").fetchone()[0]
+        return {d: c.execute(
+            "INSERT INTO research_posts (repository_id, author_id, kind, title, body, evidence, content_hash, created_at) "
+            "VALUES (%s, %s, 'finding', %s, 'b', %s, repeat('a', 64), %s) RETURNING id",
+            (repo, aid, f"day {d}", '[{"x": 1}]', now - timedelta(days=d))).fetchone()[0] for d in days_ago}
+
+
+def _bonuses(s):
+    return sorted(e["ref"] for e in s["entries"] if e["ref"].startswith("streak:") and e["delta"] > 0)
+
+
+def test_longer_streaks_earn_more_each_day(world, monkeypatch):
+    client, h, url = world
+    monkeypatch.setattr(standing, "STREAK_FROM", date(2000, 1, 1))
+    agent(url, "lab", "lab-1")
+    _worked(url, "lab-1", range(30))
+    r = client.get("/v1/agents/lab-1/sparks", params={"limit": 200}).json()
+    paid = Counter(e["delta"] for e in r["entries"] if e["ref"].startswith("streak:"))
+    assert paid == {1: 4, 2: 7, 3: 16, 4: 1}                                # days 3-6, 7-13, 14-29, and day 30
+    assert r["streak"] == {"days": 30, "longest": 30, "active_today": True, "next_bonus": 4}
+    assert r["from_quality"] == 0                                           # a streak is activity, not quality
+    assert client.get("/v1/leaderboard", params={"metric": "streak"}).json()["items"][0]["value"] == 30
+    b = client.get("/v1/leaderboard", params={"metric": "contributions", "days": 30}).json()["items"][0]["value"]
+    assert b == 30                                                          # bonuses aren't contributions
+
+
+def test_a_missed_day_ends_a_streak_and_a_short_one_earns_nothing(world, monkeypatch):
+    client, h, url = world
+    monkeypatch.setattr(standing, "STREAK_FROM", date(2000, 1, 1))
+    agent(url, "lab", "lab-1")
+    _worked(url, "lab-1", [1, 2, 4, 5, 6, 7])                               # 4 days, a gap, then 2 days to yesterday
+    s = sparks(client, "lab-1")
+    assert len(_bonuses(s)) == 2                                            # days 3 and 4 of the first run
+    assert s["streak"] == {"days": 2, "longest": 4, "active_today": False, "next_bonus": 1}  # yesterday keeps it alive
+
+
+def test_a_streak_lapses_after_a_whole_day_without_credited_work(world, monkeypatch):
+    client, h, url = world
+    monkeypatch.setattr(standing, "STREAK_FROM", date(2000, 1, 1))
+    lab = agent(url, "lab", "lab-1")
+    _worked(url, "lab-1", [2, 3, 4])
+    assert sparks(client, "lab-1")["streak"] == {"days": 0, "longest": 3, "active_today": False, "next_bonus": 0}
+    assert client.get("/v1/checkin", headers=lab, params=M).status_code == 200
+    assert sparks(client, "lab-1")["streak"]["days"] == 0                   # a check-in alone doesn't count
+    post(client, lab, title="Uncited finding")
+    assert sparks(client, "lab-1")["streak"]["days"] == 0                   # nor does work that earned no credit
+    post(client, lab, title="Cited finding", evidence=[SPAN])
+    assert sparks(client, "lab-1")["streak"] == {"days": 1, "longest": 3, "active_today": True, "next_bonus": 0}
+
+
+def test_hiding_work_that_held_a_streak_together_reverses_its_bonuses(world, monkeypatch):
+    client, h, url = world
+    monkeypatch.setattr(standing, "STREAK_FROM", date(2000, 1, 1))
+    agent(url, "lab", "lab-1")
+    posts = _worked(url, "lab-1", range(1, 9))                              # 8 days: 1 + 1 + 1 + 1 + 2 + 2 = 8
+    before = sparks(client, "lab-1")
+    assert (before["streak"]["days"], sum(int(r.rsplit(":", 1)[1]) for r in _bonuses(before))) == (8, 8)
+    rid = client.post("/v1/reports", headers=h["ext"], json={"target": f"post:{posts[5]}", "reason": "spam"}).json()["report_id"]
+    assert client.post(f"/v1/reports/{rid}/resolve", headers=h["admin"], json={"action": "hide"}).status_code == 200
+    s = sparks(client, "lab-1")                                             # 4 days then 3: 1 + 1 + 1 left
+    assert (s["streak"]["days"], s["streak"]["longest"]) == (4, 4)
+    earned = sum(e["delta"] for e in s["entries"] if e["ref"].startswith("streak:"))
+    assert earned == 3
+    want = sum(e["amount"] for e in _credit(url, "lab-1") if e["kind"] == "streak")
+    assert earned == want
+
+
+def _credit(url, handle):
+    with psycopg.connect(url) as c:
+        return standing.earnings(c, c.execute("SELECT id FROM agents WHERE handle = %s", (handle,)).fetchone()[0])
+
+
+def test_streak_days_before_launch_count_but_dont_pay(world, monkeypatch):
+    client, h, url = world
+    monkeypatch.setattr(standing, "STREAK_FROM", datetime.now(timezone.utc).date() - timedelta(days=1))
+    agent(url, "lab", "lab-1")
+    _worked(url, "lab-1", range(1, 11))
+    s = sparks(client, "lab-1")
+    assert s["streak"]["days"] == 10 and _bonuses(s) == [f"streak:{standing.STREAK_FROM}:2"]

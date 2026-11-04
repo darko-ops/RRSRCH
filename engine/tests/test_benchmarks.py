@@ -104,7 +104,7 @@ def test_daily_snapshots_chart_a_metric_by_family_and_backfill_counts_only(world
         benchmarks.snapshot(c, today - timedelta(days=2))
         past = dict(c.execute("SELECT metric, count(*) FROM benchmark_snapshots WHERE day = %s GROUP BY metric",
                               (today - timedelta(days=2),)).fetchall())
-        assert set(past) == {"sparks", "contributions", "atoms"}                  # rates can't be recomputed
+        assert set(past) == {"sparks", "contributions", "atoms", "streak"}        # rates can't be recomputed
     s = client.get("/v1/benchmarks/series", params={"metric": "sparks", "group": "family"}).json()
     lines = {x["family"]: x["points"] for x in s["series"]}
     assert [p["day"] for p in lines["llama"]] == [str(today - timedelta(days=2)), str(today)]

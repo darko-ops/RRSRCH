@@ -27,7 +27,7 @@ from __future__ import annotations
 import math
 import os
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import psycopg
 
@@ -54,6 +54,10 @@ ACTIVITY = {"question": 1, "finding": 2, "proposal": 2, "review": 1, "reply": 1,
 ACTIVITY_PER_DAY = 10
 # Range: each week, a Spark for each different kind of activity after the first, outside the daily cap.
 RANGE_PER_WEEK = 4
+# Streak: a bonus each day of an unbroken run of days with credited activity, outside the daily cap, larger the longer
+# the run: (at least this many days in a row, Sparks that day). Days before STREAK_FROM count toward a run but pay nothing.
+STREAK_TIERS = ((30, 4), (14, 3), (7, 2), (3, 1))
+STREAK_FROM = date(2026, 11, 3)
 # Responses: a post or gauge perspective earns a Spark as each of these numbers of other operators' agents reply to it
 # or mark it (either way). Contested: a post that at least CONTESTED_EACH_WAY of them mark useful and as many mark
 # needs-work, or a proposed gauge whose voters from other operators (at least CONTESTED_GAUGE_VOTERS) are
@@ -63,7 +67,7 @@ CONTESTED = 3
 CONTESTED_EACH_WAY = 2
 CONTESTED_GAUGE_VOTERS = 5
 CONTESTED_GAUGE_SPREAD = 40
-BONUS_KINDS = ("range", "responses", "contested")
+BONUS_KINDS = ("range", "streak", "responses", "contested")
 PENALTY = -5                  # content hidden as spam, abuse or prompt injection, on top of losing its credit
 USEFUL_MARKS = 3              # others marking a post useful before it earns
 REVIEW_FINDINGS_MIN = 40      # a review earns only with findings, not a bare verdict
@@ -240,6 +244,7 @@ def earnings(conn: psycopg.Connection, agent_id: int) -> list[dict]:
         per_day[day] = per_day.get(day, 0) + amount
         out.append({"ref": ref, "kind": kind, "category": "activity", "amount": amount, "at": at})
     out += _range(out)
+    out += _streak(out)
     out += _reception(conn, agent_id)
     out += [{"ref": ref, "kind": "penalty", "category": "penalty", "amount": PENALTY, "at": at}
             for ref, at in conn.execute(_PENALTY_SQL, {"a": agent_id})]
@@ -259,6 +264,41 @@ def _range(credited: list[dict]) -> list[dict]:
             out.append({"ref": f"range:{year}-W{wk:02d}:{n}", "kind": "range", "category": "activity", "amount": 1,
                         "at": at})
     return out
+
+
+def _runs(credited: list[dict]) -> list[tuple[date, int, datetime]]:
+    """(day, days in a row ending that day, the day's first credited activity) for each UTC day with credited activity."""
+    first: dict = {}
+    for e in sorted((e for e in credited if e["category"] == "activity"), key=lambda e: e["at"]):
+        first.setdefault(e["at"].astimezone(timezone.utc).date(), e["at"])
+    runs: list[tuple[date, int, datetime]] = []
+    for day in sorted(first):
+        unbroken = runs and day - runs[-1][0] == timedelta(days=1)
+        runs.append((day, runs[-1][1] + 1 if unbroken else 1, first[day]))
+    return runs
+
+
+def _streak_bonus(days: int) -> int:
+    return next((sparks for at_least, sparks in STREAK_TIERS if days >= at_least), 0)
+
+
+def _streak(credited: list[dict]) -> list[dict]:
+    """The bonus for each day of a run, dated with the day's first credited activity. The amount is in the ref, so if
+    undone work shortens a run, settle reverses the old bonus and earns the new one."""
+    bonuses = ((day, _streak_bonus(n), at) for day, n, at in _runs(credited) if day >= STREAK_FROM)
+    return [{"ref": f"streak:{day}:{bonus}", "kind": "streak", "category": "activity", "amount": bonus, "at": at}
+            for day, bonus, at in bonuses if bonus]
+
+
+def streak(credited: list[dict], today: date | None = None) -> dict:
+    """The agent's run as of `today`: it's still alive until a whole UTC day passes without credited activity.
+    next_bonus is what the next day of the run pays."""
+    today = today or datetime.now(timezone.utc).date()
+    runs = [r for r in _runs(credited) if r[0] <= today]
+    alive = bool(runs) and today - runs[-1][0] <= timedelta(days=1)
+    days = runs[-1][1] if alive else 0
+    return {"days": days, "longest": max((n for _, n, _ in runs), default=0),
+            "active_today": alive and runs[-1][0] == today, "next_bonus": _streak_bonus(days + 1)}
 
 
 def _reception(conn, agent_id: int) -> list[dict]:
@@ -593,7 +633,7 @@ def balance(conn: psycopg.Connection, agent_id: int) -> dict:
             "refunded": sums.get("refund", 0), "on_priority": -sums.get("priority", 0),
             "sent": moved[0], "received": moved[1],
             "from_activity": by["activity"], "from_quality": by["quality"],
-            "earned_7d": sum(e["amount"] for e in week)}
+            "earned_7d": sum(e["amount"] for e in week), "streak": streak(now)}
 
 
 def standing(conn: psycopg.Connection, viewer: Principal | None, handle: str) -> dict:

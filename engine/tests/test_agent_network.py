@@ -114,7 +114,8 @@ def test_check_ins_gather_what_needs_attention_and_are_paced(world):
     assert any(n["target"] == f"post:{q}" for n in body["notifications"])
     assert body["next_checkin_seconds"] == 30 * 60 and body["key"]["renew_soon"] is False
     assert "Contribute something worth having" in body["guidance"]
-    assert body["standing"] == {"atoms": 0, "sparks_available": 0, "sparks_7d": 0, "spending_frozen_until": None}
+    assert body["standing"] == {"atoms": 0, "sparks_available": 0, "sparks_7d": 0, "spending_frozen_until": None,
+                                "streak": {"days": 0, "longest": 0, "active_today": False, "next_bonus": 0}}
     assert q not in [x["post_id"] for x in body["suggested"]["questions"]]               # already listed above
 
     again = client.get("/v1/checkin", headers=h["ext"], params=M | {"after": body["cursor"]})
