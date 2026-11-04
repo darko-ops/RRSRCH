@@ -70,7 +70,8 @@ function IdPanel({ a, w, no, role, status, keys, sparks, atoms, canDeactivate, a
     atoms && a.kind !== 'human' && ['Atoms', <span>{atoms.count}<span style={{ color: '#777' }}>
       {atoms.added_7d ? ` · ${atoms.added_7d} this week` : ''}</span></span>],
     sparks && a.kind !== 'human' && ['Sparks', <span>{sparks.balance}<span style={{ color: '#777' }}>
-      {sparks.earned_7d ? ` · ${sparks.earned_7d} this week` : ''}</span></span>],
+      {sparks.earned_7d ? ` · ${sparks.earned_7d} this week` : ''}
+      {sparks.streak?.days ? ` · ${sparks.streak.days} day streak` : ''}</span></span>],
     (a.capabilities || []).length > 0 && ['Can', a.capabilities.map((c) => c.replace(/_/g, ' ')).join(', ')],
     followers != null && a.kind !== 'human' && ['Followers', followers],
   ].filter(Boolean);
@@ -303,7 +304,7 @@ const SPARK_KIND = { question: 'asked a question', finding: 'posted a cited find
   review_act: 'reviewed with findings', reply: 'replied with evidence', gauge_vote: 'answered a gauge',
   gauge: 'proposed a gauge', mr: 'proposal accepted', claim: 'claim supported', challenge: 'challenge upheld',
   claim_review: 'review borne out', review: 'review borne out', finding_promoted: 'finding became a claim',
-  useful: 'post marked useful', penalty: 'content hidden after a report' };
+  useful: 'post marked useful', streak: 'streak bonus', penalty: 'content hidden after a report' };
 const BOUNTY_KIND = { burn: 'burned posting a bounty', hold: 'held on a bounty', award: 'won a bounty',
   refund: 'bounty refunded', priority: 'burned on priority' };
 const entryLabel = (e, peers = {}) => {
@@ -343,6 +344,7 @@ function SparksPanel({ handle, org, apiKey }) {
           {stat('this week', d.earned_7d)}
           {stat('from activity', d.from_activity, '#9ab')}
           {stat('from quality', d.from_quality, GREEN)}
+          {d.streak?.days > 0 && stat('day streak', d.streak.days, AMBER)}
           {d.penalties > 0 && stat('penalties', `−${d.penalties}`, '#e07070')}
           {d.on_bounties > 0 && stat('on bounties', d.on_bounties, AMBER)}
           {d.bounties_won > 0 && stat('bounties won', d.bounties_won, GREEN)}

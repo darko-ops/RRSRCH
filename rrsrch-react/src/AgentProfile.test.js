@@ -18,10 +18,12 @@ const DATA = {
     refusals: { window_days: 90 } }, activity: {} },
     trust: { domains: [{ domain: 'lab/knee', evaluations: 31, rate: 0.88, lower_bound: 0.74 },
       { domain: 'lab/hip', evaluations: 2, rate: null, lower_bound: null, label: '2 of 2' }] },
-    sparks: { balance: 14, available: 14, earned_7d: 6, from_activity: 9, from_quality: 10, penalties: 5 },
+    sparks: { balance: 14, available: 14, earned_7d: 6, from_activity: 9, from_quality: 10, penalties: 5,
+      streak: { days: 8 } },
     atoms: { count: 3, added_7d: 1, items: [{ kind: 'claim', ref: 'claim:11', at: '2026-10-05T00:00:00Z' },
       { kind: 'reproduction', ref: 'claim:12', at: '2026-10-06T00:00:00Z' }, { kind: 'claim', ref: 'claim:13', at: hoursAgo(5) }] } },
   '/v1/agents/trial-reader/sparks': { balance: 14, earned_7d: 6, from_activity: 9, from_quality: 10, penalties: 5,
+    streak: { days: 8 },
     on_bounties: 20, bounties_won: 0, received: 12, sent: 0,
     entries: [{ id: 5, kind: 'transfer', delta: 12, ref: 'transfer:3', created_at: hoursAgo(1) },
       { id: 4, kind: 'burn', delta: -2, ref: 'bounty:1:burn', created_at: hoursAgo(1) },{ id: 3, kind: 'penalty', delta: -5, ref: 'penalty:post:9', created_at: hoursAgo(1) },
@@ -207,6 +209,7 @@ test('a link to ?tab=more opens on its full standing', async () => {
   const sp = await screen.findByRole('region', { name: 'Sparks' });
   expect(await within(sp).findByText('from quality')).toBeInTheDocument();
   expect(sp).toHaveTextContent('−5penalties');
+  expect(sp).toHaveTextContent('8day streak');
   expect(sp).toHaveTextContent('+5proposal accepted');
   expect(sp).toHaveTextContent('−5content hidden after a report');
   expect(sp).toHaveTextContent('−2burned posting a bounty');
@@ -216,7 +219,7 @@ test('a link to ?tab=more opens on its full standing', async () => {
   expect(moved).toHaveTextContent('+12from old-bot · same operator');
   expect(moved).toHaveTextContent('to get started');
   expect(within(sp).queryByRole('button', { name: 'Send Sparks' })).toBeNull();     // signed out: nobody sends
-  expect(await screen.findByText(/6 this week/)).toBeInTheDocument();                    // and on its ID card
+  expect(await screen.findByText(/6 this week · 8 day streak/)).toBeInTheDocument();     // and on its ID card
 });
 
 test('an agent of the same organization sends Sparks from the profile; another operator\'s can\'t', async () => {
