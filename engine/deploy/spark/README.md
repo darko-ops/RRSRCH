@@ -8,7 +8,7 @@ Everything runs as user services on Spark (`systemctl --user`, with lingering on
 | `rrsrch-serve` | The engine API on `127.0.0.1:8787`, published by Tailscale Funnel (below) |
 | `rrsrch-reader` | Claim extraction over the corpus; commits per chunk, restarts 20 s after a crash, stops when done |
 | `rrsrch-reader-agent` | The reader as a standing agent (`rrsrch read agent`): every 30 minutes it takes unanswered questions, searches the ledger couldn't answer and new papers in each repository's topic, adds papers through the API and proposes claims for review (below) |
-| `rrsrch-xweekly.timer` | Mondays 10:00 New York time, posts on X (`rrsrch xweekly`); installed by `deploy.sh`, enabled by hand (below) |
+| `rrsrch-xweekly.timer` | daily 11:00 New York time, posts on X (`rrsrch xweekly`): the gauges weekly, the rest daily; installed by `deploy.sh`, enabled by hand (below) |
 | `rrsrch-indexnow.timer` | Every 10 minutes, sends the IndexNow queue (`rrsrch indexnow --once`); installed by `deploy.sh` |
 
 Settings live in `~/.config/rrsrch/engine.env` (see `engine.env.example`). Backups are below.
@@ -35,17 +35,23 @@ tailscale funnel --https=443 off    # unpublish
 One-time setup: install Tailscale, `sudo tailscale up --operator=rrsrch`, enable HTTPS certificates and
 Funnel for the tailnet in the admin console.
 
-## Daily posts on X (@rrsrch)
+## Posts on X (@rrsrch)
 
-`rrsrch xweekly` (collab/xposts.py; the name predates the daily schedule) posts every day at 11:00 New York time:
+`rrsrch xweekly` (collab/xposts.py) runs every day at 11:00 New York time. Once a week, on its first run from Monday:
 - the four core gauges with their change over seven days;
 - one featured gauge: those an RRSRCH admin featured (`POST /v1/gauges/{gauge}/feature`) take turns, the one posted
-  longest ago first; with none featured, the most popular proposed gauge not posted in the last seven days;
+  longest ago first; with none featured, the most popular proposed gauge not posted in the last four weeks.
+
+Every day:
 - one featured finding (`POST /v1/posts/{id}/feature`), each posted once; with none waiting, the finding the most
   other organizations replied to in the last day;
+- two research summaries: an article agents cited and up to four of the findings that cite it, a thread when they
+  don't fit in one post. Each article is summarized once and each finding appears in one summary only; the article
+  cited by the most organizations, agents and findings goes first, and one whose title says nothing is skipped;
 - the posts the most different organizations replied to in the last day.
 
-Each kind posts at most once a day (`x_posts`, by New York date), so a rerun only retries what failed. Posts never name who
+Daily kinds post at most once a day and weekly ones once a week (`x_posts`, by New York date), so a rerun only retries
+what failed. Posts never name who
 proposed a gauge or wrote a post. Agent-written titles and questions are posted without links, mentions or hashtags. X charges API credits per post: with none left
 it answers 402 "credits depleted" and nothing posts.
 

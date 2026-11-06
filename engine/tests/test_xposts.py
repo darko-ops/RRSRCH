@@ -1,12 +1,13 @@
-"""The daily posts on X (collab/xposts.py): the core four, a featured gauge and finding, the most discussed posts; each
-once a day, agent text made inert, never more than 280 characters, nothing sent without credentials."""
+"""The posts on X (collab/xposts.py): the core four and a featured gauge once a week; a featured finding, research
+summaries of articles and the most discussed posts daily; agent text made inert, never more than 280 characters,
+nothing sent without credentials."""
 from datetime import datetime, timedelta, timezone
 
 import httpx
 import psycopg
 from test_prescience import AI, propose, vote
 from test_prescience import agent
-from test_research import post
+from test_research import SPAN, post
 from test_trust_db import world  # noqa: F401  (world is a fixture)
 
 from rrsrch.collab import xposts
@@ -104,9 +105,19 @@ def test_posts_each_kind_once_a_day_and_retries_what_failed(world, monkeypatch):
         assert [p["kind"] for p in again["posted"]] == ["popular"] and again["skipped"] == ["core", "featured"]
         assert sent[-2:] == ["discussed", f"reply to {len(sent) - 1}"] and again["posted"][0]["replies"] == [str(len(sent))]
         assert xposts.run(c, now=now + timedelta(hours=2), post=fake)["drafts"] == []
-        nxt = xposts.compose(c, now + timedelta(days=1))           # a featured gauge rests for a week,
+        later = xposts.run(c, dry_run=True, now=now + timedelta(days=6), post=fake)    # the gauges post once a week,
+        assert [d["kind"] for d in later["drafts"]] == ["popular"] and later["skipped"] == ["core", "featured"]
+        monday = xposts.run(c, dry_run=True, now=now + timedelta(days=7), post=fake)   # Monday to Sunday
+        assert [d["kind"] for d in monday["drafts"]] == ["core", "featured", "popular"]
+        nxt = xposts.compose(c, now + timedelta(days=7))           # a featured gauge rests for four weeks,
         assert [d["ref"] for d in nxt if d["kind"] == "featured"] == ["clean-power"]   # unless it's the only one
     assert sent == ["Radar", "Featured", "discussed", "reply to 3"]
+
+
+def test_the_week_starts_monday_in_new_york():
+    sunday_night = datetime(2026, 11, 9, 4, 30, tzinfo=timezone.utc)                  # 23:30 Sunday 8 November
+    assert xposts.week_start(sunday_night).isoformat() == "2026-11-02T00:00:00-05:00"
+    assert xposts.week_start(sunday_night + timedelta(hours=1)).date().isoformat() == "2026-11-09"
 
 
 def feature(client, who, path, on=True):
@@ -149,16 +160,17 @@ def test_admins_feature_gauges_and_findings_which_post_instead_of_the_engines_pi
             return httpx.Response(201, json={"data": {"id": str(len(sent))}})
 
         assert len(xposts.run(c, now=now, post=fake)["posted"]) == 4
-        feature(client, h["admin"], "gauges/clean-power")                  # featured midday: one gauge a day
+        feature(client, h["admin"], "gauges/clean-power")                  # featured midday: one gauge a week
         assert xposts.run(c, now=now + timedelta(hours=1), post=fake)["drafts"] == []
 
-        def tomorrow(days):
+        def later(days):
             return {d["kind"]: d["ref"] for d in xposts.run(c, now=now + timedelta(days=days), post=fake)["drafts"]}
 
-        assert tomorrow(1)["featured"] == "clean-power"                    # featured gauges take turns,
-        assert tomorrow(2)["featured"] == "ocean-health"                   # the one posted longest ago first
-        assert tomorrow(3)["featured"] == "clean-power"
-        assert "finding" not in tomorrow(4)                                # a featured finding posts once
+        assert "featured" not in later(1)
+        assert later(7)["featured"] == "clean-power"                       # featured gauges take turns,
+        assert later(14)["featured"] == "ocean-health"                     # the one posted longest ago first
+        assert later(21)["featured"] == "clean-power"
+        assert "finding" not in later(22)                                  # a featured finding posts once
     assert sent[2].startswith("Featured finding") and sum(t.startswith("Featured finding") for t in sent) == 1
 
 
@@ -217,3 +229,114 @@ def test_inert_and_weight():
     assert xposts.inert("a" * 50, 10) == "a" * 9 + "…"
     assert xposts.inert("one two three four five", 16) == "one two three…"
     assert xposts.weight("hi https://rrsrch.com/a/very/long/path") == 3 + 23
+    assert xposts.inert("**Result:** a 2 ** 3 grid", 80) == "Result: a 2 ** 3 grid"
+
+
+def test_a_research_summary_names_the_article_and_what_agents_found_in_it(world, monkeypatch):
+    client, h, url = world
+    a, b = agent(url, "lab-a", "a-1"), agent(url, "lab-b", "b-1")
+    first = post(client, a, title="MSCs beat hyaluronic acid on WOMAC at 12 months @lab", evidence=[SPAN])
+    second = post(client, b, title="The effect holds in a 40-patient trial", evidence=[SPAN])
+    post(client, a, title="Uncited hunch")                                       # cites no article
+    monkeypatch.setenv("RRSRCH_PUBLIC_URL", "https://rrsrch.com")
+    now = datetime(2026, 11, 4, 16, tzinfo=timezone.utc)
+    with psycopg.connect(url) as c:
+        drafts = [d for d in xposts.compose(c, now) if d["kind"] == "summary"]
+        assert [d["ref"] for d in drafts] == ["source:MED:1"]
+        text = drafts[0]["text"]
+        assert text.startswith("Research summary: \"Bone marrow MSCs versus hyaluronic acid for knee osteoarthritis\"\n\n"
+                               "What AI agents found in it on the RRSRCH Network:")
+        assert "1. MSCs beat hyaluronic acid on WOMAC at 12 months lab\n2. The effect" in text
+        assert text.endswith(f"https://rrsrch.com/posts/{first}") and drafts[0]["replies"] == []
+        assert "Uncited" not in text and "a-1" not in text
+        for k, v in CREDS.items():
+            monkeypatch.setenv(k, v)
+        sent = []
+
+        def fake(endpoint, json, headers):
+            sent.append(json["text"])
+            return httpx.Response(201, json={"data": {"id": str(len(sent))}})
+
+        assert "summary" in [p["kind"] for p in xposts.run(c, now=now, post=fake)["posted"]]
+        assert second and "summary" not in [d["kind"] for d in xposts.compose(c, now + timedelta(days=1))]
+    assert sum(t.startswith("Research summary") for t in sent) == 1                  # each article once
+
+
+def test_summaries_post_a_few_a_day_and_a_rerun_posts_only_the_rest(world, monkeypatch):
+    client, h, url = world
+    arts = [{"id": f"MED:{n}", "title": f"Knee trial number {n}", "journal": "Lancet", "year": 2024,
+             "findings": [{"id": n, "title": f"Finding {n}"}]} for n in range(1, 4)]
+    monkeypatch.setattr(xposts, "articles", lambda conn: [x for x in arts if x["id"] not in posted][:xposts.SUMMARIES])
+    for k, v in CREDS.items():
+        monkeypatch.setenv(k, v)
+    posted, fail = set(), {"number 2"}
+
+    def fake(endpoint, json, headers):
+        if any(f in json["text"] for f in fail):
+            return httpx.Response(503, text="over capacity")
+        posted.add(next(x["id"] for x in arts if f"\"{x['title']} " in json["text"]))
+        return httpx.Response(201, json={"data": {"id": str(len(posted))}})
+
+    now = datetime(2026, 11, 4, 16, tzinfo=timezone.utc)
+    with psycopg.connect(url) as c:
+        got = xposts.run(c, now=now, post=fake)
+        assert [p["kind"] for p in got["posted"]] == ["summary"] and got["failed"][0]["kind"] == "summary"
+        fail.clear()
+        again = xposts.run(c, now=now + timedelta(hours=1), post=fake)                # one left today: number 2
+        assert [d["ref"] for d in again["drafts"]] == ["source:MED:2"] and posted == {"MED:1", "MED:2"}
+        assert xposts.run(c, now=now + timedelta(hours=2), post=fake)["skipped"] == ["summary"]
+        assert [d["ref"] for d in xposts.run(c, now=now + timedelta(days=1), post=fake)["drafts"]] == ["source:MED:3"]
+
+
+def test_a_long_summary_becomes_a_thread_and_every_post_fits():
+    long = "Which equipment bottlenecks limit leading-edge chip output through 2030 across the major fabs? " * 2
+    art = {"id": "URL:abc", "title": "A very long article title about semiconductors " * 4 + "| example.com",
+           "journal": None, "year": None, "findings": [{"id": i, "title": long[:200]} for i in range(1, 5)]}
+    first, replies = xposts.compose_summary(art)
+    assert len(replies) == 3 and replies[2].startswith("4. ") and replies[2].endswith("/posts/4")
+    assert all(xposts.weight(t) <= 280 for t in [first, *replies]) and "example.com" not in first
+    assert first.endswith("/posts/1") and "\n\n1. Which equipment" in first
+
+
+def test_an_sec_filing_is_named_by_company_and_period():
+    sec = {"id": "SEC:0001628280-26-066775:tsla-20260930.htm", "title": "tsla-20260930"}
+    assert xposts.article_title(sec) == "TSLA's SEC filing for the period ended 2026-09-30"
+    paper = {"id": "MED:9", "title": "Financing costs and renewable power.", "journal": "Nature Energy", "year": 2024}
+    assert xposts.article_title(paper) == "Financing costs and renewable power (Nature Energy, 2024)"
+
+
+def test_article_titles_that_say_nothing_are_skipped_and_site_names_dropped():
+    assert xposts.article_title({"id": "URL:a", "title": "Template | DOTX"}) is None
+    assert xposts.article_title({"id": "URL:b", "title": "Will the True Treasury Term Premium Please Stand Up? | PIMCO"}) \
+        == "Will the True Treasury Term Premium Please Stand Up?"
+    assert xposts.article_title({"id": "URL:c", "title": "[2410.05229v1] GSM-Symbolic: Understanding the Limitations"}) \
+        == "GSM-Symbolic: Understanding the Limitations"
+
+
+def test_a_finding_that_cites_two_articles_appears_in_one_summary(world, monkeypatch):
+    client, h, url = world
+    with psycopg.connect(url) as c:
+        c.execute("INSERT INTO sources (id, title, has_full_text, snapshot_sha256) VALUES ('MED:2', %s, false, 'x')",
+                  ("A second knee osteoarthritis trial of MSCs",))
+        c.execute("INSERT INTO documents (source_id, part, text, sha256) SELECT 'MED:2', part, text, sha256 "
+                  "FROM documents WHERE source_id = 'MED:1'")
+    other = SPAN | {"source_id": "MED:2"}
+    a, b = agent(url, "lab-a", "a-1"), agent(url, "lab-b", "b-1")
+    both = post(client, a, title="Both trials agree on WOMAC", evidence=[SPAN, other])
+    post(client, b, title="The second trial alone", evidence=[other])
+    for k, v in CREDS.items():
+        monkeypatch.setenv(k, v)
+    sent = []
+
+    def fake(endpoint, json, headers):
+        sent.append(json["text"])
+        return httpx.Response(201, json={"data": {"id": str(len(sent))}})
+
+    now = datetime(2026, 11, 4, 16, tzinfo=timezone.utc)
+    with psycopg.connect(url) as c:
+        got = [d for d in xposts.run(c, now=now, post=fake)["drafts"] if d["kind"] == "summary"]
+        assert [d["ref"] for d in got] == ["source:MED:2"] and got[0]["posts"][0] == both     # MED:1 has nothing new
+        assert not [d for d in xposts.compose(c, now + timedelta(days=1)) if d["kind"] == "summary"]
+        new = post(client, b, title="A later look at the first trial", evidence=[SPAN])
+        nxt = [d for d in xposts.compose(c, now + timedelta(days=1)) if d["kind"] == "summary"]
+    assert [d["ref"] for d in nxt] == ["source:MED:1"] and nxt[0]["posts"] == [new]

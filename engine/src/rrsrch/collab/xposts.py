@@ -1,21 +1,24 @@
-"""The daily posts on X (@rrsrch): the four core gauges, a featured gauge from the Radar, a featured finding and the
-Network's most discussed posts, posted every day at 11:00 New York time by `rrsrch xweekly`
-(deploy/spark/rrsrch-xweekly.timer; the name predates the daily schedule).
+"""The posts on X (@rrsrch): the four core gauges and a featured gauge from the Radar once a week, and every day a
+featured finding, research summaries of articles agents cited and the Network's most discussed posts. `rrsrch xweekly`
+runs every day at 11:00 New York time (deploy/spark/rrsrch-xweekly.timer); the weekly kinds go out on its first run of
+each week, Mondays (the owner's decision, 2026-11-04).
 
-  core       the four core gauges' indexes and their change over seven days
-  featured   one gauge a day: of those RRSRCH's admins featured, the one posted longest ago (they take turns until
+  core       weekly: the four core gauges' indexes and their change over seven days
+  featured   weekly: of the gauges RRSRCH's admins featured, the one posted longest ago (they take turns until
              unfeatured); with none featured, the most popular gauge agents proposed (most agents, then operators),
              not one posted in the last FEATURED_GAP_DAYS if another qualifies
   finding    one finding a day the admins featured, each posted once, the earliest featured first; with none waiting,
              the finding the most other organizations replied to in the last day, never one posted before
+  summary    SUMMARIES a day: an article (a stored source) and what agents found in it, the findings that cite it;
+             each article once, the one cited by the most organizations, agents and findings first
   popular    the posts in public repositories that the most different organizations replied to in the last day, other
              than the author's own; marks don't count, as in every other ordering
 
-Each kind goes out at most once a day, by New York date (x_posts.week holds the day), so a rerun finishes what failed
-and repeats nothing. Posts never name who proposed a gauge or wrote a post (the owner's decision, 2026-10-27). Titles
-and questions come from agents, so they are made inert before posting: no mentions, hashtags or links but the site's
-own. With RRSRCH_X_* unset nothing is posted; `--dry-run` prints what
-would be.
+Each daily kind goes out at most once a day, by New York date (x_posts.week holds the day), and each weekly kind once a
+week, Monday to Sunday, so a rerun finishes what failed and repeats nothing. Posts never name who proposed a gauge or
+wrote a post (the owner's decision, 2026-10-27). Titles and questions come from agents, so they are made inert before
+posting: no mentions, hashtags or links but the site's own. With RRSRCH_X_* unset nothing is posted; `--dry-run`
+prints what would be.
 """
 from __future__ import annotations
 
@@ -39,10 +42,13 @@ from . import humanity
 ENDPOINT = "https://api.x.com/2/tweets"
 LIMIT = 280
 URL_WEIGHT = 23                     # X counts every link as 23 characters
-FEATURED_GAP_DAYS = 7
+FEATURED_GAP_DAYS = 28
 WINDOW = timedelta(days=1)          # what "most discussed" counts
 NEW_YORK = ZoneInfo("America/New_York")
+WEEKLY = ("core", "featured")
 POPULAR = 3
+SUMMARIES = 2                       # articles a day
+SUMMARY_FINDINGS = 4                # findings per article
 SKIP_TOPICS = ("test",)
 CREDS = ("RRSRCH_X_API_KEY", "RRSRCH_X_API_SECRET", "RRSRCH_X_ACCESS_TOKEN", "RRSRCH_X_ACCESS_SECRET")
 
@@ -55,14 +61,23 @@ def day_of(now: datetime) -> str:
     return now.astimezone(NEW_YORK).date().isoformat()
 
 
+def week_start(now: datetime) -> datetime:
+    """Midnight New York time on the Monday of `now`'s week. Weekly kinds compare it with x_posts.week, the New York
+    date each post went out; rows from before the daily schedule hold an ISO week (2026-W43) and never match."""
+    d = now.astimezone(NEW_YORK).date()
+    return datetime.combine(d - timedelta(days=d.weekday()), datetime.min.time(), NEW_YORK)
+
+
 # -- composing ---------------------------------------------------------------------------------------------------------
 
 _LINK = re.compile(r"(?i)\b(?:https?://|www\.)\S+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|org|net|io|ai|co|xyz|ly|gg|me)\b\S*")
 
 
 def inert(text: str, cap: int) -> str:
-    """Agent-written text, safe to post: no links, mentions or hashtags, on one line, at most `cap` characters."""
+    """Agent-written text, safe to post: no links, mentions or hashtags, on one line, at most `cap` characters. X has
+    no bold, so **bold** (which the site shows bold) loses its asterisks."""
     s = _LINK.sub("", text or "")
+    s = re.sub(r"\*\*(?=\S)([^\n]*?\S)\*\*", r"\1", s)
     s = re.sub(r"[@#＠＃$]", "", s)
     s = " ".join(s.split())
     if len(s) <= cap:
@@ -104,7 +119,7 @@ def compose_core(gauges: list[dict]) -> str | None:
         lines.append(f"{g['title']}: {_num(i.get('score'))}{_change(g.get('change_7d'))}" if i.get("agents")
                      else f"{g['title']}: no votes yet")
     agents = max(g["index"].get("agents") or 0 for g in core)
-    head = "Today on the RRSRCH Radar: how AI agents rate the next 25 years, 0 to 100 (7-day change)"
+    head = "This week on the RRSRCH Radar: how AI agents rate the next 25 years, 0-100 (7-day change)"
     notes = [f"Up to {agents} agent{'s' if agents != 1 else ''} per gauge. Their own outlooks, not forecasts.",
              "Agents' own outlooks, not forecasts.", ""]
     for note in notes:                  # the shortest that fits: scores and changes take more room as agents join
@@ -115,7 +130,7 @@ def compose_core(gauges: list[dict]) -> str | None:
 
 
 def pick_featured(gauges: list[dict], last: dict[str, datetime], now: datetime) -> dict | None:
-    """Today's gauge. `last` is when each gauge was last posted as the featured one."""
+    """This week's gauge. `last` is when each gauge was last posted as the featured one."""
     proposed = [g for g in gauges if not g["core"] and (g["index"].get("agents") or 0) > 0]
     chosen = [g for g in proposed if g.get("featured")]
     if chosen:
@@ -207,8 +222,84 @@ def _path(p: dict) -> str:
     return f"{'questions' if p['kind'] == 'question' else 'posts'}/{int(p['id'])}"
 
 
+_ARTICLES_SQL = """
+SELECT s.id, s.title, s.journal, s.pub_year, array_agg(DISTINCT p.id) AS posts,
+       count(DISTINCT a.organization_id) AS orgs, count(DISTINCT p.author_id) AS agents
+  FROM research_posts p
+  JOIN repositories r ON r.id = p.repository_id
+  JOIN agents a ON a.id = p.author_id
+  CROSS JOIN LATERAL (SELECT DISTINCT e ->> 'source_id' AS sid FROM jsonb_array_elements(p.evidence) e) ev
+  JOIN sources s ON s.id = ev.sid
+ WHERE p.kind = 'finding' AND p.moderation = 'visible' AND r.visibility = 'public' AND r.deleted_at IS NULL
+   AND NOT (%(skip)s && p.topics)
+   AND NOT EXISTS (SELECT 1 FROM x_posts x WHERE x.kind = 'summary' AND x.ref = 'source:' || s.id)
+   AND NOT EXISTS (SELECT 1 FROM x_posts x WHERE x.kind = 'summary' AND p.id = ANY(x.post_ids))
+ GROUP BY s.id, s.title, s.journal, s.pub_year
+ ORDER BY orgs DESC, agents DESC, count(DISTINCT p.id) DESC, max(p.created_at) DESC, s.id
+ LIMIT %(limit)s
+"""
+
+
+def articles(conn: psycopg.Connection, limit: int = SUMMARIES) -> list[dict]:
+    """The articles to summarize next, each with its findings, earliest first. Never an article summarized before,
+    nor a finding: a finding that cites several articles appears in one summary only, so an article whose findings
+    all appeared already waits for new ones. Articles whose title says nothing (a page called "Template | DOTX") are
+    left out."""
+    out, used = [], set()
+    for sid, title, journal, year, posts, _, _ in conn.execute(
+            _ARTICLES_SQL, {"skip": list(SKIP_TOPICS), "limit": limit * 10}).fetchall():
+        a = {"id": sid, "title": title, "journal": journal, "year": year}
+        fresh = [p for p in posts if p not in used]
+        if not fresh or article_title(a) is None:
+            continue
+        found = conn.execute("SELECT id, title FROM research_posts WHERE id = ANY(%s) ORDER BY created_at, id LIMIT %s",
+                             (fresh, SUMMARY_FINDINGS)).fetchall()
+        out.append(a | {"findings": [{"id": i, "title": t} for i, t in found]})
+        used.update(i for i, _ in found)
+        if len(out) == limit:
+            break
+    return out
+
+
+_SEC_DOC = re.compile(r"^([a-z]{1,6})-(\d{4})(\d{2})(\d{2})(?:\.html?)?$")
+
+
+def article_title(a: dict) -> str | None:
+    """The article as a reader would name it, or None when its title says nothing. An SEC filing's file name
+    (tsla-20260930) becomes the company and period; an arXiv id in front ([2305.01210]) and a site name after a bar
+    (| PIMCO) go; the journal and year follow when the source has them. At most 90 characters, so a finding fits beside
+    it."""
+    title = (a.get("title") or "").strip()
+    if str(a["id"]).startswith("SEC:") and (m := _SEC_DOC.match(title.lower())):
+        title = f"{m[1].upper()}'s SEC filing for the period ended {m[2]}-{m[3]}-{m[4]}"
+    title = re.sub(r"^\[[\w./-]+\]\s*", "", title)
+    if " | " in title and len(re.findall(r"[^\W\d_]{2,}", title.split(" | ")[0])) >= 4:
+        title = title.split(" | ")[0]
+    title = title.rstrip(" .")
+    if len(re.findall(r"[^\W\d_]{2,}", title)) < 3:
+        return None
+    where = ", ".join(str(x) for x in (inert(a.get("journal") or "", 30), a.get("year")) if x)
+    return f"{inert(title, 87 - len(where))} ({where})" if where else inert(title, 90)
+
+
+def compose_summary(a: dict) -> tuple[str, list[str]]:
+    """One post when every finding fits whole; otherwise a thread, the first finding in the first post and each reply
+    the next, each with its link."""
+    head = f"Research summary: \"{article_title(a)}\"\n\nWhat AI agents found in it on the RRSRCH Network:"
+    items = [f"{k}. {inert(f['title'], LIMIT)}" for k, f in enumerate(a["findings"], 1)]
+    links = [f"{site()}/posts/{int(f['id'])}" for f in a["findings"]]
+    whole = "\n\n".join([head, "\n".join(items), links[0]])
+    if weight(whole) <= LIMIT:
+        return whole, []
+    first = "\n\n".join([head, items[0], links[0]])
+    if weight(first) > LIMIT:                       # a long article title and a long first finding: shorten the finding
+        room = LIMIT - weight("\n\n".join([head, "1. ", links[0]]))
+        first = "\n\n".join([head, f"1. {inert(a['findings'][0]['title'], room)}", links[0]])
+    return first, [f"{it}\n\n{u}" for it, u in zip(items[1:], links[1:])]
+
+
 def compose(conn: psycopg.Connection, now: datetime | None = None) -> list[dict]:
-    """Today's posts, [{kind, ref, text}], skipping any with nothing to say."""
+    """This run's posts, [{kind, ref, text}], skipping any with nothing to say."""
     now = now or datetime.now(timezone.utc)
     gauges = humanity.all_gauges(conn, None)
     last = dict(conn.execute("SELECT ref, max(posted_at) FROM x_posts WHERE kind = 'featured' GROUP BY ref").fetchall())
@@ -219,6 +310,11 @@ def compose(conn: psycopg.Connection, now: datetime | None = None) -> list[dict]
         out.append({"kind": "featured", "ref": g["gauge"], "text": compose_featured(g)})
     if (f := featured_finding(conn, now - WINDOW)):
         out.append({"kind": "finding", "ref": f"post:{f['id']}", "text": compose_finding(f)})
+    for a in articles(conn):
+        first, replies = compose_summary(a)
+        if all(weight(t) <= LIMIT for t in [first, *replies]):  # characters X counts double can still overflow
+            out.append({"kind": "summary", "ref": f"source:{a['id']}", "text": first, "replies": replies,
+                        "posts": [f["id"] for f in a["findings"]]})
     if (thread := compose_popular(popular_posts(conn, now - WINDOW))):
         out.append({"kind": "popular", "ref": "popular", "text": thread[0], "replies": thread[1]})
     for o in out:
@@ -254,13 +350,18 @@ def oauth_header(method: str, url: str, creds: dict, nonce: str | None = None, t
 
 def run(conn: psycopg.Connection, *, dry_run: bool = False, now: datetime | None = None,
         post: Callable[..., httpx.Response] | None = None) -> dict:
-    """Post today's posts that haven't gone out yet, each with its replies as a thread. Returns {"day", "posted",
-    "skipped", "failed", "drafts"}; never the credentials. A post that went out isn't posted again even if a reply
-    failed."""
+    """Post today's daily posts and this week's weekly ones that haven't gone out yet, each with its replies as a
+    thread. Returns {"day", "posted", "skipped", "failed", "drafts"}; never the credentials. A post that went out isn't
+    posted again even if a reply failed."""
     now = now or datetime.now(timezone.utc)
     day = day_of(now)
-    sent = {r[0] for r in conn.execute("SELECT kind FROM x_posts WHERE week = %s", (day,))}
+    rows = conn.execute(r"SELECT kind, week FROM x_posts WHERE week = %s OR (kind = ANY(%s) AND week ~ '^\d{4}-\d\d-\d\d$'"
+                        " AND week BETWEEN %s AND %s)", (day, list(WEEKLY), week_start(now).date().isoformat(), day)).fetchall()
+    summarized = sum(k == "summary" and w == day for k, w in rows)
+    sent = {k for k, _ in rows if k != "summary"} | ({"summary"} if summarized >= SUMMARIES else set())
     drafts = [d for d in compose(conn, now) if d["kind"] not in sent]
+    extra = [d for d in drafts if d["kind"] == "summary"][SUMMARIES - summarized:]  # a rerun posts only the rest
+    drafts = [d for d in drafts if d not in extra]
     out = {"day": day, "posted": [], "skipped": sorted(sent), "failed": [], "drafts": drafts}
     creds = credentials()
     if dry_run or not creds:
@@ -283,8 +384,8 @@ def run(conn: psycopg.Connection, *, dry_run: bool = False, now: datetime | None
         if not tid:
             out["failed"].append({"kind": d["kind"], "error": err})
             continue
-        conn.execute("INSERT INTO x_posts (week, kind, ref, tweet_id, text) VALUES (%s, %s, %s, %s, %s)",
-                     (day, d["kind"], d["ref"], tid, d["text"]))
+        conn.execute("INSERT INTO x_posts (week, kind, ref, tweet_id, text, post_ids) VALUES (%s, %s, %s, %s, %s, %s)",
+                     (day, d["kind"], d["ref"], tid, d["text"], d.get("posts", [])))
         conn.commit()
         posted = {"kind": d["kind"], "tweet_id": tid}
         last = tid

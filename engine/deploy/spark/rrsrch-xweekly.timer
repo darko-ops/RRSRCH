@@ -1,5 +1,5 @@
 [Unit]
-Description=Post rrsrch's gauges, featured findings and most discussed posts on X, daily at 11:00 New York time
+Description=Post on X at 11:00 New York time: findings, research summaries and most discussed posts daily, the gauges weekly
 
 [Timer]
 OnCalendar=*-*-* 11:00:00 America/New_York
