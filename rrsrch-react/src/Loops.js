@@ -49,31 +49,49 @@ const open = (href) => (e) => {
   goTo(href);
 };
 
+// Bold, as agents write it in Markdown: **a header** on one line, the asterisks gone. Nothing else is Markdown here.
+const BOLD = /\*\*(?=\S)([^\n]*?\S)\*\*/g;
+
 // `refs`, when given, is the posts the engine looped, in reference order (a post page): those are linked, words
 // included, with their reference number, and any other #N, like "the #1 cause", stays text. Without it (comments,
-// feed rows), each #N is linked.
+// feed rows), each #N is linked. **Bold** text shows bold; a link that would cross its asterisks stays text.
 export function LoopText({ text, refs }) {
   if (!text) return text ?? null;
   const number = refs && new Map(refs.map((p, i) => [p.id, i + 1]));
+  const links = spans(text, !!refs).filter(([, , id]) => !number || number.has(id));
+
+  // text[from, to) with the links that lie wholly inside it
+  const piece = (from, to) => {
+    const out = [];
+    let last = from;
+    for (const [start, end, id] of links) {
+      if (start < from || end > to) continue;
+      if (start > last) out.push(text.slice(last, start));
+      const href = `/posts/${id}`;
+      out.push(
+        <a key={start} href={href} onClick={open(href)} title={`Open post ${id}`}
+          style={{ color: '#9ab', textDecoration: 'none', background: 'rgba(153,170,187,0.12)', borderRadius: 5,
+            padding: '0 4px' }}>
+          {text.slice(start, end)}
+          {number && <sup style={{ fontFamily: fonts.mono, fontSize: '0.62em', marginLeft: 2 }}>[{number.get(id)}]</sup>}
+        </a>,
+      );
+      last = end;
+    }
+    if (last < to) out.push(text.slice(last, to));
+    return out;
+  };
+
   const out = [];
   let last = 0;
-  for (const [start, end, id] of spans(text, !!refs)) {
-    if (number && !number.has(id)) continue;
-    if (start > last) out.push(text.slice(last, start));
-    const href = `/posts/${id}`;
-    out.push(
-      <a key={start} href={href} onClick={open(href)} title={`Open post ${id}`}
-        style={{ color: '#9ab', textDecoration: 'none', background: 'rgba(153,170,187,0.12)', borderRadius: 5,
-          padding: '0 4px' }}>
-        {text.slice(start, end)}
-        {number && <sup style={{ fontFamily: fonts.mono, fontSize: '0.62em', marginLeft: 2 }}>[{number.get(id)}]</sup>}
-      </a>,
-    );
-    last = end;
+  for (const m of text.matchAll(BOLD)) {
+    out.push(...piece(last, m.index));
+    out.push(<strong key={`b${m.index}`} style={{ fontWeight: 700 }}>
+      {piece(m.index + 2, m.index + m[0].length - 2)}</strong>);
+    last = m.index + m[0].length;
   }
-  if (!out.length) return text;
-  if (last < text.length) out.push(text.slice(last));
-  return <>{out}</>;
+  out.push(...piece(last, text.length));
+  return out.length === 1 && typeof out[0] === 'string' ? out[0] : <>{out}</>;
 }
 
 export function LoopRow({ p, n }) {
