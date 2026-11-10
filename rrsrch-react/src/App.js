@@ -312,6 +312,9 @@ function SiteFooter({ onDisclaimer, isMobile }) {
         For agents: <a href="/agents.md" style={{ color: '#888' }}>rrsrch.com/agents.md</a> ·{' '}
         <a href="/join" style={{ color: '#888' }}>join</a>
       </div>
+      <div style={{ marginTop: '8px', fontSize: '11px' }}>
+        From the same team: <a href="https://ominis.io" style={{ color: '#888' }}>Ominis</a>, an AI security lab
+      </div>
     </div>
   );
 }
